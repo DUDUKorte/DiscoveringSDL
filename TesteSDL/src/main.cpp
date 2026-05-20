@@ -9,7 +9,11 @@
 
 #define WIDTH 1280
 #define HEIGHT 720
+#define GRAVITY 0.01
 
+Uint64 new_deltaTime;
+Uint64 old_deltaTime = 0;
+double deltaTime = 0;
 
 /* We will use this renderer to draw into this window every frame. */
 static SDL_Window* window = NULL;
@@ -46,6 +50,7 @@ bool bUseSubPoly = false;
 bool bIsCurrent = false;
 bool bFill = false;
 bool bClosed = false;
+bool bGravity = false;
 
 // Input
 bool bLMB = false;
@@ -86,7 +91,21 @@ void AddVerticeToPoly(Point p, std::vector<Point> *vertices) {
 	vertices->push_back(p);
 }
 
-void ApplyScale(std::vector<Point>* vertices) {
+void ResetTransform() {
+	// Reset translation values
+	translation_matrix[0][2] = 0;
+	translation_matrix[1][2] = 0;
+	// Reset scale values
+	scaleX = 1.0;
+	scaleY = 1.0;
+	// Reset rotation values
+	rotation_matrix[0][0] = 1;
+	rotation_matrix[0][1] = 0;
+	rotation_matrix[1][0] = 0;
+	rotation_matrix[1][1] = 1;
+}
+
+void ApplyTransform(std::vector<Point>* vertices) {
 	// Update Center point
 	CurrentPolyCenter.x = 0;
 	CurrentPolyCenter.y = 0;
@@ -127,9 +146,9 @@ void ApplyScale(std::vector<Point>* vertices) {
 
 }
 
-void SaveTransform() {
+void SaveTransform(int polyIndex) {
 	Point Pm = CurrentPolyCenter;
-	for (Point& p : polygons[iCurrentPoly]) {
+	for (Point& p : polygons[polyIndex]) {
 		p.x -= Pm.x;
 		p.y -= Pm.y;
 
@@ -153,7 +172,7 @@ void SaveTransform() {
 		p.y += translation_matrix[1][2];
 	}
 	// Apply for subpolygons
-	for (std::vector<Point>& subPoly : sub_polygons[iCurrentPoly]) {
+	for (std::vector<Point>& subPoly : sub_polygons[polyIndex]) {
 		for (Point& sp : subPoly) {
 			sp.x -= Pm.x;
 			sp.y -= Pm.y;
@@ -178,8 +197,8 @@ void SaveTransform() {
 			sp.y += translation_matrix[1][2];
 		}
 	}
-	translation_matrix[0][2] = 0;
-	translation_matrix[1][2] = 0;
+	//translation_matrix[0][2] = 0;
+	//translation_matrix[1][2] = 0;
 }
 
 void DrawLinesWithVertices(std::vector<Point> vertices, bool closed) {
@@ -287,7 +306,7 @@ void FillPoly(std::vector<Point>& vertices, int iPoly) {
 	for (std::vector<Point> sub_vertices : sub_polygons[iPoly]) {
 		if(sub_vertices.size() < 3) {break;}
 
-		ApplyScale(&sub_vertices);
+		ApplyTransform(&sub_vertices);
 		FindIntersections(sub_vertices, intersecoes);
 	}
 
@@ -305,6 +324,50 @@ void FillPoly(std::vector<Point>& vertices, int iPoly) {
 		}
 	}
 
+}
+
+std::pair<Point, Point> getMinMaxPoint(int polyIndex) {
+	if (polygons[polyIndex].size() <= 0) { return{ {0,0},{0,0} }; }
+	float ymin = HEIGHT + 1;
+	float xmin = WIDTH + 1;
+	float ymax = -1;
+	float xmax = -1;
+	for (Point& p : polygons[polyIndex]) {
+		if (p.y < ymin) {
+			ymin = p.y;
+		}
+		if (p.x < xmin) {
+			xmin = p.x;
+		}
+		if (p.y > ymax) {
+			ymax = p.y;
+		}
+		if (p.x > xmax) {
+			xmax = p.x;
+		}
+	}
+	return { { xmin, ymin }, {xmax, ymax } };
+}
+
+
+// Funciona +-
+void ApplyPhysics(int polyIndex) {
+	if (polygons[polyIndex].size() <= 0) { return; }
+
+	//translation_matrix[0][2] += GRAVITY;
+	translation_matrix[1][2] += GRAVITY * deltaTime;
+	//Direction vector based on gravity
+	float y_velocity = (polygons[polyIndex][0].y + translation_matrix[1][2]) - polygons[polyIndex][0].y;
+	float x_velocity = (polygons[polyIndex][0].x + translation_matrix[1][2]) - polygons[polyIndex][0].x;
+	std::cout << y_velocity << std::endl;
+	Point Pmax = getMinMaxPoint(polyIndex).second;
+	float ymax = Pmax.y;
+	// Verify Collision
+	if (ymax + y_velocity > HEIGHT) {
+		translation_matrix[1][2] = 0;
+	}
+
+	SaveTransform(polyIndex);
 }
 
 SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
@@ -330,17 +393,11 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	sub_polygons.push_back({ {} });
 	curves.push_back({});
 
-	return SDL_APP_CONTINUE;
-}
+	new_deltaTime = SDL_GetPerformanceCounter();
+	old_deltaTime = 0;
+	deltaTime = 0;
 
-std::pair<float, float> GetMouseDelta(float x, float y) {
-	if (mouse_oX == -1) {
-		mouse_oX = x;
-		mouse_oY = y;
-	}
-	float mouse_deltaX = x - mouse_oX;
-	float mouse_deltaY = y - mouse_oY;
-	return { mouse_deltaX, mouse_deltaY };
+	return SDL_APP_CONTINUE;
 }
 
 // Event callbacks
@@ -368,6 +425,9 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 			mouse_oY = 1;
 			mouse_oX = 1;
 			break;
+		case SDLK_P:
+			bGravity = !bGravity;
+			break;
 		}
 
 		if (e.key == SDLK_SPACE) {
@@ -383,22 +443,26 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 			case SDLK_RIGHT:
 				translation_matrix[0][2] += 10;
 				mouse_oX = -1;
-				SaveTransform();
+				SaveTransform(iCurrentPoly);
+				ResetTransform();
 				break;
 			case SDLK_LEFT:
 				translation_matrix[0][2] -= 10;
 				mouse_oX = -1;
-				SaveTransform();
+				SaveTransform(iCurrentPoly);
+				ResetTransform();
 				break;
 			case SDLK_UP:
 				translation_matrix[1][2] -= 10;
 				mouse_oX = -1;
-				SaveTransform();
+				SaveTransform(iCurrentPoly);
+				ResetTransform();
 				break;
 			case SDLK_DOWN:
 				translation_matrix[1][2] += 10;
 				mouse_oX = -1;
-				SaveTransform();
+				SaveTransform(iCurrentPoly);
+				ResetTransform();
 				break;
 			}
 		}
@@ -466,19 +530,8 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 		if (e.button == 1) { // LMB
 			if (ECurrentMode != CreatePoly) {
 				// Apply transformation and return to CreatePoly mode
-				SaveTransform();
-
-				// Reset translation values
-				translation_matrix[0][2] = 0;
-				translation_matrix[1][2] = 0;
-				// Reset scale values
-				scaleX = 1.0;
-				scaleY = 1.0;
-				// Reset rotation values
-				rotation_matrix[0][0] = 1;
-				rotation_matrix[0][1] = 0;
-				rotation_matrix[1][0] = 0;
-				rotation_matrix[1][1] = 1;
+				SaveTransform(iCurrentPoly);
+				ResetTransform();
 
 				ECurrentMode = CreatePoly;
 			}
@@ -496,17 +549,7 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 		else if(e.button == 3){ // RMB
 			if (ECurrentMode != CreatePoly) {
 				// Cancel transformation and return to CreatePoly mode
-				// Reset translation values
-				translation_matrix[0][2] = 0;
-				translation_matrix[1][2] = 0;
-				// Reset scale values
-				scaleX = 1.0;
-				scaleY = 1.0;
-				// Reset rotation values
-				rotation_matrix[0][0] = 1;
-				rotation_matrix[0][1] = 0;
-				rotation_matrix[1][0] = 0;
-				rotation_matrix[1][1] = 1;
+				ResetTransform();
 				ECurrentMode = CreatePoly;
 			}
 			else {
@@ -557,7 +600,6 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 		}
 		
 		else if (ECurrentMode == ScalePoly) {
-			mouse_delta = GetMouseDelta(e.x, e.y);
 			mouse_oY -= event->motion.yrel * fscalePolySpeed;
 
 			scaleX = mouse_oY;
@@ -597,6 +639,10 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 }
 
 SDL_AppResult SDL_AppIterate(void* appstate){
+	old_deltaTime = new_deltaTime;
+	new_deltaTime = SDL_GetPerformanceCounter();
+	deltaTime = (double)((new_deltaTime - old_deltaTime) * 1000 / (double)SDL_GetPerformanceFrequency());
+
 	SDL_SetRenderDrawColorFloat(renderer, 0.2, 0.2, 0.2, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
 	SDL_RenderClear(renderer);
 
@@ -625,12 +671,16 @@ SDL_AppResult SDL_AppIterate(void* appstate){
 		auto poly = polygons[i];
 
 		if (i == iCurrentPoly) {
-			ApplyScale(&poly);
+			if (ECurrentMode != CreatePoly) { ApplyTransform(&poly); }
 			
 			SDL_SetRenderDrawColorFloat(renderer, 0, 1, 0, SDL_ALPHA_OPAQUE_FLOAT);
 		}
 		else {
 			SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
+		}
+		
+		if (bGravity && ECurrentMode == CreatePoly) {
+			ApplyPhysics(i);
 		}
 
 		bIsCurrent = (i == iCurrentPoly);
