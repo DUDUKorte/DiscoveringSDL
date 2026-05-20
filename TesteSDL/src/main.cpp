@@ -5,9 +5,11 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <cmath>
 
 #define WIDTH 1280
 #define HEIGHT 720
+
 
 /* We will use this renderer to draw into this window every frame. */
 static SDL_Window* window = NULL;
@@ -18,14 +20,17 @@ struct Point {
 	float y;
 };
 
-//std::vector<Point> vertices = {
-//	Point(50, 25), Point(0, 0),
-//	Point(50, 25), Point(30, 48),
-//	Point(30, 48), Point(30, 65),
-//	Point(0, 0), Point(30, 65),
-//};
+enum EEditMode
+{
+	CreatePoly = 0, MovePoly = 1, ScalePoly, RotatePoly
+};
 
-//std::vector<Point> vertices = {};
+float fMovePolySpeed = 0.1;
+float fscalePolySpeed = 0.01;
+float frotatePolySpeed = 0.01;
+
+// Editor mode
+EEditMode ECurrentMode = CreatePoly;
 
 // Render data structures
 std::vector<std::vector<Point>> curves;
@@ -34,6 +39,7 @@ std::vector<std::vector<std::vector<Point>>> sub_polygons;
 int iCurrentCurve = 0;
 int iCurrentPoly = 0;
 int iCurrentSubPoly = 0;
+Point CurrentPolyCenter = {0,0};
 
 // Render control
 bool bUseSubPoly = false;
@@ -54,15 +60,133 @@ std::vector<std::vector<int>> hermite_matrix = {
 	{ 1, 0,	 0,	0}
 };
 
+// Matrizes de transformação
 
+// Transladar
+float mouse_oX, mouse_oY;
 
+std::vector<std::vector<float>> translation_matrix = {
+	{1,  0,  0},
+	{0,  1,  0},
+	{0,  0,  1}
+};
+
+// Escalonar
+float scaleX = 1;
+float scaleY = 1;
+
+// Rotacionar
+std::vector<std::vector<float>> rotation_matrix = {
+	{1,  0,  0},
+	{0,  1,  0},
+	{0,  0,  1}
+};
 
 void AddVerticeToPoly(Point p, std::vector<Point> *vertices) {
 	vertices->push_back(p);
 }
 
+void ApplyScale(std::vector<Point>* vertices) {
+	// Update Center point
+	CurrentPolyCenter.x = 0;
+	CurrentPolyCenter.y = 0;
+	for (Point& p : *vertices) {
+		CurrentPolyCenter.x += p.x;
+		CurrentPolyCenter.y += p.y;
+	}
+	CurrentPolyCenter.x /= vertices->size();
+	CurrentPolyCenter.y /= vertices->size();
+
+	Point Pm = CurrentPolyCenter;
+	SDL_RenderPoint(renderer, Pm.x, Pm.y);
+
+	
+	for (Point& p : *vertices) {
+		p.x -= Pm.x;
+		p.y -= Pm.y;
+
+		// Apply scale locally
+		p.x *= scaleX;
+		p.y *= scaleY;
+
+		// Apply Rotation locally
+		if (ECurrentMode == RotatePoly) {
+			float tx = p.x;
+			float ty = p.y;
+			p.x = rotation_matrix[0][0] * tx + rotation_matrix[0][1] * ty;
+			p.y = rotation_matrix[1][0] * tx + rotation_matrix[1][1] * ty;
+		}
+
+		p.x += Pm.x;
+		p.y += Pm.y;
+		
+		// Apply Transform
+		p.x += translation_matrix[0][2];
+		p.y += translation_matrix[1][2];
+	}
+
+}
+
+void SaveTransform() {
+	Point Pm = CurrentPolyCenter;
+	for (Point& p : polygons[iCurrentPoly]) {
+		p.x -= Pm.x;
+		p.y -= Pm.y;
+
+		// Apply scale locally
+		p.x *= scaleX;
+		p.y *= scaleY;
+
+		// Apply Rotation locally
+		if (ECurrentMode == RotatePoly) {
+			float tx = p.x;
+			float ty = p.y;
+			p.x = rotation_matrix[0][0] * tx + rotation_matrix[0][1] * ty;
+			p.y = rotation_matrix[1][0] * tx + rotation_matrix[1][1] * ty;
+		}
+
+		p.x += Pm.x;
+		p.y += Pm.y;
+
+		// Apply Transform
+		p.x += translation_matrix[0][2];
+		p.y += translation_matrix[1][2];
+	}
+	// Apply for subpolygons
+	for (std::vector<Point>& subPoly : sub_polygons[iCurrentPoly]) {
+		for (Point& sp : subPoly) {
+			sp.x -= Pm.x;
+			sp.y -= Pm.y;
+
+			// Apply scale locally
+			sp.x *= scaleX;
+			sp.y *= scaleY;
+
+			// Apply Rotation locally
+			if (ECurrentMode == RotatePoly) {
+				float tx = sp.x;
+				float ty = sp.y;
+				sp.x = rotation_matrix[0][0] * tx + rotation_matrix[0][1] * ty;
+				sp.y = rotation_matrix[1][0] * tx + rotation_matrix[1][1] * ty;
+			}
+
+			sp.x += Pm.x;
+			sp.y += Pm.y;
+
+			// Apply Transform
+			sp.x += translation_matrix[0][2];
+			sp.y += translation_matrix[1][2];
+		}
+	}
+	translation_matrix[0][2] = 0;
+	translation_matrix[1][2] = 0;
+}
+
 void DrawLinesWithVertices(std::vector<Point> vertices, bool closed) {
 	if (vertices.size() < 2) { return; }
+
+	// Apply translation to vertices apenas aqui
+	//ApplyTranslation(&vertices);
 
 	for (int i = 0; i < vertices.size() - 1; i++) {
 		SDL_RenderLine(renderer, vertices[i].x, vertices[i].y, vertices[i+1].x, vertices[i+1].y);
@@ -113,11 +237,7 @@ void DrawCurves(std::vector<Point> vertices, double level_of_detail) {
 
 }
 
-void FillPoly(std::vector<Point>& vertices, int iPoly) {
-	if (vertices.size() < 3) { return; }
-	std::vector<std::vector<float>> intersecoes;
-	intersecoes.resize(500);
-
+void FindIntersections(std::vector<Point>& vertices, std::vector<std::vector<float>>& intersecoes) {
 	for (int i = 0; i < vertices.size(); i++) {
 		//std::cout << "Source ( " << source.x << " , " << source.y << " ) " << std::endl;
 		//std::cout << "Point ( " << point.x << " , " << point.y << " ) " << std::endl;
@@ -133,10 +253,10 @@ void FillPoly(std::vector<Point>& vertices, int iPoly) {
 
 		int ymin = (int)source.y;
 		int ymax = (int)point.y;
-		
-		if (ymax >= intersecoes.size()) {
-			intersecoes.resize(ymax + 1);
-		}
+
+		//if (ymax >= intersecoes.size() && ymin > 0) {
+		//	intersecoes.resize(ymax + 1);
+		//}
 
 		float Tx = (point.x - source.x) / (point.y - source.y);
 		float new_x = source.x;
@@ -148,51 +268,27 @@ void FillPoly(std::vector<Point>& vertices, int iPoly) {
 			//SDL_SetRenderDrawColorFloat(renderer, 1, 0, 0, SDL_ALPHA_OPAQUE_FLOAT);
 			//SDL_RenderLine(renderer, new_x, ymin + i, new_x, ymin+i);
 			//SDL_RenderPoint(renderer, new_x, ymin + i);
-
-			intersecoes[y].push_back(new_x);
+			if (y > 0 && y < HEIGHT) {
+				intersecoes[y].push_back(new_x);
+			}
 			new_x += Tx;
 		}
-
 	}
+}
+
+void FillPoly(std::vector<Point>& vertices, int iPoly) {
+	if (vertices.size() < 3) { return; }
+	std::vector<std::vector<float>> intersecoes;
+	intersecoes.resize(HEIGHT);
+
+	FindIntersections(vertices, intersecoes);
 
 	/*Sub Polygons adicionados às interseções (talvez não seja a melhor forma de fazer, mas é uma forma)*/
-	for (std::vector<Point>& sub_vertices : sub_polygons[iPoly]) {
+	for (std::vector<Point> sub_vertices : sub_polygons[iPoly]) {
 		if(sub_vertices.size() < 3) {break;}
-		for (int i = 0; i < sub_vertices.size(); i++) {
-			//std::cout << "Source ( " << source.x << " , " << source.y << " ) " << std::endl;
-			//std::cout << "Point ( " << point.x << " , " << point.y << " ) " << std::endl;
-			Point source = sub_vertices[i];
-			Point point = sub_vertices[(i + 1) % sub_vertices.size()];
 
-			if (point.y == source.y) { continue; }
-
-			// Aqui eu tenho os dois pontos
-			if (point.y < source.y) { // point é mais alto que source; faz troca
-				std::swap(source, point);
-			}
-
-			int ymin = (int)source.y;
-			int ymax = (int)point.y;
-
-			if (ymax >= intersecoes.size()) {
-				intersecoes.resize(ymax + 1);
-			}
-
-			float Tx = (point.x - source.x) / (point.y - source.y);
-			float new_x = source.x;
-
-			//std::cout << "ymin: " << ymin << " | ymax: " << ymax << " | Ns: " << Ns << " | Tx: " << Tx << " | new_y: " << new_y << " | new_x: " << new_x << std::endl;
-
-			// Pegar as interseções
-			for (int y = ymin; y < ymax; y++) { // Scanlines de 0 à Ns-1
-				//SDL_SetRenderDrawColorFloat(renderer, 1, 0, 0, SDL_ALPHA_OPAQUE_FLOAT);
-				//SDL_RenderLine(renderer, new_x, ymin + i, new_x, ymin+i);
-				//SDL_RenderPoint(renderer, new_x, ymin + i);
-
-				intersecoes[y].push_back(new_x);
-				new_x += Tx;
-			}
-		}
+		ApplyScale(&sub_vertices);
+		FindIntersections(sub_vertices, intersecoes);
 	}
 
 	// Ordenar todas as interceções
@@ -217,6 +313,10 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	std::cout << "Ctrl: Ativa/Desativa Fill Poly" << std::endl << "Space: Alterna poligono fechado/aberto" << std::endl;
 	std::cout << "Plus: Adiciona/Seleciona proximo poligono" << "Minus: Seleciona poligono anterior" << std::endl;
 	std::cout << "Shift+Plus: Adiciona/Seleciona proximo poligono interno" << std::endl << "Shift+Minus: Seleciona poligono interno anterior" << std::endl;
+	std::cout << "===TRANSFORMACOES===" << std::endl;
+	std::cout << "G: Transladar" << std::endl << "S: Escalonar" << std::endl << "R: Rotacionar" << std::endl;
+	std::cout << "Setinhas: Ajustar posicao no modo G" << std::endl << "Scroll: Regula velocidade" << std::endl << "LMB: Confirma | RMB: Cancela" << std::endl;
+
 
 	SDL_SetAppMetadata("Example render", "1", "exampleidentifier");
 
@@ -233,6 +333,16 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	return SDL_APP_CONTINUE;
 }
 
+std::pair<float, float> GetMouseDelta(float x, float y) {
+	if (mouse_oX == -1) {
+		mouse_oX = x;
+		mouse_oY = y;
+	}
+	float mouse_deltaX = x - mouse_oX;
+	float mouse_deltaY = y - mouse_oY;
+	return { mouse_deltaX, mouse_deltaY };
+}
+
 // Event callbacks
 SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 	if (event->type == SDL_EVENT_QUIT) {
@@ -242,6 +352,24 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 	else if (event->type == SDL_EVENT_KEY_DOWN) {
 		SDL_KeyboardEvent e = event->key;
 
+		// MODE SWITCH
+		switch (e.key) {
+		case SDLK_G: // Move polygons mode
+			ECurrentMode = MovePoly;
+			mouse_oX = 0;
+			mouse_oY = 0;
+			break;
+		case SDLK_R: // Rotate polygons mode
+			ECurrentMode = RotatePoly;
+			mouse_oX = 0;
+			break;
+		case SDLK_S: // Scale polygons mode
+			ECurrentMode = ScalePoly;
+			mouse_oY = 1;
+			mouse_oX = 1;
+			break;
+		}
+
 		if (e.key == SDLK_SPACE) {
 			bClosed = !bClosed;
 		}
@@ -249,77 +377,142 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 		if (e.key == SDLK_LCTRL) {
 			bFill = !bFill;
 		}
-		if (e.key == SDLK_KP_PLUS) {
-			if (e.mod & SDL_KMOD_SHIFT) {
-				iCurrentSubPoly++;
-				if (sub_polygons[iCurrentPoly].size() < iCurrentSubPoly+1) {
-					sub_polygons[iCurrentPoly].push_back({});
-				}
-			}
-			else if (e.mod & SDL_KMOD_ALT) {
-				iCurrentCurve++;
-				if (curves.size() < iCurrentCurve + 1) {
-					curves.push_back({});
-				}
-			}
-			else {
-				iCurrentPoly++;
-				iCurrentSubPoly = 0;
 
-				if (polygons.size() < iCurrentPoly+1) {
-					polygons.push_back({});
-					sub_polygons.push_back({ {} });
-				}
+		if (ECurrentMode == MovePoly) {
+			switch (e.key) {
+			case SDLK_RIGHT:
+				translation_matrix[0][2] += 10;
+				mouse_oX = -1;
+				SaveTransform();
+				break;
+			case SDLK_LEFT:
+				translation_matrix[0][2] -= 10;
+				mouse_oX = -1;
+				SaveTransform();
+				break;
+			case SDLK_UP:
+				translation_matrix[1][2] -= 10;
+				mouse_oX = -1;
+				SaveTransform();
+				break;
+			case SDLK_DOWN:
+				translation_matrix[1][2] += 10;
+				mouse_oX = -1;
+				SaveTransform();
+				break;
 			}
 		}
 
-		if (e.key == SDLK_KP_MINUS) {
-			if (e.mod & SDL_KMOD_SHIFT) {
-				iCurrentSubPoly > 0 ? iCurrentSubPoly-- : iCurrentSubPoly;
+		if (ECurrentMode == CreatePoly) {
+			if (e.key == SDLK_KP_PLUS) {
+				if (e.mod & SDL_KMOD_SHIFT) {
+					iCurrentSubPoly++;
+					if (sub_polygons[iCurrentPoly].size() < iCurrentSubPoly + 1) {
+						sub_polygons[iCurrentPoly].push_back({});
+					}
+				}
+				else if (e.mod & SDL_KMOD_ALT) {
+					iCurrentCurve++;
+					if (curves.size() < iCurrentCurve + 1) {
+						curves.push_back({});
+					}
+				}
+				else {
+					iCurrentPoly++;
+					iCurrentSubPoly = 0;
+
+					if (polygons.size() < iCurrentPoly + 1) {
+						polygons.push_back({});
+						sub_polygons.push_back({ {} });
+					}
+				}
 			}
-			else if (e.mod & SDL_KMOD_ALT) {
-				iCurrentCurve > 0 ? iCurrentCurve-- : iCurrentCurve;
+
+			if (e.key == SDLK_KP_MINUS) {
+				if (e.mod & SDL_KMOD_SHIFT) {
+					iCurrentSubPoly > 0 ? iCurrentSubPoly-- : iCurrentSubPoly;
+				}
+				else if (e.mod & SDL_KMOD_ALT) {
+					iCurrentCurve > 0 ? iCurrentCurve-- : iCurrentCurve;
+				}
+				else {
+					iCurrentPoly > 0 ? iCurrentPoly-- : iCurrentPoly;
+					iCurrentSubPoly = 0;
+				}
 			}
-			else {
-				iCurrentPoly > 0 ? iCurrentPoly-- : iCurrentPoly;
-				iCurrentSubPoly = 0;
+
+			if (e.key == SDLK_BACKSPACE) {
+				if (e.mod & SDL_KMOD_SHIFT) {
+					if (sub_polygons[iCurrentPoly][iCurrentSubPoly].size() > 0) {
+						sub_polygons[iCurrentPoly][iCurrentSubPoly].pop_back();
+					}
+				}
+				else if (e.mod & SDL_KMOD_ALT) {
+					if (curves[iCurrentCurve].size() > 0) {
+						curves[iCurrentCurve].pop_back();
+					}
+				}
+				else {
+					if (polygons[iCurrentPoly].size() > 0) {
+						polygons[iCurrentPoly].pop_back();
+					}
+				}
+
 			}
 		}
-
-		if (e.key == SDLK_BACKSPACE) {
-			if (e.mod & SDL_KMOD_SHIFT) {
-				if (sub_polygons[iCurrentPoly][iCurrentSubPoly].size() > 0) {
-					sub_polygons[iCurrentPoly][iCurrentSubPoly].pop_back();
-				}
-			}
-			else if(e.mod & SDL_KMOD_ALT){
-				if (curves[iCurrentCurve].size() > 0) {
-					curves[iCurrentCurve].pop_back();
-				}
-			}
-			else {
-				if (polygons[iCurrentPoly].size() > 0) {
-					polygons[iCurrentPoly].pop_back();
-				}
-			}
-
-		}
-
 	}
 	else if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
 		SDL_MouseButtonEvent e = event->button;
-		if (e.button == 1) {
-			if (SDL_GetModState() & SDL_KMOD_ALT) {
-				AddVerticeToPoly({ e.x, e.y }, &curves[iCurrentCurve]);
+		if (e.button == 1) { // LMB
+			if (ECurrentMode != CreatePoly) {
+				// Apply transformation and return to CreatePoly mode
+				SaveTransform();
+
+				// Reset translation values
+				translation_matrix[0][2] = 0;
+				translation_matrix[1][2] = 0;
+				// Reset scale values
+				scaleX = 1.0;
+				scaleY = 1.0;
+				// Reset rotation values
+				rotation_matrix[0][0] = 1;
+				rotation_matrix[0][1] = 0;
+				rotation_matrix[1][0] = 0;
+				rotation_matrix[1][1] = 1;
+
+				ECurrentMode = CreatePoly;
 			}
 			else {
-				AddVerticeToPoly({ e.x, e.y }, &polygons[iCurrentPoly]);
-				bLMB = true;
+				if (SDL_GetModState() & SDL_KMOD_ALT) {
+					AddVerticeToPoly({ e.x, e.y }, &curves[iCurrentCurve]);
+				}
+				else {
+					AddVerticeToPoly({ e.x, e.y }, &polygons[iCurrentPoly]);
+					bLMB = true;
+				}
 			}
+
 		}
-		else if(e.button == 3){
-			AddVerticeToPoly({ e.x, e.y }, &sub_polygons[iCurrentPoly][iCurrentSubPoly]);
-			bRMB = true;
+		else if(e.button == 3){ // RMB
+			if (ECurrentMode != CreatePoly) {
+				// Cancel transformation and return to CreatePoly mode
+				// Reset translation values
+				translation_matrix[0][2] = 0;
+				translation_matrix[1][2] = 0;
+				// Reset scale values
+				scaleX = 1.0;
+				scaleY = 1.0;
+				// Reset rotation values
+				rotation_matrix[0][0] = 1;
+				rotation_matrix[0][1] = 0;
+				rotation_matrix[1][0] = 0;
+				rotation_matrix[1][1] = 1;
+				ECurrentMode = CreatePoly;
+			}
+			else {
+				AddVerticeToPoly({ e.x, e.y }, &sub_polygons[iCurrentPoly][iCurrentSubPoly]);
+				bRMB = true;
+			}
 		}
 	}else if (event->type == SDL_EVENT_MOUSE_BUTTON_UP) {
 		SDL_MouseButtonEvent e = event->button;
@@ -335,12 +528,68 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 		if (e.x > WIDTH || e.y > HEIGHT || e.x < 0 || e.y < 0) {
 			return SDL_APP_CONTINUE;
 		}
+		std::pair<float, float> mouse_delta;
 
-		if (bLMB) {
-			AddVerticeToPoly({ e.x, e.y }, &polygons[iCurrentPoly]);
+		// LOCK MOUSE INSIDE WINDOW
+		if (ECurrentMode != CreatePoly) {
+			int threshold = 20;
+			if (e.y < threshold) {
+				SDL_WarpMouseInWindow(window, e.x, HEIGHT - threshold);
+			}
+			else if (e.y > HEIGHT - threshold) {
+				SDL_WarpMouseInWindow(window, e.x, threshold);
+			}
+			else if (e.x < threshold) {
+				SDL_WarpMouseInWindow(window, WIDTH - threshold, e.y);
+			}
+			else if (e.x > WIDTH - threshold) {
+				SDL_WarpMouseInWindow(window, threshold, e.y);
+			}
 		}
-		else if (bRMB) {
-			AddVerticeToPoly({ e.x, e.y }, &sub_polygons[iCurrentPoly][iCurrentSubPoly]);
+
+		if (ECurrentMode == MovePoly) {
+
+			mouse_oX += event->motion.xrel * fMovePolySpeed;
+			mouse_oY += event->motion.yrel * fMovePolySpeed;
+
+			translation_matrix[0][2] = mouse_oX;
+			translation_matrix[1][2] = mouse_oY;
+		}
+		
+		else if (ECurrentMode == ScalePoly) {
+			mouse_delta = GetMouseDelta(e.x, e.y);
+			mouse_oY -= event->motion.yrel * fscalePolySpeed;
+
+			scaleX = mouse_oY;
+			scaleY = mouse_oY;
+		}
+
+		else if (ECurrentMode == RotatePoly) {
+			mouse_oX += event->motion.xrel * frotatePolySpeed;
+
+			rotation_matrix[0][0] = std::cos(mouse_oX);
+			rotation_matrix[0][1] = -std::sin(mouse_oX);
+			rotation_matrix[1][0] = std::sin(mouse_oX);
+			rotation_matrix[1][1] = std::cos(mouse_oX);
+		}
+
+		else if (ECurrentMode == CreatePoly) {
+			mouse_oX = -1;
+			if (bLMB) {
+				AddVerticeToPoly({ e.x, e.y }, &polygons[iCurrentPoly]);
+			}
+			else if (bRMB) {
+				AddVerticeToPoly({ e.x, e.y }, &sub_polygons[iCurrentPoly][iCurrentSubPoly]);
+			}
+		}
+	}
+	else if (event->type == SDL_EVENT_MOUSE_WHEEL) {
+		SDL_MouseWheelEvent e = event->wheel;
+		if (ECurrentMode == MovePoly) {
+			fMovePolySpeed += fMovePolySpeed+ 0.01 * e.y >= 0 && fMovePolySpeed+ 0.01 * e.y <= 1.0 ? 0.01 * e.y : 0.0;
+		}else if (ECurrentMode == ScalePoly) {
+			fscalePolySpeed += fscalePolySpeed + 0.0005 * e.y >= 0 && fscalePolySpeed + 0.0005 * e.y <= 0.05 ? 0.0005 * e.y : 0.0;
+			std::cout << fscalePolySpeed << std::endl;
 		}
 	}
 
@@ -376,6 +625,8 @@ SDL_AppResult SDL_AppIterate(void* appstate){
 		auto poly = polygons[i];
 
 		if (i == iCurrentPoly) {
+			ApplyScale(&poly);
+			
 			SDL_SetRenderDrawColorFloat(renderer, 0, 1, 0, SDL_ALPHA_OPAQUE_FLOAT);
 		}
 		else {
