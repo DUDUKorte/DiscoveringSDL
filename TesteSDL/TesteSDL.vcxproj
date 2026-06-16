@@ -107,12 +107,13 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>../SDL3/include/;D:\TesteSDL\TesteSDL\TesteSDL\vendor\SDL;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>vendor\SDL\;vendor\ImGui\imgui\backends\;vendor\ImGui\imgui\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>D:\TesteSDL\TesteSDL\TesteSDL\vendor\SDL;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);opengl32.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -133,11 +134,28 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="vendor\ImGui\imgui\backends\imgui_impl_sdl3.cpp" />
+    <ClCompile Include="vendor\ImGui\imgui\backends\imgui_impl_sdlrenderer3.cpp" />
+    <ClCompile Include="vendor\ImGui\imgui\imgui.cpp" />
+    <ClCompile Include="vendor\ImGui\imgui\imgui_demo.cpp" />
+    <ClCompile Include="vendor\ImGui\imgui\imgui_draw.cpp" />
+    <ClCompile Include="vendor\ImGui\imgui\imgui_tables.cpp" />
+    <ClCompile Include="vendor\ImGui\imgui\imgui_widgets.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SDL3\VisualC\SDL\SDL.vcxproj">
       <Project>{81ce8daf-ebb2-4761-8e45-b71abcca8c68}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="vendor\ImGui\imgui\backends\imgui_impl_sdl3.h" />
+    <ClInclude Include="vendor\ImGui\imgui\backends\imgui_impl_sdlrenderer3.h" />
+    <ClInclude Include="vendor\ImGui\imgui\imconfig.h" />
+    <ClInclude Include="vendor\ImGui\imgui\imgui.h" />
+    <ClInclude Include="vendor\ImGui\imgui\imgui_internal.h" />
+    <ClInclude Include="vendor\ImGui\imgui\imstb_rectpack.h" />
+    <ClInclude Include="vendor\ImGui\imgui\imstb_textedit.h" />
+    <ClInclude Include="vendor\ImGui\imgui\imstb_truetype.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

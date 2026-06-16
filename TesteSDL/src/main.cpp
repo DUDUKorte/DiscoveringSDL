@@ -8,9 +8,17 @@
 #include <cmath>
 #include <Random>
 
+// Testando o imgui
+#include "imgui.h"
+#include "imgui_impl_sdl3.h"
+#include "imgui_impl_sdlrenderer3.h"
+#include <stdio.h>
+#include <SDL3/SDL_opengl.h>
+
 #define WIDTH 1280
 #define HEIGHT 720
-#define GRAVITY 0.01
+#define GRAVITY 0.005
+#define JUMP_FORCE 1
 #define POLY_MIN 5
 #define MARGIN 100
 
@@ -22,6 +30,11 @@ double deltaTime = 0;
 /* We will use this renderer to draw into this window every frame. */
 static SDL_Window* window = NULL;
 static SDL_Renderer* renderer = NULL;
+
+// Our state
+bool show_demo_window = true;
+bool show_another_window = false;
+ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 struct Point {
 	float x;
@@ -366,6 +379,7 @@ std::pair<Point, Point> getMinMaxPoint(int polyIndex) {
 void CheckCollisions() {
 	float y_offset = 0.0f;
 
+	// Verifica se os canos saíram da tela e reposiciona eles
 	for (int i = 0; i < POLY_MIN-1; i+=2) {
 		if (polygons[i].size() <= 0) { continue; }
 
@@ -393,6 +407,10 @@ void ApplyPhysics(int polyIndex) {
 	if (polygons[polyIndex].size() <= 0 || polyIndex == iCurrentPoly) { return; }
 	bool isCollision = polyIndex < POLY_MIN;
 	CheckCollisions();
+	// Verify Collision
+	Point Pmax = getMinMaxPoint(polyIndex).second;
+	float ymax = Pmax.y;
+	
 
 	//translation_matrix[0][2] += GRAVITY;
 	//translation_matrix[1][2] += GRAVITY * deltaTime;
@@ -403,10 +421,8 @@ void ApplyPhysics(int polyIndex) {
 //	float y_velocity = (polygons[polyIndex][0].y + translation_matrix[1][2]) - polygons[polyIndex][0].y;
 //	float x_velocity = (polygons[polyIndex][0].x + translation_matrix[1][2]) - polygons[polyIndex][0].x;
 	//std::cout << y_velocity << std::endl;
-	Point Pmax = getMinMaxPoint(polyIndex).second;
-	float ymax = Pmax.y;
-	// Verify Collision
-	if (ymax + polygons_velocity[polyIndex].y > HEIGHT && !isCollision) {
+
+	if (ymax + polygons_velocity[polyIndex].y > HEIGHT && !isCollision && polygons_velocity[polyIndex].y > 0) {
 		while (polygons_velocity[polyIndex].y > 0) {
 			polygons_velocity[polyIndex].y -= 0.1;
 		}
@@ -431,13 +447,57 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	std::cout << "Setinhas: Ajustar posicao no modo G" << std::endl << "Scroll: Regula velocidade" << std::endl << "LMB: Confirma | RMB: Cancela" << std::endl;
 	std::cout << "9: Espelhamento no eixo X" << std::endl << "8: Espelhamento no eixo Y" << std::endl;
 
-	SDL_SetAppMetadata("Example render", "1", "exampleidentifier");
 
-	SDL_Init(SDL_INIT_VIDEO);
+	/*IMGUI FUNCIONA PFV*/
+	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
+	{
+		printf("Error: SDL_Init(): %s\n", SDL_GetError());
+		return SDL_APP_FAILURE;
+	}
 
-	SDL_CreateWindowAndRenderer("WindowTitle", WIDTH, HEIGHT, SDL_WINDOW_RESIZABLE, &window, &renderer);
+	// Create window with SDL_Renderer graphics context
+	float main_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+	SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+	window = SDL_CreateWindow("Dear ImGui SDL3+SDL_Renderer example", (int)(WIDTH * main_scale), (int)(HEIGHT * main_scale), window_flags);
+	if (window == nullptr)
+	{
+		printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
+		return SDL_APP_FAILURE;
+	}
+	renderer = SDL_CreateRenderer(window, nullptr);
+	SDL_SetRenderVSync(renderer, 1);
+	if (renderer == nullptr)
+	{
+		SDL_Log("Error: SDL_CreateRenderer(): %s\n", SDL_GetError());
+		return SDL_APP_FAILURE;
+	}
+	SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+	SDL_ShowWindow(window);
 
-	SDL_SetRenderLogicalPresentation(renderer, WIDTH, HEIGHT, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+	// Setup Dear ImGui style
+	ImGui::StyleColorsDark();
+	//ImGui::StyleColorsLight();
+
+	// Setup scaling
+	ImGuiStyle& style = ImGui::GetStyle();
+	style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+	style.FontScaleDpi = main_scale;        // Set initial font scale. (in docking branch: using io.ConfigDpiScaleFonts=true automatically overrides this for every window depending on the current monitor)
+
+	// Setup Platform/Renderer backends
+	ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
+	ImGui_ImplSDLRenderer3_Init(renderer);
+
+	//SDL_SetAppMetadata("Example render", "1", "exampleidentifier");
+	//SDL_Init(SDL_INIT_VIDEO);
+	//SDL_CreateWindowAndRenderer("WindowTitle", WIDTH, HEIGHT, SDL_WINDOW_RESIZABLE, &window, &renderer);
+	//SDL_SetRenderLogicalPresentation(renderer, WIDTH, HEIGHT, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
 	float collisions_velocity = 0.8;
 	// Add initial collisions
@@ -469,6 +529,8 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 
 // Event callbacks
 SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
+	ImGui_ImplSDL3_ProcessEvent(event);
+
 	if (event->type == SDL_EVENT_QUIT) {
 		std::cout << "Encerrando..." << std::endl;
 		return SDL_APP_SUCCESS;
@@ -549,9 +611,10 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 		}
 
 		if (ECurrentMode == CreatePoly) {
+			//////////////////// JUMP ///////////////////////
 			if (e.key == SDLK_J) {
 				if (polygons.size() == POLY_MIN + 2) {
-					polygons_velocity[POLY_MIN].y -= 3;
+					polygons_velocity[POLY_MIN].y = -JUMP_FORCE;
 				}
 			}
 			if (e.key == SDLK_KP_PLUS) {
@@ -726,13 +789,73 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 }
 
 SDL_AppResult SDL_AppIterate(void* appstate){
+	/* IMGUI */
+	if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED)
+	{
+		SDL_Delay(10);
+		return SDL_APP_CONTINUE;
+	}
+
+	// Start the Dear ImGui frame
+	ImGuiIO& io = ImGui::GetIO();
+	ImGui_ImplSDLRenderer3_NewFrame();
+	ImGui_ImplSDL3_NewFrame();
+	ImGui::NewFrame();
+
+	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
+	if (show_demo_window)
+		ImGui::ShowDemoWindow(&show_demo_window);
+
+	// 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
+	{
+		static float f = 0.0f;
+		static int counter = 0;
+
+		ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+		ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+		ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+		ImGui::Checkbox("Another Window", &show_another_window);
+		ImGui::Checkbox("Fillpoly", &bFill);
+		ImGui::Checkbox("Closed", &bClosed);
+		
+		if (ImGui::Button("Play Mode")) {
+			bGravity = !bGravity;
+		}
+
+		ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+		ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+
+		if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+			counter++;
+		ImGui::SameLine();
+		ImGui::Text("counter = %d", counter);
+
+		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+		ImGui::End();
+	}
+
+	// 3. Show another simple window.
+	if (show_another_window)
+	{
+		ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
+		ImGui::Text("Hello from another window!");
+		if (ImGui::Button("Close Me"))
+			show_another_window = false;
+		ImGui::End();
+	}
+	/* IMGUI */
+
+
+
+
 	old_deltaTime = new_deltaTime;
 	new_deltaTime = SDL_GetPerformanceCounter();
 	deltaTime = (double)((new_deltaTime - old_deltaTime) * 1000 / (double)SDL_GetPerformanceFrequency());
-
+	
 	SDL_SetRenderDrawColorFloat(renderer, 0.2, 0.2, 0.2, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
 	SDL_RenderClear(renderer);
-
+	
 	const double now = ((double)SDL_GetTicks() * 0.001);  /* convert from milliseconds to seconds. */
 
 	/* choose the color for the frame we will draw. The sine wave trick makes it fade between colors smoothly. */
@@ -777,11 +900,27 @@ SDL_AppResult SDL_AppIterate(void* appstate){
 		}
 	}
 
+	// Rendering
+	ImGui::Render();
+	SDL_SetRenderScale(renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
+	//SDL_SetRenderDrawColorFloat(renderer, clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+	//SDL_RenderClear(renderer);
+	ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
 	SDL_RenderPresent(renderer);
-	
+
+	//SDL_RenderPresent(renderer);
 	return SDL_APP_CONTINUE;
 }
 
 void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	//quitar
+	// Cleanup
+    // [If using SDL_MAIN_USE_CALLBACKS: all code below would likely be your SDL_AppQuit() function]
+    ImGui_ImplSDLRenderer3_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    ImGui::DestroyContext();
+
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 }
