@@ -19,15 +19,7 @@
 
 #define WIDTH 1280
 #define HEIGHT 720
-#define GRAVITY 0.005
-#define JUMP_FORCE 1
 #define POLY_MIN 1
-#define MARGIN 100
-
-
-Uint64 new_deltaTime;
-Uint64 old_deltaTime = 0;
-double deltaTime = 0;
 
 /* We will use this renderer to draw into this window every frame. */
 static SDL_Window* window = NULL;
@@ -45,7 +37,7 @@ struct Point {
 
 enum EEditMode
 {
-	CreatePoly = 0, MovePoly = 1, ScalePoly, RotatePoly
+	Selection = 0, CreatePoly = 1, MovePoly = 2, ScalePoly = 3, RotatePoly = 4
 };
 
 float fMovePolySpeed = 0.1;
@@ -53,14 +45,13 @@ float fscalePolySpeed = 0.01;
 float frotatePolySpeed = 0.01;
 
 // Editor mode
-EEditMode ECurrentMode = CreatePoly;
+EEditMode ECurrentMode = Selection;
 
 // Render data structures
 std::vector<Mesh*> GlobalMeshes;
 
 std::vector<std::vector<Point>> curves;
 std::vector<std::vector<Point>> polygons;
-std::vector<Vec2> polygons_velocity;
 
 std::vector<std::vector<std::vector<Point>>> sub_polygons;
 int iCurrentCurve = 0;
@@ -73,7 +64,6 @@ bool bUseSubPoly = false;
 bool bIsCurrent = false;
 bool bFill = false;
 bool bClosed = false;
-bool bGravity = false;
 
 // Input
 bool bLMB = false;
@@ -320,14 +310,14 @@ void FindIntersections(std::vector<vertex>& vertices, std::vector<std::vector<fl
 		float dY = (point.y - source.y);
 
 		float Tx = (point.x - source.x) / dY;
-		float Tr = (point.color.x - source.color.x) / dY;
-		float Tg = (point.color.y - source.color.y) / dY;
-		float Tb = (point.color.z - source.color.z) / dY;
+		//float Tr = (point.color.x - source.color.x) / dY;
+		//float Tg = (point.color.y - source.color.y) / dY;
+		//float Tb = (point.color.z - source.color.z) / dY;
 		
 		float new_x = source.x;
-		float new_r = source.color.x;
-		float new_g = source.color.y;
-		float new_b = source.color.z;
+		//float new_r = source.color.x;
+		//float new_g = source.color.y;
+		//float new_b = source.color.z;
 
 		//std::cout << "ymin: " << ymin << " | ymax: " << ymax << " | Ns: " << Ns << " | Tx: " << Tx << " | new_y: " << new_y << " | new_x: " << new_x << std::endl;
 
@@ -338,13 +328,13 @@ void FindIntersections(std::vector<vertex>& vertices, std::vector<std::vector<fl
 			//SDL_RenderPoint(renderer, new_x, ymin + i);
 			if (y > 0 && y < HEIGHT) {
 				intersecoes[y].push_back(new_x);
-				vertex v = {new_x, (float)y, {new_r, new_g, new_b, 255}};
+				vertex v = {new_x, (float)y};
 				intersecoes_v[y].push_back(v);
 			}
 			new_x += Tx;
-			new_r += Tr;
-			new_g += Tg;
-			new_b += Tb;
+			//new_r += Tr;
+			//new_g += Tg;
+			//new_b += Tb;
 		}
 	}
 }
@@ -376,25 +366,25 @@ void FillPoly(std::vector<vertex>& vertices, int iPoly) {
 	}
 
 	// Fazer o fill no poly
-	for (int y = 0; y < intersecoes.size(); y++) {
-		auto& lista = intersecoes[y];
+	//for (int y = 0; y < intersecoes.size(); y++) {
+	//	auto& lista = intersecoes[y];
 
-		for (int i = 0; i+1 < lista.size(); i+=2) {
+	//	for (int i = 0; i+1 < lista.size(); i+=2) {
 
-			//SDL_RenderLine(renderer, lista[i], y, lista[i+1], y);
-		}
-	}
+	//		SDL_RenderLine(renderer, lista[i], y, lista[i+1], y);
+	//	}
+	//}
 
 	// Fazer o fill no poly com cor agr
 	for (int y = 0; y < intersecoes_v.size(); y++) {
 		auto& lista = intersecoes_v[y];
 
 		for (int i = 0; i + 1 < lista.size(); i += 2) {
-			if (i + 1 < lista.size()) {
-				SDL_RenderPoint(renderer, (int)lista[i].x, y);
-				SDL_RenderPoint(renderer, (int)lista[i + 1].x, y);
-			}
-//			SDL_RenderLine(renderer, lista[i].x, y, lista[i + 1].x, y);
+			//if (i + 1 < lista.size()) {
+			//	SDL_RenderPoint(renderer, (int)lista[i].x, y);
+			//	SDL_RenderPoint(renderer, (int)lista[i + 1].x, y);
+			//}
+			SDL_RenderLine(renderer, lista[i].x, y, lista[i + 1].x, y);
 		}
 	}
 
@@ -421,69 +411,6 @@ std::pair<Point, Point> getMinMaxPoint(int polyIndex) {
 		}
 	}
 	return { { xmin, ymin }, {xmax, ymax } };
-}
-
-
-// Funciona +-
-
-void CheckCollisions() {
-	float y_offset = 0.0f;
-
-	// Verifica se os canos saíram da tela e reposiciona eles
-	for (int i = 0; i < POLY_MIN-1 && i < polygons.size(); i+=2) {
-		if (i >= polygons.size() || polygons[i].size() <= 0) { continue; }
-
-		std::pair<Point, Point> minMaxPoints = getMinMaxPoint(i);
-		Point minP = minMaxPoints.first;
-		Point maxP = minMaxPoints.second;
-		if (maxP.x < 0) {
-			translation_matrix[0][2] = WIDTH;
-			y_offset = (rand() % 400) * ((rand() % 100) > 50 ? -1 : 1);
-			if (maxP.y + y_offset + MARGIN > 1000) {
-				y_offset = 0;
-			}
-			else if (maxP.y + y_offset < 100) {
-				y_offset = 0;
-			}
-			translation_matrix[1][2] = y_offset;
-			if (i < polygons.size()) SaveTransform(i);
-			if (i+1 < polygons.size()) SaveTransform(i+1);
-			ResetTransform();
-		}
-	}
-}
-
-void ApplyPhysics(int polyIndex) {
-	if (polygons[polyIndex].size() <= 0 || polyIndex == iCurrentPoly) { return; }
-	bool isCollision = polyIndex < POLY_MIN;
-	CheckCollisions();
-	// Verify Collision
-	Point Pmax = getMinMaxPoint(polyIndex).second;
-	float ymax = Pmax.y;
-	
-
-	//translation_matrix[0][2] += GRAVITY;
-	//translation_matrix[1][2] += GRAVITY * deltaTime;
-	if (!isCollision) {
-		polygons_velocity[polyIndex].y += GRAVITY * deltaTime;
-	}
-	//Direction vector based on gravity
-//	float y_velocity = (polygons[polyIndex][0].y + translation_matrix[1][2]) - polygons[polyIndex][0].y;
-//	float x_velocity = (polygons[polyIndex][0].x + translation_matrix[1][2]) - polygons[polyIndex][0].x;
-	//std::cout << y_velocity << std::endl;
-
-	if (ymax + polygons_velocity[polyIndex].y > HEIGHT && !isCollision && polygons_velocity[polyIndex].y > 0) {
-		while (polygons_velocity[polyIndex].y > 0) {
-			polygons_velocity[polyIndex].y -= 0.1;
-		}
-		if (polygons_velocity[polyIndex].y <= 0) {
-			polygons_velocity[polyIndex].y = 0;
-		}
-	}
-
-	translation_matrix[1][2] = polygons_velocity[polyIndex].y * deltaTime;
-	translation_matrix[0][2] = polygons_velocity[polyIndex].x * deltaTime;
-	SaveTransform(polyIndex);
 }
 
 SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
@@ -530,6 +457,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 	//io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
+	//io.WantCaptureMouse = true;
 
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
@@ -549,37 +477,18 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	//SDL_CreateWindowAndRenderer("WindowTitle", WIDTH, HEIGHT, SDL_WINDOW_RESIZABLE, &window, &renderer);
 	//SDL_SetRenderLogicalPresentation(renderer, WIDTH, HEIGHT, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
-	float collisions_velocity = 0.8;
-	//// Add initial collisions
-	//polygons.push_back({ Point{ WIDTH - 100, -HEIGHT}, Point{ WIDTH - 10, -HEIGHT }, Point{ WIDTH - 10, HEIGHT / 2 -MARGIN}, Point{ WIDTH - 100, HEIGHT / 2 - MARGIN} });
-	//polygons_velocity.push_back({ Vec2{-collisions_velocity, 0} });
-	//sub_polygons.push_back({ {} });
-
-	//polygons.push_back({ Point{ WIDTH - 100, HEIGHT*2 }, Point{ WIDTH - 10, HEIGHT*2 }, Point{ WIDTH - 10, HEIGHT / 2 + MARGIN }, Point{ WIDTH - 100, HEIGHT / 2 + MARGIN} });
-	//polygons_velocity.push_back({ Vec2{-collisions_velocity, 0} });
-	//sub_polygons.push_back({ {} });
-
-	//while (polygons.size() < POLY_MIN) {
-	//	polygons.push_back({});
-	//	polygons_velocity.push_back({ Vec2{0,0} });
-	//	sub_polygons.push_back({ {} });
-	//}
-
 	polygons.push_back({});
-	polygons_velocity.push_back({ Vec2{0,0} });
 	sub_polygons.push_back({ {} });
 	curves.push_back({});
-
-	new_deltaTime = SDL_GetPerformanceCounter();
-	old_deltaTime = 0;
-	deltaTime = 0;
 
 	return SDL_APP_CONTINUE;
 }
 
 // Event callbacks
 SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
-	ImGui_ImplSDL3_ProcessEvent(event);
+	if (ImGui_ImplSDL3_ProcessEvent(event)) {
+		//return SDL_APP_CONTINUE;
+	}
 
 	std::vector<vertex>* vertices = nullptr;
 	if (iCurrentPoly < GlobalMeshes.size() && GlobalMeshes[iCurrentPoly] != nullptr) {
@@ -609,9 +518,6 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 			mouse_oY = 1;
 			mouse_oX = 1;
 			break;
-		case SDLK_P:
-			bGravity = !bGravity;
-			break;
 		case SDLK_9:
 			if (ECurrentMode == RotatePoly) {
 				scaleX = -1;
@@ -624,21 +530,6 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 				scaleY = -1;
 				SaveTransform(iCurrentPoly);
 				ResetTransform();
-			}
-			break;
-		case SDLK_J:
-			if (vertices != nullptr && vertices->size() > 0) {
-				vertices->at(vertices->size() - 1).color = {255, 0, 0, 255};
-			}
-			break;
-		case SDLK_K:
-			if (vertices != nullptr && vertices->size() > 0) {
-				vertices->at(vertices->size() - 1).color = { 0, 255, 0, 255 };
-			}
-			break;
-		case SDLK_L:
-			if (vertices != nullptr && vertices->size() > 0) {
-				vertices->at(vertices->size() - 1).color = { 0, 0, 255, 255 };
 			}
 			break;
 		}
@@ -687,12 +578,6 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 		}
 
 		if (ECurrentMode == CreatePoly) {
-			//////////////////// JUMP ///////////////////////
-			if (e.key == SDLK_J) {
-				if (polygons.size() == POLY_MIN + 2) {
-					polygons_velocity[POLY_MIN].y = -JUMP_FORCE;
-				}
-			}
 			if (e.key == SDLK_KP_PLUS) {
 				if (e.mod & SDL_KMOD_SHIFT) {
 					iCurrentSubPoly++;
@@ -712,7 +597,6 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 
 					if (GlobalMeshes.size() < iCurrentPoly + 1) {
 						GlobalMeshes.push_back(new Mesh({ event->button.x, event->button.y }));
-						polygons_velocity.push_back({ Vec2{0,0} });
 						sub_polygons.push_back({ {} });
 					}
 				}
@@ -899,13 +783,6 @@ SDL_AppResult SDL_AppIterate(void* appstate){
 		ImGui::End();
 	}
 	/* IMGUI */
-
-
-
-
-	old_deltaTime = new_deltaTime;
-	new_deltaTime = SDL_GetPerformanceCounter();
-	deltaTime = (double)((new_deltaTime - old_deltaTime) * 1000 / (double)SDL_GetPerformanceFrequency());
 	
 	SDL_SetRenderDrawColorFloat(renderer, 0.2, 0.2, 0.2, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
 	SDL_RenderClear(renderer);
@@ -955,10 +832,6 @@ SDL_AppResult SDL_AppIterate(void* appstate){
 				ImGui::Checkbox("Closed", &m->IsClosed());
 				ImGui::Checkbox("Active", &m->IsActive());
 
-				if (ImGui::Button("Play Mode")) {
-					bGravity = !bGravity;
-				}
-
 				ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
 				ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
 				ImGui::ColorEdit3("Mesh color", (float*)&m->GetColor()); // Edit 3 floats representing a color
@@ -982,10 +855,6 @@ SDL_AppResult SDL_AppIterate(void* appstate){
 			else {
 				SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
 			}
-
-			//if (bGravity && ECurrentMode == CreatePoly) {
-			//	ApplyPhysics(0);
-			//}
 
 			DrawLinesWithVertices(vertices, m->IsClosed());
 

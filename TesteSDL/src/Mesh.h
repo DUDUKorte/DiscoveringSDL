@@ -5,18 +5,11 @@
 struct vertex {
 	float x;
 	float y;
-	ImVec4 color = {1,1,1, 1};
 };
 
 struct Vec2 {
 	float x;
 	float y;
-};
-
-struct Vec3 {
-	float r;
-	float g;
-	float b;
 };
 
 class Mesh {
