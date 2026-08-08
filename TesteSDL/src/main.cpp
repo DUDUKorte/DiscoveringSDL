@@ -13,13 +13,15 @@
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
 #include <stdio.h>
-#include <SDL3/SDL_opengl.h>
+
+// Melhorando o Mesh
+#include "Mesh.h"
 
 #define WIDTH 1280
 #define HEIGHT 720
 #define GRAVITY 0.005
 #define JUMP_FORCE 1
-#define POLY_MIN 5
+#define POLY_MIN 1
 #define MARGIN 100
 
 
@@ -41,11 +43,6 @@ struct Point {
 	float y;
 };
 
-struct Vec2 {
-	float x;
-	float y;
-};
-
 enum EEditMode
 {
 	CreatePoly = 0, MovePoly = 1, ScalePoly, RotatePoly
@@ -59,13 +56,15 @@ float frotatePolySpeed = 0.01;
 EEditMode ECurrentMode = CreatePoly;
 
 // Render data structures
+std::vector<Mesh*> GlobalMeshes;
+
 std::vector<std::vector<Point>> curves;
 std::vector<std::vector<Point>> polygons;
 std::vector<Vec2> polygons_velocity;
 
 std::vector<std::vector<std::vector<Point>>> sub_polygons;
 int iCurrentCurve = 0;
-int iCurrentPoly = POLY_MIN;
+int iCurrentPoly = 0;
 int iCurrentSubPoly = 0;
 Point CurrentPolyCenter = {0,0};
 
@@ -111,6 +110,10 @@ std::vector<std::vector<float>> rotation_matrix = {
 	{0,  0,  1}
 };
 
+bool findLess(const vertex& v1, const vertex& v2) {
+	return v1.x < v2.x;
+}
+
 void AddVerticeToPoly(Point p, std::vector<Point> *vertices) {
 	vertices->push_back(p);
 }
@@ -129,11 +132,11 @@ void ResetTransform() {
 	rotation_matrix[1][1] = 1;
 }
 
-void ApplyTransform(std::vector<Point>* vertices) {
+void ApplyTransform(std::vector<vertex>* vertices) {
 	// Update Center point
 	CurrentPolyCenter.x = 0;
 	CurrentPolyCenter.y = 0;
-	for (Point& p : *vertices) {
+	for (vertex& p : *vertices) {
 		CurrentPolyCenter.x += p.x;
 		CurrentPolyCenter.y += p.y;
 	}
@@ -144,7 +147,7 @@ void ApplyTransform(std::vector<Point>* vertices) {
 	SDL_RenderPoint(renderer, Pm.x, Pm.y);
 
 	
-	for (Point& p : *vertices) {
+	for (vertex& p : *vertices) {
 		p.x -= Pm.x;
 		p.y -= Pm.y;
 
@@ -225,7 +228,19 @@ void SaveTransform(int polyIndex) {
 	//translation_matrix[1][2] = 0;
 }
 
-void DrawLinesWithVertices(std::vector<Point> vertices, bool closed) {
+void DrawLinesWithVertices(std::vector<vertex>& vertices, bool closed) {
+	//Draw meshes
+	//for (Mesh* m : GlobalMeshes) {
+	//	std::vector<vertex> vertices = m->GetVertices();
+	//	for (int i = 0; i < vertices.size() - 1; i++) {
+	//		SDL_RenderLine(renderer, vertices[i].x, vertices[i].y, vertices[i + 1].x, vertices[i + 1].y);
+
+	//		if (vertices.size() - 2 == i && m->IsClosed()) {
+	//			SDL_RenderLine(renderer, vertices[i + 1].x, vertices[i + 1].y, vertices[0].x, vertices[0].y);
+	//		}
+	//	}
+	//}
+
 	if (vertices.size() < 2) { return; }
 
 	// Apply translation to vertices apenas aqui
@@ -280,12 +295,12 @@ void DrawCurves(std::vector<Point> vertices, double level_of_detail) {
 
 }
 
-void FindIntersections(std::vector<Point>& vertices, std::vector<std::vector<float>>& intersecoes) {
+void FindIntersections(std::vector<vertex>& vertices, std::vector<std::vector<float>>& intersecoes, std::vector<std::vector<vertex>>& intersecoes_v) {
 	for (int i = 0; i < vertices.size(); i++) {
 		//std::cout << "Source ( " << source.x << " , " << source.y << " ) " << std::endl;
 		//std::cout << "Point ( " << point.x << " , " << point.y << " ) " << std::endl;
-		Point source = vertices[i];
-		Point point = vertices[(i + 1) % vertices.size()];
+		vertex source = vertices[i];
+		vertex point = vertices[(i + 1) % vertices.size()];
 
 		if (point.y == source.y) { continue; }
 
@@ -297,12 +312,22 @@ void FindIntersections(std::vector<Point>& vertices, std::vector<std::vector<flo
 		int ymin = (int)source.y;
 		int ymax = (int)point.y;
 
-		//if (ymax >= intersecoes.size() && ymin > 0) {
-		//	intersecoes.resize(ymax + 1);
-		//}
+		// Proteger contra índices negativos
+		if (ymin < 0) ymin = 0;
+		if (ymax < 0) return;
+		if (ymin >= HEIGHT) return;
 
-		float Tx = (point.x - source.x) / (point.y - source.y);
+		float dY = (point.y - source.y);
+
+		float Tx = (point.x - source.x) / dY;
+		float Tr = (point.color.x - source.color.x) / dY;
+		float Tg = (point.color.y - source.color.y) / dY;
+		float Tb = (point.color.z - source.color.z) / dY;
+		
 		float new_x = source.x;
+		float new_r = source.color.x;
+		float new_g = source.color.y;
+		float new_b = source.color.z;
 
 		//std::cout << "ymin: " << ymin << " | ymax: " << ymax << " | Ns: " << Ns << " | Tx: " << Tx << " | new_y: " << new_y << " | new_x: " << new_x << std::endl;
 
@@ -313,30 +338,41 @@ void FindIntersections(std::vector<Point>& vertices, std::vector<std::vector<flo
 			//SDL_RenderPoint(renderer, new_x, ymin + i);
 			if (y > 0 && y < HEIGHT) {
 				intersecoes[y].push_back(new_x);
+				vertex v = {new_x, (float)y, {new_r, new_g, new_b, 255}};
+				intersecoes_v[y].push_back(v);
 			}
 			new_x += Tx;
+			new_r += Tr;
+			new_g += Tg;
+			new_b += Tb;
 		}
 	}
 }
 
-void FillPoly(std::vector<Point>& vertices, int iPoly) {
+void FillPoly(std::vector<vertex>& vertices, int iPoly) {
 	if (vertices.size() < 3) { return; }
 	std::vector<std::vector<float>> intersecoes;
+	std::vector<std::vector<vertex>> intersecoes_v;
 	intersecoes.resize(HEIGHT);
+	intersecoes_v.resize(HEIGHT);
 
-	FindIntersections(vertices, intersecoes);
+	FindIntersections(vertices, intersecoes, intersecoes_v);
 
 	/*Sub Polygons adicionados às interseções (talvez não seja a melhor forma de fazer, mas é uma forma)*/
-	for (std::vector<Point> sub_vertices : sub_polygons[iPoly]) {
-		if(sub_vertices.size() < 3) {break;}
+	//for (std::vector<Point> sub_vertices : sub_polygons[iPoly]) {
+	//	if(sub_vertices.size() < 3) {break;}
 
-		ApplyTransform(&sub_vertices);
-		FindIntersections(sub_vertices, intersecoes);
-	}
+	//	ApplyTransform(&sub_vertices);
+	//	FindIntersections(sub_vertices, intersecoes);
+	//}
 
 	// Ordenar todas as interceções
 	for (auto& lista : intersecoes) {
 		std::sort(lista.begin(), lista.end());
+	}
+	// Ordernar interseções com cor
+	for (auto& lista : intersecoes_v) {
+		std::sort(lista.begin(), lista.end(), findLess);
 	}
 
 	// Fazer o fill no poly
@@ -344,7 +380,21 @@ void FillPoly(std::vector<Point>& vertices, int iPoly) {
 		auto& lista = intersecoes[y];
 
 		for (int i = 0; i+1 < lista.size(); i+=2) {
-			SDL_RenderLine(renderer, lista[i], y, lista[i+1], y);
+
+			//SDL_RenderLine(renderer, lista[i], y, lista[i+1], y);
+		}
+	}
+
+	// Fazer o fill no poly com cor agr
+	for (int y = 0; y < intersecoes_v.size(); y++) {
+		auto& lista = intersecoes_v[y];
+
+		for (int i = 0; i + 1 < lista.size(); i += 2) {
+			if (i + 1 < lista.size()) {
+				SDL_RenderPoint(renderer, (int)lista[i].x, y);
+				SDL_RenderPoint(renderer, (int)lista[i + 1].x, y);
+			}
+//			SDL_RenderLine(renderer, lista[i].x, y, lista[i + 1].x, y);
 		}
 	}
 
@@ -380,8 +430,8 @@ void CheckCollisions() {
 	float y_offset = 0.0f;
 
 	// Verifica se os canos saíram da tela e reposiciona eles
-	for (int i = 0; i < POLY_MIN-1; i+=2) {
-		if (polygons[i].size() <= 0) { continue; }
+	for (int i = 0; i < POLY_MIN-1 && i < polygons.size(); i+=2) {
+		if (i >= polygons.size() || polygons[i].size() <= 0) { continue; }
 
 		std::pair<Point, Point> minMaxPoints = getMinMaxPoint(i);
 		Point minP = minMaxPoints.first;
@@ -396,8 +446,8 @@ void CheckCollisions() {
 				y_offset = 0;
 			}
 			translation_matrix[1][2] = y_offset;
-			SaveTransform(i);
-			SaveTransform(i+1);
+			if (i < polygons.size()) SaveTransform(i);
+			if (i+1 < polygons.size()) SaveTransform(i+1);
 			ResetTransform();
 		}
 	}
@@ -447,7 +497,6 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	std::cout << "Setinhas: Ajustar posicao no modo G" << std::endl << "Scroll: Regula velocidade" << std::endl << "LMB: Confirma | RMB: Cancela" << std::endl;
 	std::cout << "9: Espelhamento no eixo X" << std::endl << "8: Espelhamento no eixo Y" << std::endl;
 
-
 	/*IMGUI FUNCIONA PFV*/
 	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
 	{
@@ -480,6 +529,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+	//io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
 
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
@@ -500,20 +550,20 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	//SDL_SetRenderLogicalPresentation(renderer, WIDTH, HEIGHT, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
 	float collisions_velocity = 0.8;
-	// Add initial collisions
-	polygons.push_back({ Point{ WIDTH - 100, -HEIGHT}, Point{ WIDTH - 10, -HEIGHT }, Point{ WIDTH - 10, HEIGHT / 2 -MARGIN}, Point{ WIDTH - 100, HEIGHT / 2 - MARGIN} });
-	polygons_velocity.push_back({ Vec2{-collisions_velocity, 0} });
-	sub_polygons.push_back({ {} });
+	//// Add initial collisions
+	//polygons.push_back({ Point{ WIDTH - 100, -HEIGHT}, Point{ WIDTH - 10, -HEIGHT }, Point{ WIDTH - 10, HEIGHT / 2 -MARGIN}, Point{ WIDTH - 100, HEIGHT / 2 - MARGIN} });
+	//polygons_velocity.push_back({ Vec2{-collisions_velocity, 0} });
+	//sub_polygons.push_back({ {} });
 
-	polygons.push_back({ Point{ WIDTH - 100, HEIGHT*2 }, Point{ WIDTH - 10, HEIGHT*2 }, Point{ WIDTH - 10, HEIGHT / 2 + MARGIN }, Point{ WIDTH - 100, HEIGHT / 2 + MARGIN} });
-	polygons_velocity.push_back({ Vec2{-collisions_velocity, 0} });
-	sub_polygons.push_back({ {} });
+	//polygons.push_back({ Point{ WIDTH - 100, HEIGHT*2 }, Point{ WIDTH - 10, HEIGHT*2 }, Point{ WIDTH - 10, HEIGHT / 2 + MARGIN }, Point{ WIDTH - 100, HEIGHT / 2 + MARGIN} });
+	//polygons_velocity.push_back({ Vec2{-collisions_velocity, 0} });
+	//sub_polygons.push_back({ {} });
 
-	while (polygons.size() < POLY_MIN) {
-		polygons.push_back({});
-		polygons_velocity.push_back({ Vec2{0,0} });
-		sub_polygons.push_back({ {} });
-	}
+	//while (polygons.size() < POLY_MIN) {
+	//	polygons.push_back({});
+	//	polygons_velocity.push_back({ Vec2{0,0} });
+	//	sub_polygons.push_back({ {} });
+	//}
 
 	polygons.push_back({});
 	polygons_velocity.push_back({ Vec2{0,0} });
@@ -530,6 +580,11 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 // Event callbacks
 SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 	ImGui_ImplSDL3_ProcessEvent(event);
+
+	std::vector<vertex>* vertices = nullptr;
+	if (iCurrentPoly < GlobalMeshes.size() && GlobalMeshes[iCurrentPoly] != nullptr) {
+		vertices = &GlobalMeshes[iCurrentPoly]->GetVertices();
+	}
 
 	if (event->type == SDL_EVENT_QUIT) {
 		std::cout << "Encerrando..." << std::endl;
@@ -571,14 +626,35 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 				ResetTransform();
 			}
 			break;
+		case SDLK_J:
+			if (vertices != nullptr && vertices->size() > 0) {
+				vertices->at(vertices->size() - 1).color = {255, 0, 0, 255};
+			}
+			break;
+		case SDLK_K:
+			if (vertices != nullptr && vertices->size() > 0) {
+				vertices->at(vertices->size() - 1).color = { 0, 255, 0, 255 };
+			}
+			break;
+		case SDLK_L:
+			if (vertices != nullptr && vertices->size() > 0) {
+				vertices->at(vertices->size() - 1).color = { 0, 0, 255, 255 };
+			}
+			break;
 		}
 
 		if (e.key == SDLK_SPACE) {
 			bClosed = !bClosed;
+			if (!GlobalMeshes.empty() && GlobalMeshes[0] != nullptr) {
+				GlobalMeshes[0]->SetClosed(!GlobalMeshes[0]->IsClosed());
+			}
 		}
 
 		if (e.key == SDLK_LCTRL) {
 			bFill = !bFill;
+			if (!GlobalMeshes.empty() && GlobalMeshes[0] != nullptr) {
+				GlobalMeshes[0]->SetFill(!GlobalMeshes[0]->GetFill());
+			}
 		}
 
 		if (ECurrentMode == MovePoly) {
@@ -634,8 +710,8 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 					iCurrentPoly++;
 					iCurrentSubPoly = 0;
 
-					if (polygons.size() < iCurrentPoly + 1) {
-						polygons.push_back({});
+					if (GlobalMeshes.size() < iCurrentPoly + 1) {
+						GlobalMeshes.push_back(new Mesh({ event->button.x, event->button.y }));
 						polygons_velocity.push_back({ Vec2{0,0} });
 						sub_polygons.push_back({ {} });
 					}
@@ -690,7 +766,13 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 					AddVerticeToPoly({ e.x, e.y }, &curves[iCurrentCurve]);
 				}
 				else {
-					AddVerticeToPoly({ e.x, e.y }, &polygons[iCurrentPoly]);
+					//AddVerticeToPoly({ e.x, e.y }, &polygons[iCurrentPoly]);
+					if (GlobalMeshes.empty()) {
+						GlobalMeshes.push_back(new Mesh({e.x, e.y}));
+					}
+					else {
+						GlobalMeshes[iCurrentPoly]->addVertex({e.x, e.y});
+					}
 					bLMB = true;
 				}
 			}
@@ -806,34 +888,6 @@ SDL_AppResult SDL_AppIterate(void* appstate){
 	if (show_demo_window)
 		ImGui::ShowDemoWindow(&show_demo_window);
 
-	// 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
-	{
-		static float f = 0.0f;
-		static int counter = 0;
-
-		ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-		ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-		ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-		ImGui::Checkbox("Another Window", &show_another_window);
-		ImGui::Checkbox("Fillpoly", &bFill);
-		ImGui::Checkbox("Closed", &bClosed);
-		
-		if (ImGui::Button("Play Mode")) {
-			bGravity = !bGravity;
-		}
-
-		ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-		ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-		if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-			counter++;
-		ImGui::SameLine();
-		ImGui::Text("counter = %d", counter);
-
-		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-		ImGui::End();
-	}
 
 	// 3. Show another simple window.
 	if (show_another_window)
@@ -864,42 +918,83 @@ SDL_AppResult SDL_AppIterate(void* appstate){
 	const float blue = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 4 / 3));
 
 	// Draw Curves
-	for (int i = 0; i < curves.size(); i++) {
-		auto curve = curves[i];
-		if (i == iCurrentCurve) {
-			SDL_SetRenderDrawColorFloat(renderer, 0, 1, 0, SDL_ALPHA_OPAQUE_FLOAT);
-		}
-		else {
-			SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
-		}
+	//for (int i = 0; i < curves.size(); i++) {
+	//	auto curve = curves[i];
+	//	if (i == iCurrentCurve) {
+	//		SDL_SetRenderDrawColorFloat(renderer, 0, 1, 0, SDL_ALPHA_OPAQUE_FLOAT);
+	//	}
+	//	else {
+	//		SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
+	//	}
 
-		DrawCurves(curve, 0.01);
-	}
+	//	DrawCurves(curve, 0.01);
+	//}
 	
-	// Draw polygons
-	for (int i = 0; i < polygons.size(); i++) {
-		auto poly = polygons[i];
-		bIsCurrent = (i == iCurrentPoly);
+	if (ImGui::BeginListBox("Meshes")) {
+		// Draw polygons
+		for (Mesh* m : GlobalMeshes) {
+			std::vector<vertex>& vertices = m->GetVertices();
+			if (vertices.empty()) { continue; }
 
-		if (bIsCurrent) {
-			if (ECurrentMode != CreatePoly) { ApplyTransform(&poly); }
-			
-			SDL_SetRenderDrawColorFloat(renderer, 0, 1, 0, SDL_ALPHA_OPAQUE_FLOAT);
-		}
-		else {
-			SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
-		}
-		
-		if (bGravity && ECurrentMode == CreatePoly) {
-			ApplyPhysics(i);
-		}
+			if (ImGui::Selectable("Mesh tal"), m->IsActive()) {
 
-		DrawLinesWithVertices(poly, bClosed);
-		if (bFill && ECurrentMode == CreatePoly) {
-			FillPoly(poly, i);
+			}
+
+			// 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
+			{
+				ImGui::PushID(m);
+				static float f = 0.0f;
+				static int counter = 0;
+
+				ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+				ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+				ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+				ImGui::Checkbox("Another Window", &show_another_window);
+				ImGui::Checkbox("Fillpoly", &m->GetFill());
+				ImGui::Checkbox("Closed", &m->IsClosed());
+				ImGui::Checkbox("Active", &m->IsActive());
+
+				if (ImGui::Button("Play Mode")) {
+					bGravity = !bGravity;
+				}
+
+				ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+				ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+				ImGui::ColorEdit3("Mesh color", (float*)&m->GetColor()); // Edit 3 floats representing a color
+
+				if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+					counter++;
+				ImGui::SameLine();
+				ImGui::Text("counter = %d", counter);
+
+				ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+
+				ImGui::End();
+				ImGui::PopID();
+			}
+
+			if (m->IsActive()) {
+				if (ECurrentMode != CreatePoly) { ApplyTransform(&vertices); }
+				ImVec4 color = m->GetColor();
+				SDL_SetRenderDrawColorFloat(renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
+			}
+			else {
+				SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
+			}
+
+			//if (bGravity && ECurrentMode == CreatePoly) {
+			//	ApplyPhysics(0);
+			//}
+
+			DrawLinesWithVertices(vertices, m->IsClosed());
+
+			if (m->GetFill() && ECurrentMode == CreatePoly) {
+				FillPoly(vertices, 0);
+			}
 		}
+		ImGui::EndListBox();
 	}
-
 	// Rendering
 	ImGui::Render();
 	SDL_SetRenderScale(renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);

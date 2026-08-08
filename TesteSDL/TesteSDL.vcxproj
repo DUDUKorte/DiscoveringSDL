@@ -133,10 +133,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\ImGuiLayer.cpp" />
-    <ClCompile Include="src\Layer.cpp" />
-    <ClCompile Include="src\LayerStack.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\Mesh.cpp" />
     <ClCompile Include="vendor\ImGui\imgui\backends\imgui_impl_sdl3.cpp" />
     <ClCompile Include="vendor\ImGui\imgui\backends\imgui_impl_sdlrenderer3.cpp" />
     <ClCompile Include="vendor\ImGui\imgui\imgui.cpp" />
@@ -151,10 +149,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\Application.h" />
-    <ClInclude Include="src\ImGuiLayer.h" />
-    <ClInclude Include="src\Layer.h" />
-    <ClInclude Include="src\LayerStack.h" />
+    <ClInclude Include="src\Mesh.h" />
     <ClInclude Include="vendor\ImGui\imgui\backends\imgui_impl_sdl3.h" />
     <ClInclude Include="vendor\ImGui\imgui\backends\imgui_impl_sdlrenderer3.h" />
     <ClInclude Include="vendor\ImGui\imgui\imconfig.h" />
