@@ -21,7 +21,7 @@ struct Transform2D {
 
 class Mesh {
 public:
-	Mesh(std::string name, vertex firstVertex = { 0,0 }, std::vector<vertex> v = {});
+	Mesh(std::string name, vertex firstVertex = {0,0}, std::vector<vertex> v = {});
 	~Mesh();
 
 	void addVertex(vertex worldPosition);
@@ -29,7 +29,7 @@ public:
 	void addSubMesh(Mesh* mesh);
 
 	std::vector<vertex>& GetVertices();
-
+	
 	inline std::vector<vertex>& GetLocalVertices() { return m_LocalVertices; }
 	inline std::vector<Mesh*>& GetSubMeshes() { return m_SubMeshes; }
 	Mesh* GetSubMesh(int index);

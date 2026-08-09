@@ -2,7 +2,7 @@
 #include <cmath>
 
 Mesh::Mesh(std::string name, vertex firstVertex, std::vector<vertex> v) {
-
+	
 	m_Name = name;
 	m_Velocity = { 0,0 };
 	m_Transform.Position = { firstVertex.x, firstVertex.y };
@@ -11,14 +11,14 @@ Mesh::Mesh(std::string name, vertex firstVertex, std::vector<vertex> v) {
 		m_LocalVertices = v;
 		// Aqui calcularia o centroide
 	}
-	else {
+	else{
 		addVertex(firstVertex);
 	}
 
 	CalcLocalCentroide();
 }
 
-Mesh::~Mesh() {
+Mesh::~Mesh(){
 	for (Mesh* m : m_SubMeshes) {
 		delete m;
 	}
@@ -27,7 +27,7 @@ Mesh::~Mesh() {
 }
 
 // Recebe o world posisiton e converte pra local
-void Mesh::addVertex(vertex worldPosition) {
+void Mesh::addVertex(vertex worldPosition){
 	vertex localPosition = worldPosition;
 
 	// Se for uma submesh
@@ -35,7 +35,7 @@ void Mesh::addVertex(vertex worldPosition) {
 		// defaz a translação, rotação e escala da mesh pai
 		localPosition.x -= (m_Parent->m_LocalCentroide.x + m_Parent->GetTransform().Position.x);
 		localPosition.y -= (m_Parent->m_LocalCentroide.y + m_Parent->GetTransform().Position.y);
-
+		
 		if (m_Parent->GetTransform().Rotation != 0.0f) {
 			float invRot = -m_Parent->GetTransform().Rotation;
 			float tx = localPosition.x * std::cos(invRot) - localPosition.y * std::sin(invRot);
@@ -60,19 +60,19 @@ void Mesh::addVertex(vertex worldPosition) {
 	m_IsDirty = true;
 }
 
-void Mesh::removeVertex() {
+void Mesh::removeVertex(){
 	if (m_LocalVertices.empty()) { return; }
-
+	
 	m_CentroideXSum -= m_LocalVertices.back().x;
 	m_CentroideYSum -= m_LocalVertices.back().y;
-
+	
 	m_LocalVertices.pop_back();
-
+	
 	CalcLocalCentroide();
 	m_IsDirty = true;
 }
 
-void Mesh::addSubMesh(Mesh* mesh) {
+void Mesh::addSubMesh(Mesh* mesh){
 	mesh->m_Parent = this;
 
 	vertex parentPivot;
@@ -85,11 +85,11 @@ void Mesh::addSubMesh(Mesh* mesh) {
 	m_SubMeshes.push_back(mesh);
 }
 
-Mesh* Mesh::GetSubMesh(int index) {
+Mesh* Mesh::GetSubMesh(int index){
 	return m_SubMeshes[index];
 }
 
-void Mesh::CalcLocalCentroide() {
+void Mesh::CalcLocalCentroide(){
 	if (m_LocalVertices.empty()) { return; }
 
 	m_LocalCentroide.x = m_CentroideXSum / m_LocalVertices.size();
@@ -99,7 +99,7 @@ void Mesh::CalcLocalCentroide() {
 vertex Mesh::GetCentroide() {
 	float px = m_LocalCentroide.x + m_Transform.Position.x;
 	float py = m_LocalCentroide.y + m_Transform.Position.y;
-
+	
 	// Se for submesh, arrumar a posição
 	if (m_Parent) {
 		px *= m_Parent->GetTransform().Scale.x;
@@ -118,7 +118,7 @@ vertex Mesh::GetCentroide() {
 		py += m_Parent->GetLocalCentroide().y + m_Parent->GetTransform().Position.y;
 	}
 
-	return { px, py };
+	return {px, py};
 }
 
 std::vector<vertex>& Mesh::GetVertices() {

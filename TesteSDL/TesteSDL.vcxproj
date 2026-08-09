@@ -133,8 +133,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\EditorApp.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Mesh.cpp" />
+    <ClCompile Include="src\Renderer2D.cpp" />
     <ClCompile Include="vendor\ImGui\imgui\backends\imgui_impl_sdl3.cpp" />
     <ClCompile Include="vendor\ImGui\imgui\backends\imgui_impl_sdlrenderer3.cpp" />
     <ClCompile Include="vendor\ImGui\imgui\imgui.cpp" />
@@ -149,7 +151,9 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\EditorApp.h" />
     <ClInclude Include="src\Mesh.h" />
+    <ClInclude Include="src\Renderer2D.h" />
     <ClInclude Include="vendor\ImGui\imgui\backends\imgui_impl_sdl3.h" />
     <ClInclude Include="vendor\ImGui\imgui\backends\imgui_impl_sdlrenderer3.h" />
     <ClInclude Include="vendor\ImGui\imgui\imconfig.h" />
