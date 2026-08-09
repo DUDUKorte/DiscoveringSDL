@@ -5,8 +5,8 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
-#include <cmath>
 #include <Random>
+#include <numbers>
 
 // Testando o imgui
 #include "imgui.h"
@@ -19,270 +19,59 @@
 
 #define WIDTH 1280
 #define HEIGHT 720
-#define POLY_MIN 1
 
 /* We will use this renderer to draw into this window every frame. */
 static SDL_Window* window = NULL;
 static SDL_Renderer* renderer = NULL;
 
 // Our state
-bool show_demo_window = true;
-bool show_another_window = false;
-ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+bool show_demo_window = false; // teste do imgui
+bool show_another_window = false; // teste do imgui
+ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f); // cor do background
 
-struct Point {
-	float x;
-	float y;
-};
-
+// Modos possíveis do editor
 enum EEditMode
 {
 	Selection = 0, CreatePoly = 1, MovePoly = 2, ScalePoly = 3, RotatePoly = 4
 };
 
-float fMovePolySpeed = 0.1;
-float fscalePolySpeed = 0.01;
-float frotatePolySpeed = 0.01;
+// Modos do Gizmo
+enum EGizmoState { GIZMO_NONE, GIZMO_HOVER_X, GIZMO_HOVER_Y, GIZMO_HOVER_CENTER, GIZMO_HOVER_ROT };
+EGizmoState currentGizmoState = GIZMO_NONE;
+EGizmoState activeGizmoState = GIZMO_NONE;
 
-// Editor mode
+// Current Editor mode
 EEditMode ECurrentMode = Selection;
+
+// Controles de edição pra cada moddo
+float fMovePolySpeed = 0.1f;
+float fscalePolySpeed = 0.01f;
+float frotatePolySpeed = 0.01f;
 
 // Render data structures
 std::vector<Mesh*> GlobalMeshes;
 
-std::vector<std::vector<Point>> curves;
-std::vector<std::vector<Point>> polygons;
-
-std::vector<std::vector<std::vector<Point>>> sub_polygons;
-int iCurrentCurve = 0;
-int iCurrentPoly = 0;
-int iCurrentSubPoly = 0;
-Point CurrentPolyCenter = {0,0};
-
-// Render control
-bool bUseSubPoly = false;
-bool bIsCurrent = false;
-bool bFill = false;
-bool bClosed = false;
+int iCurrentMesh = -1;
+int iCurrentSubMesh = -1;
 
 // Input
 bool bLMB = false;
 bool bRMB = false;
 
-
-// Curva de Bézier
-std::vector<std::vector<int>> hermite_matrix = {
-	{-1, 3, -3,	1},
-	{ 3,-6,	 3,	0},
-	{-3, 3,  0,	0},
-	{ 1, 0,	 0,	0}
-};
-
-// Matrizes de transformação
-
-// Transladar
-float mouse_oX, mouse_oY;
-
-std::vector<std::vector<float>> translation_matrix = {
-	{1,  0,  0},
-	{0,  1,  0},
-	{0,  0,  1}
-};
-
-// Escalonar
-float scaleX = 1;
-float scaleY = 1;
-
-// Rotacionar
-std::vector<std::vector<float>> rotation_matrix = {
-	{1,  0,  0},
-	{0,  1,  0},
-	{0,  0,  1}
-};
-
 bool findLess(const vertex& v1, const vertex& v2) {
 	return v1.x < v2.x;
 }
 
-void AddVerticeToPoly(Point p, std::vector<Point> *vertices) {
-	vertices->push_back(p);
-}
-
-void ResetTransform() {
-	// Reset translation values
-	translation_matrix[0][2] = 0;
-	translation_matrix[1][2] = 0;
-	// Reset scale values
-	scaleX = 1.0;
-	scaleY = 1.0;
-	// Reset rotation values
-	rotation_matrix[0][0] = 1;
-	rotation_matrix[0][1] = 0;
-	rotation_matrix[1][0] = 0;
-	rotation_matrix[1][1] = 1;
-}
-
-void ApplyTransform(std::vector<vertex>* vertices) {
-	// Update Center point
-	CurrentPolyCenter.x = 0;
-	CurrentPolyCenter.y = 0;
-	for (vertex& p : *vertices) {
-		CurrentPolyCenter.x += p.x;
-		CurrentPolyCenter.y += p.y;
-	}
-	CurrentPolyCenter.x /= vertices->size();
-	CurrentPolyCenter.y /= vertices->size();
-
-	Point Pm = CurrentPolyCenter;
-	SDL_RenderPoint(renderer, Pm.x, Pm.y);
-
-	
-	for (vertex& p : *vertices) {
-		p.x -= Pm.x;
-		p.y -= Pm.y;
-
-		// Apply scale locally
-		p.x *= scaleX;
-		p.y *= scaleY;
-
-		// Apply Rotation locally
-		if (ECurrentMode == RotatePoly) {
-			float tx = p.x;
-			float ty = p.y;
-			p.x = rotation_matrix[0][0] * tx + rotation_matrix[0][1] * ty;
-			p.y = rotation_matrix[1][0] * tx + rotation_matrix[1][1] * ty;
-		}
-
-		p.x += Pm.x;
-		p.y += Pm.y;
-		
-		// Apply Transform
-		p.x += translation_matrix[0][2];
-		p.y += translation_matrix[1][2];
-	}
-
-}
-
-void SaveTransform(int polyIndex) {
-	Point Pm = CurrentPolyCenter;
-	for (Point& p : polygons[polyIndex]) {
-		p.x -= Pm.x;
-		p.y -= Pm.y;
-
-		// Apply scale locally
-		p.x *= scaleX;
-		p.y *= scaleY;
-
-		// Apply Rotation locally
-		if (ECurrentMode == RotatePoly) {
-			float tx = p.x;
-			float ty = p.y;
-			p.x = rotation_matrix[0][0] * tx + rotation_matrix[0][1] * ty;
-			p.y = rotation_matrix[1][0] * tx + rotation_matrix[1][1] * ty;
-		}
-
-		p.x += Pm.x;
-		p.y += Pm.y;
-
-		// Apply Transform
-		p.x += translation_matrix[0][2];
-		p.y += translation_matrix[1][2];
-	}
-	// Apply for subpolygons
-	for (std::vector<Point>& subPoly : sub_polygons[polyIndex]) {
-		for (Point& sp : subPoly) {
-			sp.x -= Pm.x;
-			sp.y -= Pm.y;
-
-			// Apply scale locally
-			sp.x *= scaleX;
-			sp.y *= scaleY;
-
-			// Apply Rotation locally
-			if (ECurrentMode == RotatePoly) {
-				float tx = sp.x;
-				float ty = sp.y;
-				sp.x = rotation_matrix[0][0] * tx + rotation_matrix[0][1] * ty;
-				sp.y = rotation_matrix[1][0] * tx + rotation_matrix[1][1] * ty;
-			}
-
-			sp.x += Pm.x;
-			sp.y += Pm.y;
-
-			// Apply Transform
-			sp.x += translation_matrix[0][2];
-			sp.y += translation_matrix[1][2];
-		}
-	}
-	//translation_matrix[0][2] = 0;
-	//translation_matrix[1][2] = 0;
-}
-
 void DrawLinesWithVertices(std::vector<vertex>& vertices, bool closed) {
-	//Draw meshes
-	//for (Mesh* m : GlobalMeshes) {
-	//	std::vector<vertex> vertices = m->GetVertices();
-	//	for (int i = 0; i < vertices.size() - 1; i++) {
-	//		SDL_RenderLine(renderer, vertices[i].x, vertices[i].y, vertices[i + 1].x, vertices[i + 1].y);
-
-	//		if (vertices.size() - 2 == i && m->IsClosed()) {
-	//			SDL_RenderLine(renderer, vertices[i + 1].x, vertices[i + 1].y, vertices[0].x, vertices[0].y);
-	//		}
-	//	}
-	//}
-
-	if (vertices.size() < 2) { return; }
-
-	// Apply translation to vertices apenas aqui
-	//ApplyTranslation(&vertices);
+	if (vertices.size() < 2) { return; } // só desenha se tiver 2 ou mais vertices
 
 	for (int i = 0; i < vertices.size() - 1; i++) {
-		SDL_RenderLine(renderer, vertices[i].x, vertices[i].y, vertices[i+1].x, vertices[i+1].y);
+		SDL_RenderLine(renderer, vertices[i].x, vertices[i].y, vertices[i + 1].x, vertices[i + 1].y);
 
 		if (closed && vertices.size() - 2 == i) {
-			SDL_RenderLine(renderer, vertices[i+1].x, vertices[i+1].y, vertices[0].x, vertices[0].y);
+			SDL_RenderLine(renderer, vertices[i + 1].x, vertices[i + 1].y, vertices[0].x, vertices[0].y);
 		}
 	}
-}
-
-void DrawCurves(std::vector<Point> vertices, double level_of_detail) {
-	if (vertices.size() < 2) { return; }
-	
-	for (int pi = 0; pi < vertices.size() - 1; pi++) {
-		Point p0 = vertices[pi];
-		Point p1 = vertices[pi + 1];
-		Point t0 = {p0.x + 10, p0.y + 10};
-		Point t1 = {p1.x + 50, p0.y - 50 };
-
-		double last_x = -1;
-		double last_y = -1;
-
-		for (double i = 0; i <= 1.0; i+=level_of_detail) {
-			// Gerar os Ts
-			double ti = i;
-			std::vector<double> T = {pow(ti, 3.0), pow(ti, 2.0), ti, 1};
-			// Multiplicar as matrizes Q(t) = T.M.G
-			double x = (
-				( T[0] * hermite_matrix[0][0] + T[1] * hermite_matrix[1][0] + T[2] * hermite_matrix[2][0] + T[3] * hermite_matrix[3][0]) * p0.x)+
-				((T[0] * hermite_matrix[0][1] + T[1] * hermite_matrix[1][1] + T[2] * hermite_matrix[2][1] + T[3] * hermite_matrix[3][1]) * t0.x)+
-				((T[0] * hermite_matrix[0][2] + T[1] * hermite_matrix[1][2] + T[2] * hermite_matrix[2][2] + T[3] * hermite_matrix[3][2]) * p1.x)+
-				((T[0] * hermite_matrix[0][3] + T[1] * hermite_matrix[1][3] + T[2] * hermite_matrix[2][3] + T[3] * hermite_matrix[3][3]) * t1.x);
-			double y = (
-				(T[0] * hermite_matrix[0][0] + T[1] * hermite_matrix[1][0] + T[2] * hermite_matrix[2][0] + T[3] * hermite_matrix[3][0]) * p0.y) +
-				((T[0] * hermite_matrix[0][1] + T[1] * hermite_matrix[1][1] + T[2] * hermite_matrix[2][1] + T[3] * hermite_matrix[3][1]) * t0.y) +
-				((T[0] * hermite_matrix[0][2] + T[1] * hermite_matrix[1][2] + T[2] * hermite_matrix[2][2] + T[3] * hermite_matrix[3][2]) * p1.y) +
-				((T[0] * hermite_matrix[0][3] + T[1] * hermite_matrix[1][3] + T[2] * hermite_matrix[2][3] + T[3] * hermite_matrix[3][3]) * t1.y);
-
-			//SDL_RenderPoint(renderer, x, y);
-			if (last_x != -1 && last_y != -1) {
-				SDL_RenderLine(renderer, x, y, last_x, last_y);
-			}
-			last_x = x;
-			last_y = y;
-		}
-	}
-
-
 }
 
 void FindIntersections(std::vector<vertex>& vertices, std::vector<std::vector<float>>& intersecoes, std::vector<std::vector<vertex>>& intersecoes_v) {
@@ -313,7 +102,7 @@ void FindIntersections(std::vector<vertex>& vertices, std::vector<std::vector<fl
 		//float Tr = (point.color.x - source.color.x) / dY;
 		//float Tg = (point.color.y - source.color.y) / dY;
 		//float Tb = (point.color.z - source.color.z) / dY;
-		
+
 		float new_x = source.x;
 		//float new_r = source.color.x;
 		//float new_g = source.color.y;
@@ -328,7 +117,7 @@ void FindIntersections(std::vector<vertex>& vertices, std::vector<std::vector<fl
 			//SDL_RenderPoint(renderer, new_x, ymin + i);
 			if (y > 0 && y < HEIGHT) {
 				intersecoes[y].push_back(new_x);
-				vertex v = {new_x, (float)y};
+				vertex v = { new_x, (float)y };
 				intersecoes_v[y].push_back(v);
 			}
 			new_x += Tx;
@@ -339,7 +128,8 @@ void FindIntersections(std::vector<vertex>& vertices, std::vector<std::vector<fl
 	}
 }
 
-void FillPoly(std::vector<vertex>& vertices, int iPoly) {
+void FillPoly(Mesh* mesh) {
+	std::vector<vertex> vertices = mesh->GetVertices();
 	if (vertices.size() < 3) { return; }
 	std::vector<std::vector<float>> intersecoes;
 	std::vector<std::vector<vertex>> intersecoes_v;
@@ -349,12 +139,11 @@ void FillPoly(std::vector<vertex>& vertices, int iPoly) {
 	FindIntersections(vertices, intersecoes, intersecoes_v);
 
 	/*Sub Polygons adicionados às interseções (talvez não seja a melhor forma de fazer, mas é uma forma)*/
-	//for (std::vector<Point> sub_vertices : sub_polygons[iPoly]) {
-	//	if(sub_vertices.size() < 3) {break;}
-
-	//	ApplyTransform(&sub_vertices);
-	//	FindIntersections(sub_vertices, intersecoes);
-	//}
+	for (auto submesh : mesh->GetSubMeshes()) {
+		std::vector<vertex> sub_vertices = submesh->GetVertices();
+		if (sub_vertices.size() < 3) { continue; }
+		FindIntersections(sub_vertices, intersecoes, intersecoes_v);
+	}
 
 	// Ordenar todas as interceções
 	for (auto& lista : intersecoes) {
@@ -365,16 +154,6 @@ void FillPoly(std::vector<vertex>& vertices, int iPoly) {
 		std::sort(lista.begin(), lista.end(), findLess);
 	}
 
-	// Fazer o fill no poly
-	//for (int y = 0; y < intersecoes.size(); y++) {
-	//	auto& lista = intersecoes[y];
-
-	//	for (int i = 0; i+1 < lista.size(); i+=2) {
-
-	//		SDL_RenderLine(renderer, lista[i], y, lista[i+1], y);
-	//	}
-	//}
-
 	// Fazer o fill no poly com cor agr
 	for (int y = 0; y < intersecoes_v.size(); y++) {
 		auto& lista = intersecoes_v[y];
@@ -384,33 +163,153 @@ void FillPoly(std::vector<vertex>& vertices, int iPoly) {
 			//	SDL_RenderPoint(renderer, (int)lista[i].x, y);
 			//	SDL_RenderPoint(renderer, (int)lista[i + 1].x, y);
 			//}
-			SDL_RenderLine(renderer, lista[i].x, y, lista[i + 1].x, y);
+			SDL_RenderLine(renderer, lista[i].x, (float)y, lista[i + 1].x, (float)y);
 		}
 	}
 
 }
 
-std::pair<Point, Point> getMinMaxPoint(int polyIndex) {
-	if (polygons[polyIndex].size() <= 0) { return{ {0,0},{0,0} }; }
-	float ymin = HEIGHT + 1;
-	float xmin = WIDTH + 1;
-	float ymax = -1;
-	float xmax = -1;
-	for (Point& p : polygons[polyIndex]) {
-		if (p.y < ymin) {
-			ymin = p.y;
+// Retorna a mesh válida selecionada (se é a main mesh ou uma submesh)
+Mesh* GetActiveMesh() {
+	if (GlobalMeshes.empty() || iCurrentMesh < 0 || iCurrentMesh >= GlobalMeshes.size()) {
+		return nullptr;
+	}
+	Mesh* mainMesh = GlobalMeshes[iCurrentMesh];
+
+	if (iCurrentSubMesh >= 0 && iCurrentSubMesh < mainMesh->GetSubMeshes().size()) {
+		return mainMesh->GetSubMesh(iCurrentSubMesh);
+	}
+
+	return mainMesh;
+}
+
+// atualizar Gizmo de transformação de acotrdo com o mouse
+void UpdateGizmoHover(float mouseX, float mouseY, Mesh* activeMesh, EEditMode mode) {
+	currentGizmoState = GIZMO_NONE;
+	if (activeMesh == nullptr || (mode == Selection || mode == CreatePoly)) { return; }
+
+	vertex centroide = activeMesh->GetCentroide();
+	float cx = centroide.x;
+	float cy = centroide.y;
+	float size = 60.0f;
+
+	// Pegar rotação do pai pro gizmo local, da submesh
+	float gizmoRot = 0.0f;
+	if (activeMesh->m_Parent != nullptr) {
+		gizmoRot = activeMesh->m_Parent->GetTransform().Rotation;
+	}
+
+	//desfazer rotação do pai
+	float dx = mouseX - cx;
+	float dy = mouseY - cy;
+	float localX = dx * std::cos(-gizmoRot) - dy * std::sin(-gizmoRot);
+	float localY = dx * std::sin(-gizmoRot) + dy * std::cos(-gizmoRot);
+
+	// colisão com o centro
+	if (std::abs(localX) < 12 && std::abs(localY) < 12) {
+		currentGizmoState = GIZMO_HOVER_CENTER;
+		return;
+	}
+
+	if (mode == MovePoly || mode == ScalePoly) {
+		if (localX > 0 && localX < size + 15 && std::abs(localY) < 10) {
+			currentGizmoState = GIZMO_HOVER_X;
 		}
-		if (p.x < xmin) {
-			xmin = p.x;
-		}
-		if (p.y > ymax) {
-			ymax = p.y;
-		}
-		if (p.x > xmax) {
-			xmax = p.x;
+		else if (localY < 0 && localY > -size - 15 && std::abs(localX) < 10) {
+			currentGizmoState = GIZMO_HOVER_Y;
 		}
 	}
-	return { { xmin, ymin }, {xmax, ymax } };
+	else if (mode == RotatePoly) {
+		float distance = std::sqrt(localX * localX + localY * localY);
+		if (std::abs(distance - size) < 10.0f) {
+			currentGizmoState = GIZMO_HOVER_ROT;
+		}
+	}
+}
+
+// Desenhar gizmo
+void DrawGizmo(Mesh* activeMesh, EEditMode mode) {
+	if (activeMesh == nullptr || activeMesh->GetVertices().empty()) { return; }
+	if (mode == Selection || mode == CreatePoly) { return; }
+
+	ImDrawList* draw_list = ImGui::GetBackgroundDrawList();
+
+	vertex centroide = activeMesh->GetCentroide();
+	ImVec2 center(centroide.x, centroide.y);
+
+	float size = 60.0f;
+	float thickness = 3.0f;
+
+	// pega rotação do pa pra aplicar no gizmo lcoal (da submesh)
+	float gizmoRot = 0.0f;
+	if (activeMesh->m_Parent != nullptr) {
+		gizmoRot = activeMesh->m_Parent->GetTransform().Rotation;
+	}
+
+	// Vetores direcinaoais rotacionados
+	float cosR = std::cos(gizmoRot);
+	float sinR = std::sin(gizmoRot);
+	ImVec2 dirX(cosR, sinR);
+	ImVec2 dirY(sinR, -cosR);
+
+	ImU32 colorX = IM_COL32(220, 50, 50, 255);
+	ImU32 colorY = IM_COL32(50, 220, 50, 255);
+	ImU32 colorRot = IM_COL32(50, 50, 220, 255);
+	ImU32 colorCenter = IM_COL32(20, 200, 200, 255);
+
+	// Colocar hover/click nos gizmos
+	if (currentGizmoState == GIZMO_HOVER_X || activeGizmoState == GIZMO_HOVER_X) colorX = IM_COL32(255, 120, 120, 255);
+	if (currentGizmoState == GIZMO_HOVER_Y || activeGizmoState == GIZMO_HOVER_Y) colorY = IM_COL32(120, 255, 120, 255);
+	if (currentGizmoState == GIZMO_HOVER_ROT || activeGizmoState == GIZMO_HOVER_ROT) colorRot = IM_COL32(120, 200, 255, 255);
+	if (currentGizmoState == GIZMO_HOVER_CENTER || activeGizmoState == GIZMO_HOVER_CENTER) colorCenter = IM_COL32(255, 255, 100, 255);
+
+	// FUnção pra criar quadrados com rotação mais fácil
+	auto AddRotQuad = [&](ImVec2 p, float s, ImU32 col) {
+		draw_list->AddQuadFilled(
+			ImVec2(p.x + dirX.x * s - dirY.x * s, p.y + dirX.y * s - dirY.y * s),
+			ImVec2(p.x + dirX.x * s + dirY.x * s, p.y + dirX.y * s + dirY.y * s),
+			ImVec2(p.x - dirX.x * s + dirY.x * s, p.y - dirX.y * s + dirY.y * s),
+			ImVec2(p.x - dirX.x * s - dirY.x * s, p.y - dirX.y * s - dirY.y * s),
+			col);
+		};
+
+	if (mode == MovePoly) {
+		// linha e seta od x
+		ImVec2 endX(center.x + dirX.x * size, center.y + dirX.y * size);
+		draw_list->AddLine(center, endX, colorX, thickness);
+		draw_list->AddTriangleFilled(
+			ImVec2(endX.x + dirX.x * 12, endX.y + dirX.y * 12),
+			ImVec2(endX.x + dirY.x * 6, endX.y + dirY.y * 6),
+			ImVec2(endX.x - dirY.x * 6, endX.y - dirY.y * 6),
+			colorX);
+
+		// linha e seta do 
+		ImVec2 endY(center.x + dirY.x * size, center.y + dirY.y * size);
+		draw_list->AddLine(center, endY, colorY, thickness);
+		draw_list->AddTriangleFilled(
+			ImVec2(endY.x + dirY.x * 12, endY.y + dirY.y * 12),
+			ImVec2(endY.x + dirX.x * 6, endY.y + dirX.y * 6),
+			ImVec2(endY.x - dirX.x * 6, endY.y - dirX.y * 6),
+			colorY);
+
+		// centro
+		AddRotQuad(center, 6.0f, colorCenter);
+	}
+	else if (mode == ScalePoly) {
+		// eixo x
+		draw_list->AddLine(center, ImVec2(center.x + size, center.y), colorX, thickness);
+		draw_list->AddRectFilled(ImVec2(center.x + size, center.y - 5), ImVec2(center.x + size + 10, center.y + 5), colorX);
+		// eixo y
+		draw_list->AddLine(center, ImVec2(center.x, center.y - size), colorY, thickness);
+		draw_list->AddRectFilled(ImVec2(center.x + 5, center.y - size), ImVec2(center.x - 5, center.y - size - 10), colorY);
+		// centro
+		draw_list->AddRectFilled(ImVec2(center.x - 6, center.y - 6), ImVec2(center.x + 6, center.y + 6), colorCenter);
+	}
+	else if (mode == RotatePoly) {
+		// circulo
+		draw_list->AddCircle(center, size, colorRot, 0, thickness);
+		draw_list->AddCircleFilled(ImVec2(center.x + size, center.y), 5.0f, colorCenter);
+	}
 }
 
 SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
@@ -477,205 +376,91 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	//SDL_CreateWindowAndRenderer("WindowTitle", WIDTH, HEIGHT, SDL_WINDOW_RESIZABLE, &window, &renderer);
 	//SDL_SetRenderLogicalPresentation(renderer, WIDTH, HEIGHT, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
-	polygons.push_back({});
-	sub_polygons.push_back({ {} });
-	curves.push_back({});
-
 	return SDL_APP_CONTINUE;
 }
 
 // Event callbacks
-SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
+SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 	if (ImGui_ImplSDL3_ProcessEvent(event)) {
 		//return SDL_APP_CONTINUE;
 	}
-
-	std::vector<vertex>* vertices = nullptr;
-	if (iCurrentPoly < GlobalMeshes.size() && GlobalMeshes[iCurrentPoly] != nullptr) {
-		vertices = &GlobalMeshes[iCurrentPoly]->GetVertices();
-	}
-
 	if (event->type == SDL_EVENT_QUIT) {
 		std::cout << "Encerrando..." << std::endl;
 		return SDL_APP_SUCCESS;
 	}
-	else if (event->type == SDL_EVENT_KEY_DOWN) {
+
+	// Se o comando for absorvido pela UI, ignora os outros comandos
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.WantCaptureMouse || io.WantCaptureKeyboard) {
+		return SDL_APP_CONTINUE;
+	}
+
+	if (event->type == SDL_EVENT_KEY_DOWN) {
 		SDL_KeyboardEvent e = event->key;
 
 		// MODE SWITCH
 		switch (e.key) {
-		case SDLK_G: // Move polygons mode
+		case SDLK_W: // Move polygons mode
 			ECurrentMode = MovePoly;
-			mouse_oX = 0;
-			mouse_oY = 0;
 			break;
-		case SDLK_R: // Rotate polygons mode
+		case SDLK_E: // Rotate polygons mode
 			ECurrentMode = RotatePoly;
-			mouse_oX = 0;
 			break;
-		case SDLK_S: // Scale polygons mode
+		case SDLK_R: // Scale polygons mode
 			ECurrentMode = ScalePoly;
-			mouse_oY = 1;
-			mouse_oX = 1;
 			break;
-		case SDLK_9:
-			if (ECurrentMode == RotatePoly) {
-				scaleX = -1;
-				SaveTransform(iCurrentPoly);
-				ResetTransform();
-			}
-			break;
-		case SDLK_8:
-			if (ECurrentMode == RotatePoly) {
-				scaleY = -1;
-				SaveTransform(iCurrentPoly);
-				ResetTransform();
-			}
+		case SDLK_Q:
+			ECurrentMode = Selection;
 			break;
 		}
 
 		if (e.key == SDLK_SPACE) {
-			bClosed = !bClosed;
-			if (!GlobalMeshes.empty() && GlobalMeshes[0] != nullptr) {
-				GlobalMeshes[0]->SetClosed(!GlobalMeshes[0]->IsClosed());
+			if (!GlobalMeshes.empty() && GlobalMeshes[iCurrentMesh] != nullptr) {
+				GlobalMeshes[iCurrentMesh]->SetClosed(!GlobalMeshes[iCurrentMesh]->IsClosed());
 			}
 		}
 
 		if (e.key == SDLK_LCTRL) {
-			bFill = !bFill;
-			if (!GlobalMeshes.empty() && GlobalMeshes[0] != nullptr) {
-				GlobalMeshes[0]->SetFill(!GlobalMeshes[0]->GetFill());
-			}
-		}
-
-		if (ECurrentMode == MovePoly) {
-			switch (e.key) {
-			case SDLK_RIGHT:
-				translation_matrix[0][2] += 10;
-				mouse_oX = -1;
-				SaveTransform(iCurrentPoly);
-				ResetTransform();
-				break;
-			case SDLK_LEFT:
-				translation_matrix[0][2] -= 10;
-				mouse_oX = -1;
-				SaveTransform(iCurrentPoly);
-				ResetTransform();
-				break;
-			case SDLK_UP:
-				translation_matrix[1][2] -= 10;
-				mouse_oX = -1;
-				SaveTransform(iCurrentPoly);
-				ResetTransform();
-				break;
-			case SDLK_DOWN:
-				translation_matrix[1][2] += 10;
-				mouse_oX = -1;
-				SaveTransform(iCurrentPoly);
-				ResetTransform();
-				break;
-			}
-		}
-
-		if (ECurrentMode == CreatePoly) {
-			if (e.key == SDLK_KP_PLUS) {
-				if (e.mod & SDL_KMOD_SHIFT) {
-					iCurrentSubPoly++;
-					if (sub_polygons[iCurrentPoly].size() < iCurrentSubPoly + 1) {
-						sub_polygons[iCurrentPoly].push_back({});
-					}
-				}
-				else if (e.mod & SDL_KMOD_ALT) {
-					iCurrentCurve++;
-					if (curves.size() < iCurrentCurve + 1) {
-						curves.push_back({});
-					}
-				}
-				else {
-					iCurrentPoly++;
-					iCurrentSubPoly = 0;
-
-					if (GlobalMeshes.size() < iCurrentPoly + 1) {
-						GlobalMeshes.push_back(new Mesh({ event->button.x, event->button.y }));
-						sub_polygons.push_back({ {} });
-					}
-				}
-			}
-
-			if (e.key == SDLK_KP_MINUS) {
-				if (e.mod & SDL_KMOD_SHIFT) {
-					iCurrentSubPoly > 0 ? iCurrentSubPoly-- : iCurrentSubPoly;
-				}
-				else if (e.mod & SDL_KMOD_ALT) {
-					iCurrentCurve > 0 ? iCurrentCurve-- : iCurrentCurve;
-				}
-				else {
-					iCurrentPoly > POLY_MIN ? iCurrentPoly-- : iCurrentPoly;
-					iCurrentSubPoly = 0;
-				}
-			}
-
-			if (e.key == SDLK_BACKSPACE) {
-				if (e.mod & SDL_KMOD_SHIFT) {
-					if (sub_polygons[iCurrentPoly][iCurrentSubPoly].size() > 0) {
-						sub_polygons[iCurrentPoly][iCurrentSubPoly].pop_back();
-					}
-				}
-				else if (e.mod & SDL_KMOD_ALT) {
-					if (curves[iCurrentCurve].size() > 0) {
-						curves[iCurrentCurve].pop_back();
-					}
-				}
-				else {
-					if (polygons[iCurrentPoly].size() > 0) {
-						polygons[iCurrentPoly].pop_back();
-					}
-				}
-
+			if (!GlobalMeshes.empty() && GlobalMeshes[iCurrentMesh] != nullptr) {
+				GlobalMeshes[iCurrentMesh]->SetFill(!GlobalMeshes[iCurrentMesh]->GetFill());
 			}
 		}
 	}
 	else if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
 		SDL_MouseButtonEvent e = event->button;
 		if (e.button == 1) { // LMB
-			if (ECurrentMode != CreatePoly) {
-				// Apply transformation and return to CreatePoly mode
-				SaveTransform(iCurrentPoly);
-				ResetTransform();
-
-				ECurrentMode = CreatePoly;
-			}
-			else {
-				if (SDL_GetModState() & SDL_KMOD_ALT) {
-					AddVerticeToPoly({ e.x, e.y }, &curves[iCurrentCurve]);
+			if (ECurrentMode == CreatePoly) {
+				//AddVerticeToPoly({ e.x, e.y }, &polygons[iCurrentPoly]);
+				if (GlobalMeshes.empty()) {
+					//std::string mesh_name = "Mesh_" + std::to_string(iCurrentMesh);
+					//GlobalMeshes.push_back(new Mesh(mesh_name, {e.x, e.y}));
 				}
 				else {
-					//AddVerticeToPoly({ e.x, e.y }, &polygons[iCurrentPoly]);
-					if (GlobalMeshes.empty()) {
-						GlobalMeshes.push_back(new Mesh({e.x, e.y}));
+					Mesh* ActiveMesh = GetActiveMesh();
+					if (ActiveMesh != nullptr) {
+						ActiveMesh->addVertex({ e.x, e.y });
 					}
-					else {
-						GlobalMeshes[iCurrentPoly]->addVertex({e.x, e.y});
-					}
-					bLMB = true;
 				}
 			}
-
+			else {
+				activeGizmoState = currentGizmoState;
+			}
+			bLMB = true;
 		}
-		else if(e.button == 3){ // RMB
+		else if (e.button == 3) { // RMB
 			if (ECurrentMode != CreatePoly) {
 				// Cancel transformation and return to CreatePoly mode
-				ResetTransform();
-				ECurrentMode = CreatePoly;
+				//ECurrentMode = CreatePoly;
 			}
 			else {
-				AddVerticeToPoly({ e.x, e.y }, &sub_polygons[iCurrentPoly][iCurrentSubPoly]);
 				bRMB = true;
 			}
 		}
-	}else if (event->type == SDL_EVENT_MOUSE_BUTTON_UP) {
+	}
+	else if (event->type == SDL_EVENT_MOUSE_BUTTON_UP) {
 		SDL_MouseButtonEvent e = event->button;
 		if (e.button == 1) {
+			activeGizmoState = GIZMO_NONE;
 			bLMB = false;
 		}
 		else if (e.button == 3) {
@@ -689,64 +474,75 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 		}
 		std::pair<float, float> mouse_delta;
 
-		// LOCK MOUSE INSIDE WINDOW
-		if (ECurrentMode != CreatePoly) {
-			int threshold = 20;
-			if (e.y < threshold) {
-				SDL_WarpMouseInWindow(window, e.x, HEIGHT - threshold);
-			}
-			else if (e.y > HEIGHT - threshold) {
-				SDL_WarpMouseInWindow(window, e.x, threshold);
-			}
-			else if (e.x < threshold) {
-				SDL_WarpMouseInWindow(window, WIDTH - threshold, e.y);
-			}
-			else if (e.x > WIDTH - threshold) {
-				SDL_WarpMouseInWindow(window, threshold, e.y);
-			}
+		if (!bLMB) {
+			UpdateGizmoHover(e.x, e.y, GetActiveMesh(), ECurrentMode);
 		}
 
-		if (ECurrentMode == MovePoly) {
+		// Aqui é quando tá segurando o botão esquerdo do mouse
+		if (bLMB) {
+			Mesh* activeMesh = GetActiveMesh();
+			if (activeMesh != nullptr) {
+				Transform2D& MeshTransform = activeMesh->GetTransform();
 
-			mouse_oX += event->motion.xrel * fMovePolySpeed;
-			mouse_oY += event->motion.yrel * fMovePolySpeed;
+				// Pega rotação do pai e tira da mesh filha
+				float gizmoRot = 0.0f;
+				if (activeMesh->m_Parent != nullptr) {
+					gizmoRot = activeMesh->m_Parent->GetTransform().Rotation;
+				}
 
-			translation_matrix[0][2] = mouse_oX;
-			translation_matrix[1][2] = mouse_oY;
-		}
-		
-		else if (ECurrentMode == ScalePoly) {
-			mouse_oY -= event->motion.yrel * fscalePolySpeed;
+				// Pega o movimento cm a rotação do pai
+				float local_dx = (event->motion.xrel * std::cos(gizmoRot)) + (event->motion.yrel * std::sin(gizmoRot));
+				float local_dy = (event->motion.xrel * std::sin(gizmoRot)) + (event->motion.yrel * -std::cos(gizmoRot));
 
-			scaleX = mouse_oY;
-			scaleY = mouse_oY;
-		}
+				if (activeMesh->m_Parent != nullptr) {
+					local_dx /= activeMesh->m_Parent->GetTransform().Scale.x;
+					local_dy /= activeMesh->m_Parent->GetTransform().Scale.y;
+				}
 
-		else if (ECurrentMode == RotatePoly) {
-			mouse_oX += event->motion.xrel * frotatePolySpeed;
+				// Pegar o movimento do mouse no mundo e transformar em um movimento local pra arrumar as submeshes com mesh pai rotacionada
+				if (ECurrentMode == MovePoly) {
 
-			rotation_matrix[0][0] = std::cos(mouse_oX);
-			rotation_matrix[0][1] = -std::sin(mouse_oX);
-			rotation_matrix[1][0] = std::sin(mouse_oX);
-			rotation_matrix[1][1] = std::cos(mouse_oX);
-		}
+					if (activeGizmoState == GIZMO_HOVER_X || activeGizmoState == GIZMO_NONE || activeGizmoState == GIZMO_HOVER_CENTER) {
+						MeshTransform.Position.x += local_dx;
+					}
+					if (activeGizmoState == GIZMO_HOVER_Y || activeGizmoState == GIZMO_NONE || activeGizmoState == GIZMO_HOVER_CENTER) {
+						MeshTransform.Position.y -= local_dy;
+					}
+				}
+				else if (ECurrentMode == ScalePoly) {
+					if (activeGizmoState == GIZMO_HOVER_X) {
+						MeshTransform.Scale.x += event->motion.xrel * fscalePolySpeed;
+					}
+					else if (activeGizmoState == GIZMO_HOVER_Y) {
+						MeshTransform.Scale.y -= event->motion.yrel * fscalePolySpeed;
+					}
+					else if (activeGizmoState == GIZMO_HOVER_CENTER || activeGizmoState == GIZMO_NONE) {
+						float uniformScale = (event->motion.xrel - event->motion.yrel) * fscalePolySpeed;
+						MeshTransform.Scale.x += uniformScale;
+						MeshTransform.Scale.y += uniformScale;
+					}
+				}
+				else if (ECurrentMode == RotatePoly) {
+					MeshTransform.Rotation += event->motion.xrel * frotatePolySpeed;
+				}
 
-		else if (ECurrentMode == CreatePoly) {
-			mouse_oX = -1;
-			if (bLMB) {
-				AddVerticeToPoly({ e.x, e.y }, &polygons[iCurrentPoly]);
-			}
-			else if (bRMB) {
-				AddVerticeToPoly({ e.x, e.y }, &sub_polygons[iCurrentPoly][iCurrentSubPoly]);
+				activeMesh->MarkDirty();
+
+				if (iCurrentSubMesh == -1) {
+					for (Mesh* subMesh : activeMesh->GetSubMeshes()) {
+						subMesh->MarkDirty();
+					}
+				}
 			}
 		}
 	}
 	else if (event->type == SDL_EVENT_MOUSE_WHEEL) {
 		SDL_MouseWheelEvent e = event->wheel;
 		if (ECurrentMode == MovePoly) {
-			fMovePolySpeed += fMovePolySpeed+ 0.01 * e.y >= 0 && fMovePolySpeed+ 0.01 * e.y <= 1.0 ? 0.01 * e.y : 0.0;
-		}else if (ECurrentMode == ScalePoly) {
-			fscalePolySpeed += fscalePolySpeed + 0.0005 * e.y >= 0 && fscalePolySpeed + 0.0005 * e.y <= 0.05 ? 0.0005 * e.y : 0.0;
+			fMovePolySpeed += fMovePolySpeed + 0.01f * e.y >= 0 && fMovePolySpeed + 0.01f * e.y <= 1.0f ? 0.01f * e.y : 0.0f;
+		}
+		else if (ECurrentMode == ScalePoly) {
+			fscalePolySpeed += fscalePolySpeed + 0.0005f * e.y >= 0 && fscalePolySpeed + 0.0005f * e.y <= 0.05f ? 0.0005f * e.y : 0.0f;
 			std::cout << fscalePolySpeed << std::endl;
 		}
 	}
@@ -754,7 +550,7 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event){
 	return SDL_APP_CONTINUE;
 }
 
-SDL_AppResult SDL_AppIterate(void* appstate){
+SDL_AppResult SDL_AppIterate(void* appstate) {
 	/* IMGUI */
 	if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED)
 	{
@@ -768,25 +564,12 @@ SDL_AppResult SDL_AppIterate(void* appstate){
 	ImGui_ImplSDL3_NewFrame();
 	ImGui::NewFrame();
 
-	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-	if (show_demo_window)
-		ImGui::ShowDemoWindow(&show_demo_window);
+	DrawGizmo(GetActiveMesh(), ECurrentMode);
 
-
-	// 3. Show another simple window.
-	if (show_another_window)
-	{
-		ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-		ImGui::Text("Hello from another window!");
-		if (ImGui::Button("Close Me"))
-			show_another_window = false;
-		ImGui::End();
-	}
 	/* IMGUI */
-	
-	SDL_SetRenderDrawColorFloat(renderer, 0.2, 0.2, 0.2, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
+	SDL_SetRenderDrawColorFloat(renderer, 0.2f, 0.2f, 0.2f, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
 	SDL_RenderClear(renderer);
-	
+
 	const double now = ((double)SDL_GetTicks() * 0.001);  /* convert from milliseconds to seconds. */
 
 	/* choose the color for the frame we will draw. The sine wave trick makes it fade between colors smoothly. */
@@ -794,76 +577,191 @@ SDL_AppResult SDL_AppIterate(void* appstate){
 	const float green = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 2 / 3));
 	const float blue = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 4 / 3));
 
-	// Draw Curves
-	//for (int i = 0; i < curves.size(); i++) {
-	//	auto curve = curves[i];
-	//	if (i == iCurrentCurve) {
-	//		SDL_SetRenderDrawColorFloat(renderer, 0, 1, 0, SDL_ALPHA_OPAQUE_FLOAT);
-	//	}
-	//	else {
-	//		SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
-	//	}
+	// Draw Control pannelk
+	ImGui::Begin("Control pannel");
+	if (ImGui::BeginChild("Mesh Tree", ImVec2(0, 200), true)) {
+		for (int i = 0; i < GlobalMeshes.size(); i++) {
+			Mesh* m = GlobalMeshes[i];
+			if (m->GetVertices().empty()) { continue; }
 
-	//	DrawCurves(curve, 0.01);
-	//}
-	
-	if (ImGui::BeginListBox("Meshes")) {
-		// Draw polygons
-		for (Mesh* m : GlobalMeshes) {
-			std::vector<vertex>& vertices = m->GetVertices();
-			if (vertices.empty()) { continue; }
+			ImGuiTreeNodeFlags node_flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
+			bool isSelected = (iCurrentMesh == i && iCurrentSubMesh == -1);
 
-			if (ImGui::Selectable("Mesh tal"), m->IsActive()) {
-
+			if (isSelected) {
+				node_flags |= ImGuiTreeNodeFlags_Selected;
 			}
 
-			// 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
-			{
-				ImGui::PushID(m);
-				static float f = 0.0f;
-				static int counter = 0;
+			bool nodeOpen = ImGui::TreeNodeEx(m, node_flags, "%s", m->GetName().c_str());
 
-				ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-				ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-				ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-				ImGui::Checkbox("Another Window", &show_another_window);
-				ImGui::Checkbox("Fillpoly", &m->GetFill());
-				ImGui::Checkbox("Closed", &m->IsClosed());
-				ImGui::Checkbox("Active", &m->IsActive());
-
-				ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-				ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-				ImGui::ColorEdit3("Mesh color", (float*)&m->GetColor()); // Edit 3 floats representing a color
-
-				if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-					counter++;
-				ImGui::SameLine();
-				ImGui::Text("counter = %d", counter);
-
-				ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-
-				ImGui::End();
-				ImGui::PopID();
+			if (ImGui::IsItemClicked()) {
+				iCurrentMesh = i;
+				iCurrentSubMesh = -1;
 			}
 
-			if (m->IsActive()) {
-				if (ECurrentMode != CreatePoly) { ApplyTransform(&vertices); }
-				ImVec4 color = m->GetColor();
-				SDL_SetRenderDrawColorFloat(renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
-			}
-			else {
-				SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
-			}
+			if (nodeOpen) {
+				auto& subMeshes = m->GetSubMeshes();
+				for (int j = 0; j < subMeshes.size(); j++) {
+					Mesh* subMesh = subMeshes[j];
 
-			DrawLinesWithVertices(vertices, m->IsClosed());
+					ImGuiTreeNodeFlags sub_node_flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
+					bool isSubSelected = (iCurrentMesh == i && iCurrentSubMesh == j);
 
-			if (m->GetFill() && ECurrentMode == CreatePoly) {
-				FillPoly(vertices, 0);
+					if (isSubSelected) {
+						sub_node_flags |= ImGuiTreeNodeFlags_Selected;
+					}
+
+					ImGui::TreeNodeEx(subMesh, sub_node_flags, "%s", subMesh->GetName().c_str());
+					if (ImGui::IsItemClicked()) {
+						iCurrentMesh = i;
+						iCurrentSubMesh = j;
+					}
+				}
+				ImGui::TreePop();
 			}
 		}
-		ImGui::EndListBox();
 	}
+	ImGui::EndChild();
+
+	ImGui::Separator();
+	if (ImGui::Button("Create New Mesh")) {
+		iCurrentMesh++;
+		iCurrentSubMesh = -1;
+
+		std::string mesh_name = "Mesh_" + std::to_string(iCurrentMesh);
+		GlobalMeshes.push_back(new Mesh(mesh_name, { WIDTH / 2, HEIGHT / 2 }));
+
+		ECurrentMode = CreatePoly;
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Create SubMesh")) {
+		if (iCurrentMesh >= 0 && iCurrentMesh < GlobalMeshes.size()) {
+			Mesh* parent = GlobalMeshes[iCurrentMesh];
+
+			std::string mesh_name = "Mesh_" + std::to_string(iCurrentMesh) + "_Child_" + std::to_string(parent->GetSubMeshes().size());
+			parent->addSubMesh(new Mesh(mesh_name, { parent->GetCentroide().x, parent->GetCentroide().y }));
+			iCurrentSubMesh = (int)parent->GetSubMeshes().size() - 1;
+
+			ECurrentMode = CreatePoly;
+		}
+	}
+	ImGui::Separator();
+
+	if (ImGui::Button("Selection Mode")) {
+		ECurrentMode = Selection;
+	}
+	if (ImGui::Button("Edit Mode")) {
+		ECurrentMode = CreatePoly;
+	}
+	if (ImGui::Button("Translation Mode")) {
+		ECurrentMode = MovePoly;
+	}
+	if (ImGui::Button("Rotation Mode")) {
+		ECurrentMode = RotatePoly;
+	}
+	if (ImGui::Button("Scale Mode")) {
+		ECurrentMode = ScalePoly;
+	}
+
+	ImGui::Separator();
+	ImGui::Text("Scale Speed: %f", fscalePolySpeed);
+	ImGui::Text("Move Speed: %f", fMovePolySpeed);
+
+	ImGui::End();
+
+	// Inspector winodw
+	ImGui::Begin("Inspecor");
+	Mesh* activeMesh = GetActiveMesh();
+	if (activeMesh != nullptr) {
+		Mesh* selectedMesh = activeMesh;
+
+		ImGui::Text("Editting: %s", selectedMesh->GetName().c_str());
+		ImGui::Separator();
+
+		// Tarnsformações da mesj
+		if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
+			Transform2D& MeshTransform = selectedMesh->GetTransform();
+			bool transformChanged = false;
+
+			// posicao
+			float pos[2] = { MeshTransform.Position.x, MeshTransform.Position.y };
+			if (ImGui::DragFloat2("Position", pos, 1.0f)) {
+				MeshTransform.Position.x = pos[0];
+				MeshTransform.Position.y = pos[1];
+				transformChanged = true;
+			}
+
+			// rotacao
+			float rotDeg = MeshTransform.Rotation * (180.0f / std::numbers::pi);
+			if (ImGui::DragFloat("Rotation", &rotDeg, 1.0f)) {
+				MeshTransform.Rotation = rotDeg * (std::numbers::pi / 180.0f);
+				transformChanged = true;
+			}
+
+			// escala
+			float scale[2] = { MeshTransform.Scale.x, MeshTransform.Scale.y };
+			if (ImGui::DragFloat2("Scale", scale, 1.0f)) {
+				MeshTransform.Scale.x = scale[0];
+				MeshTransform.Scale.y = scale[1];
+				transformChanged = true;
+			}
+
+			if (ImGui::Button("Reset Rotation and Scale")) {
+				MeshTransform.Rotation = 0.0f;
+				MeshTransform.Scale = { 1.0f, 1.0f };
+				transformChanged = true;
+			}
+
+			if (transformChanged) {
+				selectedMesh->MarkDirty();
+
+				if (iCurrentSubMesh == -1) {
+					for (Mesh* submesh : selectedMesh->GetSubMeshes()) {
+						submesh->MarkDirty();
+					}
+				}
+			}
+		}
+
+		ImGui::Checkbox("Fillpoly", &selectedMesh->GetFill());
+		ImGui::Checkbox("Closed", &selectedMesh->IsClosed());
+		ImGui::Checkbox("Active", &selectedMesh->IsActive());
+
+		ImGui::ColorEdit3("Clear Color", (float*)&clear_color);
+		ImGui::ColorEdit3("Mesh Color", (float*)&selectedMesh->GetColor());
+
+		if (ImGui::Button("Delete Vertex")) {
+			selectedMesh->removeVertex();
+		}
+
+	}
+	else {
+		ImGui::Text("None Selected");
+	}
+	ImGui::Separator();
+	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+	ImGui::End();
+
+	// Draw polygons
+	for (Mesh* m : GlobalMeshes) {
+		std::vector<vertex>& vertices = m->GetVertices();
+		if (vertices.empty()) { continue; }
+
+
+		if (m->IsActive()) {
+			ImVec4 color = m->GetColor();
+			SDL_SetRenderDrawColorFloat(renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
+		}
+		else {
+			SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
+		}
+
+		DrawLinesWithVertices(vertices, m->IsClosed());
+
+		if (m->GetFill()) {
+			FillPoly(m);
+		}
+	}
+
 	// Rendering
 	ImGui::Render();
 	SDL_SetRenderScale(renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
@@ -879,12 +777,12 @@ SDL_AppResult SDL_AppIterate(void* appstate){
 void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	//quitar
 	// Cleanup
-    // [If using SDL_MAIN_USE_CALLBACKS: all code below would likely be your SDL_AppQuit() function]
-    ImGui_ImplSDLRenderer3_Shutdown();
-    ImGui_ImplSDL3_Shutdown();
-    ImGui::DestroyContext();
+	// [If using SDL_MAIN_USE_CALLBACKS: all code below would likely be your SDL_AppQuit() function]
+	ImGui_ImplSDLRenderer3_Shutdown();
+	ImGui_ImplSDL3_Shutdown();
+	ImGui::DestroyContext();
 
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
+	SDL_DestroyRenderer(renderer);
+	SDL_DestroyWindow(window);
+	SDL_Quit();
 }

@@ -1,50 +1,184 @@
 #include "Mesh.h"
+#include <cmath>
 
-Mesh::Mesh(vertex firstVertex, std::vector<vertex> v) {
+Mesh::Mesh(std::string name, vertex firstVertex, std::vector<vertex> v) {
+
+	m_Name = name;
+	m_Velocity = { 0,0 };
+	m_Transform.Position = { firstVertex.x, firstVertex.y };
+
 	if (!(v.empty())) {
-		m_Vertices = v;
+		m_LocalVertices = v;
+		// Aqui calcularia o centroide
 	}
-	else{
+	else {
 		addVertex(firstVertex);
 	}
-	m_Velocity = { 0,0 };
-	m_Centroide = CalcCentroide();
+
+	CalcLocalCentroide();
 }
 
-Mesh::~Mesh(){
-	for (Mesh m : m_SubMeshes) {
-		m.~Mesh();
+Mesh::~Mesh() {
+	for (Mesh* m : m_SubMeshes) {
+		delete m;
 	}
-	delete &m_Vertices;
+	m_SubMeshes.clear();
+	//delete &m_Vertices;
 }
 
-void Mesh::addVertex(vertex v){
-	m_Vertices.push_back(v);
+// Recebe o world posisiton e converte pra local
+void Mesh::addVertex(vertex worldPosition) {
+	vertex localPosition = worldPosition;
 
-	m_CentroideXSum += v.x;
-	m_CentroideYSum += v.y;
-	CalcCentroide();
+	// Se for uma submesh
+	if (m_Parent) {
+		// defaz a translação, rotação e escala da mesh pai
+		localPosition.x -= (m_Parent->m_LocalCentroide.x + m_Parent->GetTransform().Position.x);
+		localPosition.y -= (m_Parent->m_LocalCentroide.y + m_Parent->GetTransform().Position.y);
+
+		if (m_Parent->GetTransform().Rotation != 0.0f) {
+			float invRot = -m_Parent->GetTransform().Rotation;
+			float tx = localPosition.x * std::cos(invRot) - localPosition.y * std::sin(invRot);
+			float ty = localPosition.x * std::sin(invRot) + localPosition.y * std::cos(invRot);
+			localPosition.x = tx;
+			localPosition.y = ty;
+		}
+
+		localPosition.x /= m_Parent->GetTransform().Scale.x;
+		localPosition.y /= m_Parent->GetTransform().Scale.y;
+	}
+
+	// De world position para local position
+	localPosition.x -= m_Transform.Position.x;
+	localPosition.y -= m_Transform.Position.y;
+
+	m_LocalVertices.push_back(localPosition);
+
+	m_CentroideXSum += localPosition.x;
+	m_CentroideYSum += localPosition.y;
+	CalcLocalCentroide();
+	m_IsDirty = true;
 }
 
-void Mesh::removeVertex(){
-	m_CentroideXSum -= m_Vertices.back().x;
-	m_CentroideYSum -= m_Vertices.back().y;
-	
-	m_Vertices.pop_back();
-	
-	CalcCentroide();
+void Mesh::removeVertex() {
+	if (m_LocalVertices.empty()) { return; }
+
+	m_CentroideXSum -= m_LocalVertices.back().x;
+	m_CentroideYSum -= m_LocalVertices.back().y;
+
+	m_LocalVertices.pop_back();
+
+	CalcLocalCentroide();
+	m_IsDirty = true;
 }
 
-void Mesh::addSubMesh(Mesh mesh){
+void Mesh::addSubMesh(Mesh* mesh) {
+	mesh->m_Parent = this;
+
+	vertex parentPivot;
+	parentPivot.x = m_LocalCentroide.x + m_Transform.Position.x;
+	parentPivot.y = m_LocalCentroide.y + m_Transform.Position.y;
+
+	mesh->GetTransform().Position.x -= parentPivot.x;
+	mesh->GetTransform().Position.y -= parentPivot.y;
+
 	m_SubMeshes.push_back(mesh);
 }
 
-Mesh Mesh::GetSubMesh(int index){
-	return m_SubMeshes.at(index);
+Mesh* Mesh::GetSubMesh(int index) {
+	return m_SubMeshes[index];
 }
 
-vertex Mesh::CalcCentroide(){
-	m_Centroide.x = m_CentroideXSum / m_Vertices.size();
-	m_Centroide.y = m_CentroideYSum / m_Vertices.size();
-	return m_Centroide;
+void Mesh::CalcLocalCentroide() {
+	if (m_LocalVertices.empty()) { return; }
+
+	m_LocalCentroide.x = m_CentroideXSum / m_LocalVertices.size();
+	m_LocalCentroide.y = m_CentroideYSum / m_LocalVertices.size();
+}
+
+vertex Mesh::GetCentroide() {
+	float px = m_LocalCentroide.x + m_Transform.Position.x;
+	float py = m_LocalCentroide.y + m_Transform.Position.y;
+
+	// Se for submesh, arrumar a posição
+	if (m_Parent) {
+		px *= m_Parent->GetTransform().Scale.x;
+		py *= m_Parent->GetTransform().Scale.y;
+
+		if (m_Parent->GetTransform().Rotation != 0.0f) {
+			float pCosA = std::cos(m_Parent->GetTransform().Rotation);
+			float pSinA = std::sin(m_Parent->GetTransform().Rotation);
+			float tx = px * pCosA - py * pSinA;
+			float ty = px * pSinA + py * pCosA;
+			px = tx;
+			py = ty;
+		}
+
+		px += m_Parent->GetLocalCentroide().x + m_Parent->GetTransform().Position.x;
+		py += m_Parent->GetLocalCentroide().y + m_Parent->GetTransform().Position.y;
+	}
+
+	return { px, py };
+}
+
+std::vector<vertex>& Mesh::GetVertices() {
+	if (m_IsDirty) {
+		UpdateWorldVertices();
+	}
+	return m_Vertices;
+}
+
+void Mesh::UpdateWorldVertices() {
+	m_Vertices.clear();
+	m_Vertices.reserve(m_LocalVertices.size());
+
+	float cosA = std::cos(m_Transform.Rotation);
+	float sinA = std::sin(m_Transform.Rotation);
+
+	// Se for submesh, pega a rotação do pai
+	float pCosA = 1.0f, pSinA = 0.0f;
+	if (m_Parent) {
+		pCosA = std::cos(m_Parent->GetTransform().Rotation);
+		pSinA = std::sin(m_Parent->GetTransform().Rotation);
+	}
+
+	for (const vertex& localVertex : m_LocalVertices) {
+		// Apply sacale
+		float px = localVertex.x - m_LocalCentroide.x;
+		float py = localVertex.y - m_LocalCentroide.y;
+
+		px *= m_Transform.Scale.x;
+		py *= m_Transform.Scale.y;
+
+		// Apply rotation
+		if (m_Transform.Rotation != 0.0f) {
+			float tx = px * cosA - py * sinA;
+			float ty = px * sinA + py * cosA;
+			px = tx;
+			py = ty;
+		}
+
+		// Applt transform
+		px += m_LocalCentroide.x + m_Transform.Position.x;
+		py += m_LocalCentroide.y + m_Transform.Position.y;
+
+		// Herdar o transform do pai
+		if (m_Parent) {
+			px *= m_Parent->GetTransform().Scale.x;
+			py *= m_Parent->GetTransform().Scale.y;
+
+			if (m_Parent->GetTransform().Rotation != 0.0f) {
+				float tx = px * pCosA - py * pSinA;
+				float ty = px * pSinA + py * pCosA;
+				px = tx;
+				py = ty;
+			}
+
+			px += m_Parent->GetLocalCentroide().x + m_Parent->GetTransform().Position.x;
+			py += m_Parent->GetLocalCentroide().y + m_Parent->GetTransform().Position.y;
+		}
+
+		m_Vertices.push_back({ px, py });
+	}
+	m_IsDirty = false;
 }
