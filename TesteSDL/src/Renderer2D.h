@@ -6,7 +6,7 @@
 namespace Renderer2D {
 	void DrawLinesWithVertices(SDL_Renderer* renderer, std::vector<vertex>& vertices, bool closed);
 	
-	void FindIntersections(std::vector<vertex>& vertices, std::vector<std::vector<float>>& intersecoes, std::vector<std::vector<vertex>>& intersecoes_v);
+	void FindIntersections(std::vector<vertex>& vertices, std::vector<std::vector<float>>& intersecoes);
 	
 	void FillPoly(SDL_Renderer* renderer, Mesh* mesh);
 

@@ -1,15 +1,12 @@
 #include "Renderer2D.h"
 #include "EditorApp.h"
+#include "Log.h"
 
 #include <algorithm>
 #include <cmath>
 #include <imgui.h>
 
 namespace Renderer2D {
-	bool findLess(const vertex& v1, const vertex& v2) {
-		return v1.x < v2.x;
-	}
-
 	void DrawLinesWithVertices(SDL_Renderer* renderer, std::vector<vertex>& vertices, bool closed)
 	{
 		if (vertices.size() < 2) { // só desenha se tiver 2 ou mais vertices
@@ -26,7 +23,7 @@ namespace Renderer2D {
 		}
 	}
 
-	void FindIntersections(std::vector<vertex>& vertices, std::vector<std::vector<float>>& intersecoes, std::vector<std::vector<vertex>>& intersecoes_v)
+	void FindIntersections(std::vector<vertex>& vertices, std::vector<std::vector<float>>& intersecoes)
 	{
 		for (int i = 0; i < vertices.size(); i++) {
 			vertex source = vertices[i];
@@ -38,14 +35,10 @@ namespace Renderer2D {
 			if (point.y < source.y) { // point é mais alto que source; faz troca
 				std::swap(source, point);
 			}
+			LE_CORE_ASSERT(point.y >= source.y, "Y FINAL da aresta maior que o INICIAL!");
 
 			int ymin = (int)source.y;
 			int ymax = (int)point.y;
-
-			// Proteger contra índices negativos
-			if (ymin < 0) ymin = 0;
-			if (ymax < 0) return;
-			if (ymin >= HEIGHT) return;
 
 			float dY = (point.y - source.y);
 
@@ -66,8 +59,7 @@ namespace Renderer2D {
 				//SDL_RenderPoint(renderer, new_x, ymin + i);
 				if (y > 0 && y < HEIGHT) {
 					intersecoes[y].push_back(new_x);
-					vertex v = { new_x, (float)y };
-					intersecoes_v[y].push_back(v);
+					LE_CORE_ASSERT(y > 0 && y < HEIGHT, "Coordenada Y com valor INVALIDO!");
 				}
 				new_x += Tx;
 				//new_r += Tr;
@@ -83,38 +75,33 @@ namespace Renderer2D {
 		if (vertices.size() < 3) { return; }
 
 		std::vector<std::vector<float>> intersecoes;
-		std::vector<std::vector<vertex>> intersecoes_v;
 		intersecoes.resize(HEIGHT);
-		intersecoes_v.resize(HEIGHT);
+		LE_CORE_ASSERT(intersecoes.size() == HEIGHT, "Intersecoes com tamanho incorreto alocado!");
 
-		FindIntersections(vertices, intersecoes, intersecoes_v);
+		FindIntersections(vertices, intersecoes);
 
 		/*Sub Polygons adicionados às interseções (talvez não seja a melhor forma de fazer, mas é uma forma)*/
 		for (auto submesh : mesh->GetSubMeshes()) {
 			std::vector<vertex> sub_vertices = submesh->GetVertices();
 			if (sub_vertices.size() < 3) { continue; }
-			FindIntersections(sub_vertices, intersecoes, intersecoes_v);
+			FindIntersections(sub_vertices, intersecoes);
 		}
 
 		// Ordenar todas as interceções
 		for (auto& lista : intersecoes) {
 			std::sort(lista.begin(), lista.end());
 		}
-		// Ordernar interseções com cor
-		for (auto& lista : intersecoes_v) {
-			std::sort(lista.begin(), lista.end(), findLess);
-		}
 
-		// Fazer o fill no poly com cor agr
-		for (int y = 0; y < intersecoes_v.size(); y++) {
-			auto& lista = intersecoes_v[y];
+		// Fazer o fill no poly
+		for (int y = 0; y < intersecoes.size(); y++) {
+			std::vector<float> lista = intersecoes[y];
 
 			for (int i = 0; i + 1 < lista.size(); i += 2) {
 				//if (i + 1 < lista.size()) {
 				//	SDL_RenderPoint(renderer, (int)lista[i].x, y);
 				//	SDL_RenderPoint(renderer, (int)lista[i + 1].x, y);
 				//}
-				SDL_RenderLine(renderer, lista[i].x, (float)y, lista[i + 1].x, (float)y);
+				SDL_RenderLine(renderer, lista[i], (float)y, lista[i + 1], (float)y);
 			}
 		}
 	}

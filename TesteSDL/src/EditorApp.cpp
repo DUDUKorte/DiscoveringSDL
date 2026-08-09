@@ -1,5 +1,6 @@
 #include "EditorApp.h"
 #include "Renderer2D.h"
+#include "Log.h"
 
 #include <iostream>
 #include <string>
@@ -109,6 +110,7 @@ Mesh* EditorApp::GetActiveMesh()
 	if (m_GlobalMeshes.empty() || m_CurrentMesh < 0 || m_CurrentMesh >= m_GlobalMeshes.size()) {
 		return nullptr;
 	}
+	LE_CORE_ASSERT(m_CurrentMesh <= m_GlobalMeshes.size() && m_CurrentMesh >= 0, "Tentando acessar Mesh INVALIDA!");
 	Mesh* mainMesh = m_GlobalMeshes[m_CurrentMesh];
 
 	if (m_CurrentSubMesh >= 0 && m_CurrentSubMesh < mainMesh->GetSubMeshes().size()) {
@@ -244,7 +246,7 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		}
 	}
 	/// EVENTOS DE MOUSE "DESPRESSIONADO"? ///////////////////////////////////////////////////////
-	else if (event->type == SDL_EVENT_MOUSE_BUTTON_UP) {
+	else if (event->type == SDL_EVENT_MOUSE_BUTTON_UP) {	
 		SDL_MouseButtonEvent e = event->button;
 		if (e.button == 1) {
 			m_ActiveGizmoState = GIZMO_NONE;
@@ -534,7 +536,7 @@ void EditorApp::RenderUI()
 	if (activeMesh != nullptr) {
 		Mesh* selectedMesh = activeMesh;
 
-		ImGui::Text("Editting: %s", selectedMesh->GetName().c_str());
+		ImGui::Text("Editing: %s", selectedMesh->GetName().c_str());
 		ImGui::Separator();
 
 		// Tarnsformações da mesj
@@ -559,7 +561,7 @@ void EditorApp::RenderUI()
 
 			// escala
 			float scale[2] = { MeshTransform.Scale.x, MeshTransform.Scale.y };
-			if (ImGui::DragFloat2("Scale", scale, 1.0f)) {
+			if (ImGui::DragFloat2("Scale", scale, 0.1f)) {
 				MeshTransform.Scale.x = scale[0];
 				MeshTransform.Scale.y = scale[1];
 				transformChanged = true;

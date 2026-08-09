@@ -1,11 +1,12 @@
 #include "Mesh.h"
+#include "EditorApp.h"
 #include <cmath>
 
 Mesh::Mesh(std::string name, vertex firstVertex, std::vector<vertex> v) {
 	
 	m_Name = name;
 	m_Velocity = { 0,0 };
-	m_Transform.Position = { firstVertex.x, firstVertex.y };
+	GetTransform().Position = { firstVertex.x, firstVertex.y };
 
 	if (!(v.empty())) {
 		m_LocalVertices = v;
@@ -49,8 +50,8 @@ void Mesh::addVertex(vertex worldPosition){
 	}
 
 	// De world position para local position
-	localPosition.x -= m_Transform.Position.x;
-	localPosition.y -= m_Transform.Position.y;
+	localPosition.x -= GetTransform().Position.x;
+	localPosition.y -= GetTransform().Position.y;
 
 	m_LocalVertices.push_back(localPosition);
 
@@ -76,8 +77,8 @@ void Mesh::addSubMesh(Mesh* mesh){
 	mesh->m_Parent = this;
 
 	vertex parentPivot;
-	parentPivot.x = m_LocalCentroide.x + m_Transform.Position.x;
-	parentPivot.y = m_LocalCentroide.y + m_Transform.Position.y;
+	parentPivot.x = m_LocalCentroide.x + GetTransform().Position.x;
+	parentPivot.y = m_LocalCentroide.y + GetTransform().Position.y;
 
 	mesh->GetTransform().Position.x -= parentPivot.x;
 	mesh->GetTransform().Position.y -= parentPivot.y;
@@ -96,6 +97,16 @@ Mesh* Mesh::GetSubMesh(int index){
 	return m_SubMeshes[index];
 }
 
+void Mesh::SetEditMode(bool editMode)
+{
+	MarkDirty();
+	for (Mesh* m : m_SubMeshes) {
+		m->MarkDirty();
+	}
+
+	m_EditMode = editMode;
+}
+
 void Mesh::CalcLocalCentroide(){
 	if (m_LocalVertices.empty()) { return; }
 
@@ -104,8 +115,8 @@ void Mesh::CalcLocalCentroide(){
 }
 
 vertex Mesh::GetCentroide() {
-	float px = m_LocalCentroide.x + m_Transform.Position.x;
-	float py = m_LocalCentroide.y + m_Transform.Position.y;
+	float px = m_LocalCentroide.x + GetTransform().Position.x;
+	float py = m_LocalCentroide.y + GetTransform().Position.y;
 	
 	// Se for submesh, arrumar a posição
 	if (m_Parent) {
@@ -128,6 +139,21 @@ vertex Mesh::GetCentroide() {
 	return {px, py};
 }
 
+Transform2D& Mesh::GetTransform()
+{
+	if (!m_EditMode) {
+		return m_Transform;
+	}
+	else {
+		Transform2D defaultTransform;
+		defaultTransform.Position = { WIDTH / 2, HEIGHT / 2 };
+		defaultTransform.Rotation = 0.0f;
+		defaultTransform.Scale = { 1.0f, 1.0f };
+
+		return defaultTransform;
+	}
+}
+
 std::vector<vertex>& Mesh::GetVertices() {
 	if (m_IsDirty) {
 		UpdateWorldVertices();
@@ -139,8 +165,8 @@ void Mesh::UpdateWorldVertices() {
 	m_Vertices.clear();
 	m_Vertices.reserve(m_LocalVertices.size());
 
-	float cosA = std::cos(m_Transform.Rotation);
-	float sinA = std::sin(m_Transform.Rotation);
+	float cosA = std::cos(GetTransform().Rotation);
+	float sinA = std::sin(GetTransform().Rotation);
 
 	// Se for submesh, pega a rotação do pai
 	float pCosA = 1.0f, pSinA = 0.0f;
@@ -154,11 +180,11 @@ void Mesh::UpdateWorldVertices() {
 		float px = localVertex.x - m_LocalCentroide.x;
 		float py = localVertex.y - m_LocalCentroide.y;
 
-		px *= m_Transform.Scale.x;
-		py *= m_Transform.Scale.y;
+		px *= GetTransform().Scale.x;
+		py *= GetTransform().Scale.y;
 
 		// Apply rotation
-		if (m_Transform.Rotation != 0.0f) {
+		if (GetTransform().Rotation != 0.0f) {
 			float tx = px * cosA - py * sinA;
 			float ty = px * sinA + py * cosA;
 			px = tx;
@@ -166,8 +192,8 @@ void Mesh::UpdateWorldVertices() {
 		}
 
 		// Applt transform
-		px += m_LocalCentroide.x + m_Transform.Position.x;
-		py += m_LocalCentroide.y + m_Transform.Position.y;
+		px += m_LocalCentroide.x + GetTransform().Position.x;
+		py += m_LocalCentroide.y + GetTransform().Position.y;
 
 		// Herdar o transform do pai
 		if (m_Parent) {

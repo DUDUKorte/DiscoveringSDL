@@ -38,10 +38,11 @@ public:
 
 	inline Vec2 Velocity() { return m_Velocity; }
 	vertex GetCentroide();
+	Transform2D& GetTransform();
 
 	// getters
-	inline Transform2D& GetTransform() { return m_Transform; }
 	inline vertex& GetLocalCentroide() { return m_LocalCentroide; }
+	inline bool& GetEditMode() {return m_EditMode;}
 	inline bool& IsActive() { return m_IsActive; }
 	inline bool& GetFill() { return m_Fill; }
 	inline bool& GetOutline() { return m_Outline; }
@@ -53,6 +54,7 @@ public:
 
 	// setters
 	inline void MarkDirty() { m_IsDirty = true; }
+	void SetEditMode(bool editMode);
 	inline void SetActive(bool active) { m_IsActive = active; }
 	inline void SetFill(bool fill) { m_Fill = fill; }
 	inline void SetClosed(bool closed) { m_Closed = closed; }
@@ -90,6 +92,7 @@ private:
 	bool m_Closed = false; // se o último vértice é conectado cm o primeiro
 	bool m_Gravity = false; // se é afetado pela gravidade ou nn
 	bool m_Outline = true;
+	bool m_EditMode = false; // se estiver em modo de edição
 	//
 	ImVec4 m_Color = { 0, 1, 0 , 1 };
 	ImVec4 m_OutlineColor = { 1, 1 ,1 , 1 };
