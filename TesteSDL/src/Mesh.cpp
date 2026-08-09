@@ -85,6 +85,13 @@ void Mesh::addSubMesh(Mesh* mesh){
 	m_SubMeshes.push_back(mesh);
 }
 
+void Mesh::removeSubMesh(int index)
+{
+	Mesh* markForDelte = GetSubMesh(index);
+	m_SubMeshes.erase(m_SubMeshes.begin() + index);
+	delete markForDelte;
+}
+
 Mesh* Mesh::GetSubMesh(int index){
 	return m_SubMeshes[index];
 }

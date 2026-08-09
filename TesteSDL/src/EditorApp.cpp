@@ -384,13 +384,13 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	for (Mesh* m : m_GlobalMeshes) {
 		std::vector<vertex>& vertices = m->GetVertices();
 		if (vertices.empty()) { continue; }
-
-
+		
+		// Verifica se tusa fill color e seta a cor
 		if (m->IsActive()) {
 			ImVec4 color = m->GetColor();
 			SDL_SetRenderDrawColorFloat(m_Renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
 		}
-		else {
+		else{
 			const double now = ((double)SDL_GetTicks() * 0.001);  /* convert from milliseconds to seconds. */
 			/* choose the color for the frame we will draw. The sine wave trick makes it fade between colors smoothly. */
 			const float red = (float)(0.5 + 0.5 * SDL_sin(now));
@@ -399,11 +399,23 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			SDL_SetRenderDrawColorFloat(m_Renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
 		}
 
-		Renderer2D::DrawLinesWithVertices(m_Renderer, vertices, m->IsClosed());
-
+		// Fill poly
 		if (m->GetFill()) {
 			Renderer2D::FillPoly(m_Renderer, m);
 		}
+		
+		// Pega a cor do outline e desenha ela
+		if (m->GetOutline()) {
+			ImVec4 color = m->GetOutlineColor();
+			SDL_SetRenderDrawColorFloat(m_Renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
+
+			// Se tiver filhos, desenha o outline de cada filho
+			for (Mesh* subMesh : m->GetSubMeshes()) {
+				Renderer2D::DrawLinesWithVertices(m_Renderer, subMesh->GetVertices(), true);
+			}
+		}
+
+		Renderer2D::DrawLinesWithVertices(m_Renderer, vertices, m->IsClosed());
 	}
 
 	// Rendering
@@ -472,7 +484,7 @@ void EditorApp::RenderUI()
 
 	ImGui::Separator();
 	if (ImGui::Button("Create New Mesh")) {
-		m_CurrentMesh++;
+		m_CurrentMesh = m_GlobalMeshes.size();
 		m_CurrentSubMesh = -1;
 
 		std::string mesh_name = "Mesh_" + std::to_string(m_CurrentMesh);
@@ -570,15 +582,48 @@ void EditorApp::RenderUI()
 			}
 		}
 
-		ImGui::Checkbox("Fillpoly", &selectedMesh->GetFill());
-		ImGui::Checkbox("Closed", &selectedMesh->IsClosed());
-		ImGui::Checkbox("Active", &selectedMesh->IsActive());
+		ImGui::Separator();
+
+		if (selectedMesh->m_Parent == nullptr) {
+			ImGui::Checkbox("Fillpoly", &selectedMesh->GetFill());
+
+			ImGui::Checkbox("Closed", &selectedMesh->IsClosed());
+			ImGui::Checkbox("Fill Color", &selectedMesh->IsActive());
+			ImGui::Checkbox("Outline Color", &selectedMesh->GetOutline());
+		}
 
 		ImGui::ColorEdit3("Clear Color", (float*)&m_ClearColor);
 		ImGui::ColorEdit3("Mesh Color", (float*)&selectedMesh->GetColor());
+		ImGui::ColorEdit3("Outline Color", (float*)&selectedMesh->GetOutlineColor());
 
 		if (ImGui::Button("Delete Vertex")) {
 			selectedMesh->removeVertex();
+		}
+
+		if (ImGui::Button("Delete Mesh")) { // deleta as meshes
+			if (m_CurrentSubMesh == -1) { // se for mesh pai
+				Mesh* markForDelete = m_GlobalMeshes[m_CurrentMesh];
+				m_GlobalMeshes.erase(m_GlobalMeshes.begin() + m_CurrentMesh);
+
+				delete markForDelete;
+
+				if (m_GlobalMeshes.empty()) {
+					m_CurrentMesh = -1;
+				}
+				else {
+					m_CurrentMesh = std::max(0, m_CurrentMesh - 1);
+				}
+				m_CurrentSubMesh = -1;
+
+				m_ActiveGizmoState = GIZMO_NONE;
+			}
+			else { // se for mesh filha
+				Mesh* parent = m_GlobalMeshes[m_CurrentMesh];
+				parent->removeSubMesh(m_CurrentSubMesh);
+
+				m_CurrentSubMesh = -1;
+				m_ActiveGizmoState = GIZMO_NONE;
+			}
 		}
 
 	}

@@ -26,7 +26,9 @@ public:
 
 	void addVertex(vertex worldPosition);
 	void removeVertex();
+
 	void addSubMesh(Mesh* mesh);
+	void removeSubMesh(int index);
 
 	std::vector<vertex>& GetVertices();
 	
@@ -42,9 +44,11 @@ public:
 	inline vertex& GetLocalCentroide() { return m_LocalCentroide; }
 	inline bool& IsActive() { return m_IsActive; }
 	inline bool& GetFill() { return m_Fill; }
+	inline bool& GetOutline() { return m_Outline; }
 	inline bool& IsClosed() { return m_Closed; }
 	inline bool& GetGravity() { return m_Gravity; }
 	inline ImVec4& GetColor() { return m_Color; }
+	inline ImVec4& GetOutlineColor() { return m_OutlineColor; }
 	inline std::string& GetName() { return m_Name; }
 
 	// setters
@@ -85,6 +89,8 @@ private:
 	bool m_Fill = false; // se preenche o meio dele
 	bool m_Closed = false; // se o último vértice é conectado cm o primeiro
 	bool m_Gravity = false; // se é afetado pela gravidade ou nn
+	bool m_Outline = true;
 	//
 	ImVec4 m_Color = { 0, 1, 0 , 1 };
+	ImVec4 m_OutlineColor = { 1, 1 ,1 , 1 };
 };
