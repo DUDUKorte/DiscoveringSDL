@@ -12,7 +12,10 @@ namespace Renderer2D {
 
 	void DrawLinesWithVertices(SDL_Renderer* renderer, std::vector<vertex>& vertices, bool closed)
 	{
-		if (vertices.size() < 2) { return; } // só desenha se tiver 2 ou mais vertices
+		if (vertices.size() < 2) { // só desenha se tiver 2 ou mais vertices
+			SDL_RenderPoint(renderer, vertices[0].x, vertices[0].y);
+			return; 
+		}
 
 		for (int i = 0; i < vertices.size() - 1; i++) {
 			SDL_RenderLine(renderer, vertices[i].x, vertices[i].y, vertices[i + 1].x, vertices[i + 1].y);

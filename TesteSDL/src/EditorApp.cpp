@@ -529,7 +529,7 @@ void EditorApp::RenderUI()
 	ImGui::End();
 
 	// Inspector winodw
-	ImGui::Begin("Inspecor");
+	ImGui::Begin("Inspector");
 	Mesh* activeMesh = GetActiveMesh();
 	if (activeMesh != nullptr) {
 		Mesh* selectedMesh = activeMesh;
@@ -625,12 +625,10 @@ void EditorApp::RenderUI()
 				m_ActiveGizmoState = GIZMO_NONE;
 			}
 		}
-
 	}
 	else {
 		ImGui::Text("None Selected");
 	}
-	ImGui::Separator();
 	ImGui::End();
 }
 ///////////////////////////////////////////////////////////
