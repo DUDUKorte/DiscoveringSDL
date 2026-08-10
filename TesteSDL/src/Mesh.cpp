@@ -11,6 +11,7 @@ Mesh::Mesh(std::string name, vertex firstVertex, std::vector<vertex> v) {
 	if (!(v.empty())) {
 		m_LocalVertices = v;
 		// Aqui calcularia o centroide
+		CalcLocalCentroide();
 	}
 	else{
 		addVertex(firstVertex);
@@ -92,6 +93,34 @@ void Mesh::removeSubMesh(int index)
 	m_SubMeshes.erase(m_SubMeshes.begin() + index);
 	delete markForDelte;
 }
+
+void Mesh::ResetTransform(int x_offset, int y_offset)
+{
+	// Save old transform
+	m_CacheTransform = m_Transform;
+	// Reset transform
+	GetTransform().Position = {0.0f + x_offset, 0.0f + y_offset};
+	if (m_Parent != nullptr) {
+		GetTransform().Position = { 0.0f, 0.0f};
+	}
+	GetTransform().Rotation = 0.0f;
+	GetTransform().Scale = { 1.0f, 1.0f };
+	MarkDirty();
+	for (Mesh* subMesh : GetSubMeshes()) {
+		subMesh->MarkDirty();
+	}
+}
+
+void Mesh::RestoreTransform()
+{
+	m_Transform = m_CacheTransform;
+	MarkDirty();
+	for (Mesh* subMesh : GetSubMeshes()) {
+		subMesh->MarkDirty();
+	}
+}
+
+
 
 Mesh* Mesh::GetSubMesh(int index){
 	return m_SubMeshes[index];

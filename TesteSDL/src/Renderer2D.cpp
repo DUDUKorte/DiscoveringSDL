@@ -81,9 +81,16 @@ namespace Renderer2D {
 		FindIntersections(vertices, intersecoes, height);
 
 		/*Sub Polygons adicionados às interseções (talvez não seja a melhor forma de fazer, mas é uma forma)*/
-		for (auto submesh : mesh->GetSubMeshes()) {
+		for (Mesh* submesh : mesh->GetSubMeshes()) {
 			std::vector<vertex> sub_vertices = submesh->GetVertices();
 			if (sub_vertices.size() < 3) { continue; }
+			if (submesh->IsActive()) {
+				ImVec4 old_color = mesh->GetColor();
+				ImVec4 submesh_color = submesh->GetColor();
+				SDL_SetRenderDrawColorFloat(renderer, submesh_color.x, submesh_color.y, submesh_color.z, SDL_ALPHA_OPAQUE_FLOAT);
+				FillPoly(renderer, submesh, height);
+				SDL_SetRenderDrawColorFloat(renderer, old_color.x, old_color.y, old_color.z, SDL_ALPHA_OPAQUE_FLOAT);
+			}
 			FindIntersections(sub_vertices, intersecoes, height);
 		}
 

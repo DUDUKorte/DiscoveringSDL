@@ -208,16 +208,16 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		// MODE SWITCH
 		switch (e.key) {
 		case SDLK_W: // Move polygons mode
-			m_CurrentMode = MovePoly;
+			OnChangeMode(MovePoly);
 			break;
 		case SDLK_E: // Rotate polygons mode
-			m_CurrentMode = RotatePoly;
+			OnChangeMode(RotatePoly);
 			break;
 		case SDLK_R: // Scale polygons mode
-			m_CurrentMode = ScalePoly;
+			OnChangeMode(ScalePoly);
 			break;
 		case SDLK_Q: // Selection polygons mode
-			m_CurrentMode = Selection;
+			OnChangeMode(Selection);
 			break;
 		}
 		// Atalho pra alternar closed
@@ -346,6 +346,9 @@ void EditorApp::ProcessMouseMotion(SDL_Event* event)
 			}
 			else if (m_CurrentMode == RotatePoly) {
 				MeshTransform.Rotation += event->motion.xrel * m_RotateMeshSpeed;
+			}
+			else if (m_CurrentMode == CreatePoly) {
+				activeMesh->addVertex({e.x, e.y});
 			}
 
 			activeMesh->MarkDirty();
@@ -499,7 +502,7 @@ void EditorApp::RenderUI()
 		std::string mesh_name = "Mesh_" + std::to_string(m_CurrentMesh);
 		m_GlobalMeshes.push_back(new Mesh(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }));
 
-		m_CurrentMode = CreatePoly;
+		OnChangeMode(CreatePoly);
 	}
 	ImGui::SameLine();
 	if (ImGui::Button("Create SubMesh")) {
@@ -510,25 +513,88 @@ void EditorApp::RenderUI()
 			parent->addSubMesh(new Mesh(mesh_name, { parent->GetCentroide().x, parent->GetCentroide().y }));
 			m_CurrentSubMesh = (int)parent->GetSubMeshes().size() - 1;
 
-			m_CurrentMode = CreatePoly;
+			OnChangeMode(CreatePoly);
 		}
 	}
 	ImGui::Separator();
 
+	//// Meshes pré feitas
+	//if (ImGui::Button("Create Square")) {
+	//	m_CurrentMesh = m_GlobalMeshes.size();
+	//	m_CurrentSubMesh = -1;
+
+	//	std::string mesh_name = "Mesh_Square" + std::to_string(m_CurrentMesh);
+	//	std::vector<vertex> square = {
+	//		{-10, -10},
+	//		{ 10, -10},
+	//		{ 10, 10},
+	//		{-10, 10}
+	//	};
+	//	m_GlobalMeshes.push_back(new Mesh(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }, square));
+
+	//	m_CurrentMode = CreatePoly;
+	//}
+
+	//ImGui::SameLine();
+	//
+	//if (ImGui::Button("Create Triangle")) {
+	//	m_CurrentMesh = m_GlobalMeshes.size();
+	//	m_CurrentSubMesh = -1;
+
+	//	std::string mesh_name = "Mesh_Triangle" + std::to_string(m_CurrentMesh);
+	//	std::vector<vertex> triangle = {
+	//		{ 0, -10},
+	//		{-10, 10},
+	//		{ 10, 10},
+	//	};
+	//	m_GlobalMeshes.push_back(new Mesh(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }, triangle));
+
+	//	m_CurrentMode = CreatePoly;
+	//}
+
+	// Criar polígono personalizado
+	ImGui::SliderInt("Num. Faces", &m_CustomPolyFaces, 3, 100);
+	if (ImGui::Button("Create Cusotm Poly")) {
+		m_CurrentMesh = m_GlobalMeshes.size();
+		m_CurrentSubMesh = -1;
+
+		std::string mesh_name = "Mesh_Poly" + std::to_string(m_CurrentMesh);
+		std::vector<vertex> custom_poly;
+
+		vertex start_vertex = {-10, -10}; // Ponto inicial
+		float angle = (360.0f / (float)m_CustomPolyFaces) * std::numbers::pi / 180.0f;
+
+		// Rotaciona o ponto
+		for (int i = 0; i < m_CustomPolyFaces; i++) {
+			custom_poly.push_back(start_vertex);
+			float tx = start_vertex.x * std::cos(angle) - start_vertex.y * std::sin(angle);
+			float ty = start_vertex.x * std::sin(angle) + start_vertex.y * std::cos(angle);
+			start_vertex.x = tx;
+			start_vertex.y = ty;
+		}
+
+		m_GlobalMeshes.push_back(new Mesh(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }, custom_poly));
+		m_GlobalMeshes[m_CurrentMesh]->SetClosed(true);
+
+		OnChangeMode(CreatePoly);
+	}
+
+	ImGui::Separator();
+
 	if (ImGui::Button("Selection Mode")) {
-		m_CurrentMode = Selection;
+		OnChangeMode(Selection);
 	}
 	if (ImGui::Button("Edit Mode")) {
-		m_CurrentMode = CreatePoly;
+		OnChangeMode(CreatePoly);
 	}
 	if (ImGui::Button("Translation Mode")) {
-		m_CurrentMode = MovePoly;
+		OnChangeMode(MovePoly);
 	}
 	if (ImGui::Button("Rotation Mode")) {
-		m_CurrentMode = RotatePoly;
+		OnChangeMode(RotatePoly);
 	}
 	if (ImGui::Button("Scale Mode")) {
-		m_CurrentMode = ScalePoly;
+		OnChangeMode(ScalePoly);
 	}
 
 	ImGui::Separator();
@@ -582,6 +648,7 @@ void EditorApp::RenderUI()
 
 			if (transformChanged) {
 				selectedMesh->MarkDirty();
+				OnChangeMode(MovePoly);
 
 				if (m_CurrentSubMesh == -1) {
 					for (Mesh* submesh : selectedMesh->GetSubMeshes()) {
@@ -597,9 +664,9 @@ void EditorApp::RenderUI()
 			ImGui::Checkbox("Fillpoly", &selectedMesh->GetFill());
 
 			ImGui::Checkbox("Closed", &selectedMesh->IsClosed());
-			ImGui::Checkbox("Fill Color", &selectedMesh->IsActive());
 			ImGui::Checkbox("Outline Color", &selectedMesh->GetOutline());
 		}
+		ImGui::Checkbox("Fill Color", &selectedMesh->IsActive());
 
 		ImGui::ColorEdit3("Clear Color", (float*)&m_ClearColor);
 		ImGui::ColorEdit3("Mesh Color", (float*)&selectedMesh->GetColor());
@@ -643,3 +710,18 @@ void EditorApp::RenderUI()
 ///////////////////////////////////////////////////////////
 //////////////////////RENDER UI///////////////////////////
 ///////////////////////////////////////////////////////////
+
+void EditorApp::OnChangeMode(EEditMode new_mode)
+{
+	Mesh* activeMesh = GetActiveMesh();
+	switch (new_mode) {
+	case CreatePoly:
+		activeMesh->ResetTransform(GetWidth()/2, GetHeight()/2);
+		break;
+	default:
+		if(m_CurrentMode == CreatePoly){ activeMesh->RestoreTransform(); }
+		break;
+	}
+	
+	m_CurrentMode = new_mode;
+}

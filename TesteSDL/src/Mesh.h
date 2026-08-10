@@ -30,6 +30,9 @@ public:
 	void addSubMesh(Mesh* mesh);
 	void removeSubMesh(int index);
 
+	void ResetTransform(int x_offset = 0, int y_offset = 0);
+	void RestoreTransform();
+
 	std::vector<vertex>& GetVertices();
 	
 	inline std::vector<vertex>& GetLocalVertices() { return m_LocalVertices; }
@@ -75,6 +78,7 @@ private:
 	std::string m_Name = "New Mesh";
 
 	Transform2D m_Transform;
+	Transform2D m_CacheTransform;
 	bool m_IsDirty = true;
 
 	std::vector<vertex> m_Vertices = {}; // Vértices Globais (usa como cache)

@@ -29,6 +29,7 @@ private:
 	void ProcessMouseMotion(SDL_Event* event);
 	Mesh* GetActiveMesh();
 	void UpdateGizmoHover(float mouseX, float mouseY, Mesh* activeMesh, EEditMode);
+	void OnChangeMode(EEditMode new_mode);
 
 private:
 	// Estado do SDL e ImGUi
@@ -56,4 +57,6 @@ private:
 	std::vector<Mesh*> m_GlobalMeshes;
 	int m_CurrentMesh = -1;
 	int m_CurrentSubMesh = -1;
+
+	int m_CustomPolyFaces = 4;
 };
