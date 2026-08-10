@@ -23,7 +23,7 @@ namespace Renderer2D {
 		}
 	}
 
-	void FindIntersections(std::vector<vertex>& vertices, std::vector<std::vector<float>>& intersecoes)
+	void FindIntersections(std::vector<vertex>& vertices, std::vector<std::vector<float>>& intersecoes, int height)
 	{
 		for (int i = 0; i < vertices.size(); i++) {
 			vertex source = vertices[i];
@@ -57,9 +57,9 @@ namespace Renderer2D {
 				//SDL_SetRenderDrawColorFloat(renderer, 1, 0, 0, SDL_ALPHA_OPAQUE_FLOAT);
 				//SDL_RenderLine(renderer, new_x, ymin + i, new_x, ymin+i);
 				//SDL_RenderPoint(renderer, new_x, ymin + i);
-				if (y > 0 && y < HEIGHT) {
+				if (y > 0 && y < height) {
 					intersecoes[y].push_back(new_x);
-					LE_CORE_ASSERT(y > 0 && y < HEIGHT, "Coordenada Y com valor INVALIDO!");
+					LE_CORE_ASSERT(y > 0 && y < height, "Coordenada Y com valor INVALIDO!");
 				}
 				new_x += Tx;
 				//new_r += Tr;
@@ -69,22 +69,22 @@ namespace Renderer2D {
 		}
 	}
 
-	void FillPoly(SDL_Renderer* renderer, Mesh* mesh)
+	void FillPoly(SDL_Renderer* renderer, Mesh* mesh, int height)
 	{
 		std::vector<vertex> vertices = mesh->GetVertices();
 		if (vertices.size() < 3) { return; }
 
 		std::vector<std::vector<float>> intersecoes;
-		intersecoes.resize(HEIGHT);
-		LE_CORE_ASSERT(intersecoes.size() == HEIGHT, "Intersecoes com tamanho incorreto alocado!");
+		intersecoes.resize(height);
+		LE_CORE_ASSERT(intersecoes.size() == height, "Intersecoes com tamanho incorreto alocado!");
 
-		FindIntersections(vertices, intersecoes);
+		FindIntersections(vertices, intersecoes, height);
 
 		/*Sub Polygons adicionados às interseções (talvez não seja a melhor forma de fazer, mas é uma forma)*/
 		for (auto submesh : mesh->GetSubMeshes()) {
 			std::vector<vertex> sub_vertices = submesh->GetVertices();
 			if (sub_vertices.size() < 3) { continue; }
-			FindIntersections(sub_vertices, intersecoes);
+			FindIntersections(sub_vertices, intersecoes, height);
 		}
 
 		// Ordenar todas as interceções

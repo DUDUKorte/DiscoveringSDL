@@ -21,6 +21,9 @@ public:
 	SDL_AppResult UpdateAndRender();
 	void Shutdown();
 
+	inline int GetWidth() { return m_Width; }
+	inline int GetHeight() { return m_Height; }
+
 private:
 	void RenderUI();
 	void ProcessMouseMotion(SDL_Event* event);
@@ -31,6 +34,9 @@ private:
 	// Estado do SDL e ImGUi
 	SDL_Window* m_Window = nullptr;
 	SDL_Renderer* m_Renderer = nullptr;
+	int m_Width = 1280;
+	int m_Height = 720;
+
 
 	// Estado do editor
 	EEditMode m_CurrentMode = Selection;

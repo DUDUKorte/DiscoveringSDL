@@ -75,6 +75,10 @@ bool EditorApp::Init()
 	// Setup Platform/Renderer backends
 	ImGui_ImplSDL3_InitForSDLRenderer(m_Window, m_Renderer);
 	ImGui_ImplSDLRenderer3_Init(m_Renderer);
+
+	//Update Width/Height values
+	SDL_GetWindowSize(m_Window, &m_Width, &m_Height);
+
 	return true;
 }
 ///////////////////////////////////////////////////////////
@@ -187,6 +191,9 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		std::cout << "Encerrando..." << std::endl;
 		return SDL_APP_SUCCESS;
 	}
+	else if (event->type == SDL_EVENT_WINDOW_RESIZED) {
+		SDL_GetWindowSize(m_Window, &m_Width, &m_Height);
+	}
 
 	// Se o comando for absorvido pela UI, ignora os outros comandos
 	ImGuiIO& io = ImGui::GetIO();
@@ -285,7 +292,7 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 void EditorApp::ProcessMouseMotion(SDL_Event* event)
 {
 	SDL_MouseButtonEvent e = event->button;
-	if (e.x > WIDTH || e.y > HEIGHT || e.x < 0 || e.y < 0) {
+	if (e.x > GetWidth() || e.y > GetHeight() || e.x < 0 || e.y < 0) {
 		return;
 	}
 
@@ -403,7 +410,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 		// Fill poly
 		if (m->GetFill()) {
-			Renderer2D::FillPoly(m_Renderer, m);
+			Renderer2D::FillPoly(m_Renderer, m, GetHeight());
 		}
 		
 		// Pega a cor do outline e desenha ela
@@ -490,7 +497,7 @@ void EditorApp::RenderUI()
 		m_CurrentSubMesh = -1;
 
 		std::string mesh_name = "Mesh_" + std::to_string(m_CurrentMesh);
-		m_GlobalMeshes.push_back(new Mesh(mesh_name, { WIDTH / 2, HEIGHT / 2 }));
+		m_GlobalMeshes.push_back(new Mesh(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }));
 
 		m_CurrentMode = CreatePoly;
 	}
