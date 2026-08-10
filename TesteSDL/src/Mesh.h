@@ -60,6 +60,7 @@ public:
 	inline std::string& GetName() { return m_Name; }
 	inline bool& GetTickEnabled() { return m_TickEnabled; }
 	inline Vec2& GetVelocity() { return m_Velocity; }
+	inline bool& GetShouldDestroy() { return m_ShouldDestroy; }
 
 	// setters
 	inline void MarkDirty() { m_IsDirty = true; }
@@ -72,6 +73,7 @@ public:
 	inline void SetColor(ImVec4 color) { m_Color = color; }
 	inline void SetName(std::string name) { m_Name = name; }
 	inline void SetTickEnabled(bool enabled) { m_TickEnabled = enabled; }
+	inline void SetShouldDestroy(bool should) { m_ShouldDestroy = should; }
 
 public:
 	Mesh* m_Parent = nullptr;
@@ -107,6 +109,7 @@ private:
 	bool m_Outline = true;
 	bool m_EditMode = false; // se estiver em modo de edição
 	bool m_TickEnabled = false;
+	bool m_ShouldDestroy = false; // Define se deveria ser detruido no próximo frame
 	
 	//Cores
 	ImVec4 m_Color = { 0, 1, 0 , 1 };

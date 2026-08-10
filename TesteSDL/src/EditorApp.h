@@ -31,6 +31,7 @@ private:
 	Mesh* GetActiveMesh();
 	void UpdateGizmoHover(float mouseX, float mouseY, Mesh* activeMesh, EEditMode);
 	void OnChangeMode(EEditMode new_mode);
+	void OnDestroySelectedMesh();
 
 	// flappy pipe
 	void EventBeginPlay();
@@ -70,6 +71,5 @@ private:
 	std::vector<Mesh*> m_GlobalMeshes;
 	int m_CurrentMesh = -1;
 	int m_CurrentSubMesh = -1;
-
 	int m_CustomPolyFaces = 4;
 };

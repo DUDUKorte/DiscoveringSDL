@@ -6,7 +6,7 @@ Pipe::Pipe(std::string name, vertex firstVertex, std::vector<vertex> v)
     SetVelocity({-0.1f, 0.0f});
 	SetTickEnabled(true);
 	SetClosed(true);
-	SetFill(true);
+	SetFill(false);
 }
 
 void Pipe::EventTick(float deltaTime)
@@ -17,8 +17,9 @@ void Pipe::EventTick(float deltaTime)
 	GetTransform().Position.x += GetVelocity().x * deltaTime;
 	GetTransform().Position.y += GetVelocity().y * deltaTime;
 
-	if (GetTransform().Position.x < 300) {
+	if (GetTransform().Position.x < 1000) {
 		// Auto deletar a mesh
+		SetShouldDestroy(true);
 	}
 
 	//Tem q verificar colisão

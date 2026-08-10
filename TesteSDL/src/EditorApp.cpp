@@ -198,9 +198,6 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 
 	// Se o comando for absorvido pela UI, ignora os outros comandos
 	ImGuiIO& io = ImGui::GetIO();
-	if (io.WantCaptureMouse || io.WantCaptureKeyboard) {
-		return SDL_APP_CONTINUE;
-	}
 
 	/// EVENTOS DE TECLA PRESSIONADA ///////////////////////////////////////////////////////
 	if (event->type == SDL_EVENT_KEY_DOWN) {
@@ -222,12 +219,10 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		case SDLK_Q: // Selection polygons mode
 			OnChangeMode(Selection);
 			break;
-		}
-		// Atalho pra alternar closed
-		if (e.key == SDLK_SPACE) {
-			if (!m_GlobalMeshes.empty() && m_GlobalMeshes[m_CurrentMesh] != nullptr) {
-				m_GlobalMeshes[m_CurrentMesh]->SetClosed(!m_GlobalMeshes[m_CurrentMesh]->IsClosed());
-			}
+		case SDLK_BACKSPACE:
+		case SDLK_DELETE:
+			OnDestroySelectedMesh();
+			break;
 		}
 		// Atalho pra alternar o fillpoly 
 		if (e.key == SDLK_LCTRL) {
@@ -238,6 +233,11 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 	}
 	// EVENTOS DE MOUSE PRESSIONADO ///////////////////////////////////////////////////////
 	else if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+		// Se o comando for absorvido pela UI, ignora os outros comandos
+		if (io.WantCaptureMouse) {
+			return SDL_APP_CONTINUE;
+		}
+
 		SDL_MouseButtonEvent e = event->button;
 		if (e.button == 1) { // LMB
 			if (m_CurrentMode == CreatePoly){
@@ -479,6 +479,7 @@ void EditorApp::RenderUI()
 {
 	// Draw Control pannelk
 	ImGui::Begin("Control pannel");
+	ImGui::SeparatorText("MeshTree");
 	if (ImGui::BeginChild("Mesh Tree", ImVec2(0, 200), true)) {
 		for (int i = 0; i < m_GlobalMeshes.size(); i++) {
 			Mesh* m = m_GlobalMeshes[i];
@@ -544,10 +545,12 @@ void EditorApp::RenderUI()
 			OnChangeMode(CreatePoly);
 		}
 	}
-	ImGui::Separator();
+
+	ImGui::SeparatorText("Custom Mesh");
 
 	// Criar polígono personalizado
 	ImGui::SliderInt("Num. Faces", &m_CustomPolyFaces, 3, 100);
+	ImGui::SliderInt("Size", &m_CustomPolyFaces, 3, 100);
 	if (ImGui::Button("Create Cusotm Poly")) {
 		m_CurrentMesh = m_GlobalMeshes.size();
 		m_CurrentSubMesh = -1;
@@ -573,7 +576,31 @@ void EditorApp::RenderUI()
 		OnChangeMode(CreatePoly);
 	}
 
-	ImGui::Separator();
+	ImGui::SeparatorText("Editor Modes");
+
+	std::string currentModeText;
+	switch (m_CurrentMode)
+	{
+	case Selection:
+		currentModeText = "Selection";
+		break;
+	case CreatePoly:
+		currentModeText = "Editing";
+		break;
+	case MovePoly:
+		currentModeText = "Translation";
+		break;
+	case ScalePoly:
+		currentModeText = "Scale";
+		break;
+	case RotatePoly:
+		currentModeText = "Rotation";
+		break;
+	default:
+		currentModeText = "None";
+		break;
+	}
+	ImGui::Text(("Mode: " + currentModeText).c_str());
 
 	if (ImGui::Button("Selection Mode")) {
 		OnChangeMode(Selection);
@@ -678,29 +705,7 @@ void EditorApp::RenderUI()
 		}
 
 		if (ImGui::Button("Delete Mesh")) { // deleta as meshes
-			if (m_CurrentSubMesh == -1) { // se for mesh pai
-				Mesh* markForDelete = m_GlobalMeshes[m_CurrentMesh];
-				m_GlobalMeshes.erase(m_GlobalMeshes.begin() + m_CurrentMesh);
-
-				delete markForDelete;
-
-				if (m_GlobalMeshes.empty()) {
-					m_CurrentMesh = -1;
-				}
-				else {
-					m_CurrentMesh = std::max(0, m_CurrentMesh - 1);
-				}
-				m_CurrentSubMesh = -1;
-
-				m_ActiveGizmoState = GIZMO_NONE;
-			}
-			else { // se for mesh filha
-				Mesh* parent = m_GlobalMeshes[m_CurrentMesh];
-				parent->removeSubMesh(m_CurrentSubMesh);
-
-				m_CurrentSubMesh = -1;
-				m_ActiveGizmoState = GIZMO_NONE;
-			}
+			OnDestroySelectedMesh();
 		}
 	}
 	else {
@@ -712,21 +717,61 @@ void EditorApp::RenderUI()
 //////////////////////RENDER UI///////////////////////////
 ///////////////////////////////////////////////////////////
 
+
+///////////////////////////////////////////////////////////
+//////////////////////CHANGE MODE///////////////////////////
+///////////////////////////////////////////////////////////
 void EditorApp::OnChangeMode(EEditMode new_mode)
 {
 	Mesh* activeMesh = GetActiveMesh();
-	switch (new_mode) {
-	case CreatePoly:
-		activeMesh->ResetTransform(GetWidth()/2, GetHeight()/2);
-		break;
-	default:
-		if(m_CurrentMode == CreatePoly){ activeMesh->RestoreTransform(); }
-		break;
+	if (activeMesh) {
+		switch (new_mode) {
+		case CreatePoly:
+			activeMesh->ResetTransform(GetWidth()/2, GetHeight()/2);
+			break;
+		default:
+			if(m_CurrentMode == CreatePoly){ activeMesh->RestoreTransform(); }
+			break;
+		}
 	}
 	
 	m_CurrentMode = new_mode;
 }
 
+///////////////////////////////////////////////////////////
+//////////////////////DETROY MESH///////////////////////////
+///////////////////////////////////////////////////////////
+void EditorApp::OnDestroySelectedMesh()
+{
+	if (m_CurrentSubMesh == -1) { // se for mesh pai
+		Mesh* markForDelete = m_GlobalMeshes[m_CurrentMesh];
+		m_GlobalMeshes.erase(m_GlobalMeshes.begin() + m_CurrentMesh);
+
+		delete markForDelete;
+
+		if (m_GlobalMeshes.empty()) {
+			m_CurrentMesh = -1;
+		}
+		else {
+			m_CurrentMesh = std::max(0, m_CurrentMesh - 1);
+		}
+		m_CurrentSubMesh = -1;
+
+		m_ActiveGizmoState = GIZMO_NONE;
+	}
+	else { // se for mesh filha
+		Mesh* parent = m_GlobalMeshes[m_CurrentMesh];
+		parent->removeSubMesh(m_CurrentSubMesh);
+
+		m_CurrentSubMesh = -1;
+		m_ActiveGizmoState = GIZMO_NONE;
+	}
+}
+
+
+///////////////////////////////////////////////////////////
+//////////////////////FLAPPY POLY///////////////////////////
+///////////////////////////////////////////////////////////
 void EditorApp::EventBeginPlay()
 {
 	CreatePipes();
@@ -764,6 +809,8 @@ void EditorApp::CreatePipes()
 
 void EditorApp::CreatePlayer()
 {
+	OnChangeMode(Selection);
+
 	m_CurrentMesh = m_GlobalMeshes.size();
 	m_CurrentSubMesh = -1;
 
@@ -786,6 +833,4 @@ void EditorApp::CreatePlayer()
 	m_GlobalMeshes[m_CurrentMesh]->SetClosed(true);
 	m_GlobalMeshes[m_CurrentMesh]->SetFill(true);
 	m_GlobalMeshes[m_CurrentMesh]->SetTickEnabled(true);
-
-	OnChangeMode(Selection);
 }
