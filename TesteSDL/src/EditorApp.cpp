@@ -30,6 +30,7 @@ EditorApp::~EditorApp()
 bool EditorApp::Init()
 {
 	/*IMGUI FUNCIONA PFV*/
+	LE_CORE_TRACE("Initializing SDL...");
 	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
 	{
 		printf("Error: SDL_Init(): %s\n", SDL_GetError());
@@ -40,6 +41,7 @@ bool EditorApp::Init()
 	float main_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
 	SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
 
+	LE_CORE_TRACE("Creating SDL Window...");
 	m_Window = SDL_CreateWindow("LeandroEditor 2D", (int)(WIDTH * main_scale), (int)(HEIGHT * main_scale), window_flags);
 	if (m_Window == nullptr)
 	{
@@ -47,6 +49,7 @@ bool EditorApp::Init()
 		return SDL_APP_FAILURE;
 	}
 
+	LE_CORE_TRACE("Creating SDL Renderer...");
 	m_Renderer = SDL_CreateRenderer(m_Window, nullptr);
 	SDL_SetRenderVSync(m_Renderer, 1);
 	if (m_Renderer == nullptr)
@@ -58,6 +61,7 @@ bool EditorApp::Init()
 	SDL_SetWindowPosition(m_Window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 	SDL_ShowWindow(m_Window);
 
+	LE_CORE_TRACE("Setting up Dear ImGui context...");
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -77,6 +81,7 @@ bool EditorApp::Init()
 	ImGui_ImplSDL3_InitForSDLRenderer(m_Window, m_Renderer);
 	ImGui_ImplSDLRenderer3_Init(m_Renderer);
 
+	LE_CORE_TRACE("Updating Window size...");
 	//Update Width/Height values
 	SDL_GetWindowSize(m_Window, &m_Width, &m_Height);
 
@@ -189,7 +194,6 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 	ImGui_ImplSDL3_ProcessEvent(event);
 
 	if (event->type == SDL_EVENT_QUIT) {
-		std::cout << "Encerrando..." << std::endl;
 		return SDL_APP_SUCCESS;
 	}
 	else if (event->type == SDL_EVENT_WINDOW_RESIZED) {
@@ -222,6 +226,9 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		case SDLK_BACKSPACE:
 		case SDLK_DELETE:
 			OnDestroySelectedMesh();
+			break;
+		case SDLK_ESCAPE:
+			m_GameStarted = false;
 			break;
 		}
 		// Atalho pra alternar o fillpoly 
@@ -479,7 +486,7 @@ void EditorApp::RenderUI()
 {
 	// Draw Control pannelk
 	ImGui::Begin("Control pannel");
-	ImGui::SeparatorText("MeshTree");
+	ImGui::SeparatorText("Outliner");
 	if (ImGui::BeginChild("Mesh Tree", ImVec2(0, 200), true)) {
 		for (int i = 0; i < m_GlobalMeshes.size(); i++) {
 			Mesh* m = m_GlobalMeshes[i];
@@ -495,6 +502,10 @@ void EditorApp::RenderUI()
 			bool nodeOpen = ImGui::TreeNodeEx(m, node_flags, "%s", m->GetName().c_str());
 
 			if (ImGui::IsItemClicked()) {
+				if (m_CurrentMode == CreatePoly) {
+					OnChangeMode(MovePoly);
+				}
+
 				m_CurrentMesh = i;
 				m_CurrentSubMesh = -1;
 			}
@@ -513,8 +524,13 @@ void EditorApp::RenderUI()
 
 					ImGui::TreeNodeEx(subMesh, sub_node_flags, "%s", subMesh->GetName().c_str());
 					if (ImGui::IsItemClicked()) {
+						if (m_CurrentMode == CreatePoly) {
+							OnChangeMode(MovePoly);
+						}
+
 						m_CurrentMesh = i;
 						m_CurrentSubMesh = j;
+
 					}
 				}
 				ImGui::TreePop();
@@ -530,7 +546,8 @@ void EditorApp::RenderUI()
 
 		std::string mesh_name = "Mesh_" + std::to_string(m_CurrentMesh);
 		m_GlobalMeshes.push_back(new Mesh(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }));
-
+		
+		LE_TRACE("Mesh: " + mesh_name + " Created!");
 		OnChangeMode(CreatePoly);
 	}
 	ImGui::SameLine();
@@ -543,14 +560,16 @@ void EditorApp::RenderUI()
 			m_CurrentSubMesh = (int)parent->GetSubMeshes().size() - 1;
 
 			OnChangeMode(CreatePoly);
+			LE_TRACE("SubMesh: " + mesh_name + " Created!");
 		}
+		LE_ERROR("You Cannot create a SubMesh!");
 	}
 
 	ImGui::SeparatorText("Custom Mesh");
 
 	// Criar polígono personalizado
 	ImGui::SliderInt("Num. Faces", &m_CustomPolyFaces, 3, 100);
-	ImGui::SliderInt("Size", &m_CustomPolyFaces, 3, 100);
+	ImGui::SliderInt("Size", &m_CustomPolySize, 10, 100);
 	if (ImGui::Button("Create Cusotm Poly")) {
 		m_CurrentMesh = m_GlobalMeshes.size();
 		m_CurrentSubMesh = -1;
@@ -558,7 +577,7 @@ void EditorApp::RenderUI()
 		std::string mesh_name = "Mesh_Poly" + std::to_string(m_CurrentMesh);
 		std::vector<vertex> custom_poly;
 
-		vertex start_vertex = {-10, -10}; // Ponto inicial
+		vertex start_vertex = {-10 * m_CustomPolySize, -10 * m_CustomPolySize }; // Ponto inicial
 		float angle = (360.0f / (float)m_CustomPolyFaces) * std::numbers::pi / 180.0f;
 
 		// Rotaciona o ponto
@@ -573,6 +592,7 @@ void EditorApp::RenderUI()
 		m_GlobalMeshes.push_back(new Mesh(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }, custom_poly));
 		m_GlobalMeshes[m_CurrentMesh]->SetClosed(true);
 
+		LE_TRACE("Custom Mesh: " + mesh_name + " Created!");
 		OnChangeMode(CreatePoly);
 	}
 
@@ -618,12 +638,12 @@ void EditorApp::RenderUI()
 		OnChangeMode(ScalePoly);
 	}
 
-	ImGui::Separator();
+	ImGui::SeparatorText("Info.");
 	ImGui::Text("Scale Speed: %f", m_ScaleMeshSpeed);
-	ImGui::Text("Move Speed: %f", m_MoveMeshSpeed);
 	
-	ImGui::Separator();
+	ImGui::SeparatorText("BÔNUS");
 	if (ImGui::Button("Flappy Fill!")) {
+		LE_TRACE("Thank you for playing!");
 		EventBeginPlay();
 	}
 
@@ -684,7 +704,7 @@ void EditorApp::RenderUI()
 			}
 		}
 
-		ImGui::Separator();
+		ImGui::SeparatorText("Properties");
 
 		if (selectedMesh->m_Parent == nullptr) {
 			ImGui::Checkbox("Fillpoly", &selectedMesh->GetFill());
@@ -700,16 +720,20 @@ void EditorApp::RenderUI()
 		ImGui::ColorEdit3("Mesh Color", (float*)&selectedMesh->GetColor());
 		ImGui::ColorEdit3("Outline Color", (float*)&selectedMesh->GetOutlineColor());
 
+		ImGui::SeparatorText("Deleting");
+
 		if (ImGui::Button("Delete Vertex")) {
+			LE_TRACE("Deleted last vertex on mesh: " + selectedMesh->GetName());
 			selectedMesh->removeVertex();
 		}
 
 		if (ImGui::Button("Delete Mesh")) { // deleta as meshes
+			LE_TRACE("Destroying Mesh... " + selectedMesh->GetName());
 			OnDestroySelectedMesh();
 		}
 	}
 	else {
-		ImGui::Text("None Selected");
+		ImGui::Text("Select a mesh to edit it's properties");
 	}
 	ImGui::End();
 }
@@ -758,6 +782,7 @@ void EditorApp::OnDestroySelectedMesh()
 		m_CurrentSubMesh = -1;
 
 		m_ActiveGizmoState = GIZMO_NONE;
+		LE_INFO("Mesh destroyed!");
 	}
 	else { // se for mesh filha
 		Mesh* parent = m_GlobalMeshes[m_CurrentMesh];
@@ -765,6 +790,7 @@ void EditorApp::OnDestroySelectedMesh()
 
 		m_CurrentSubMesh = -1;
 		m_ActiveGizmoState = GIZMO_NONE;
+		LE_INFO("Submesh destroyed!");
 	}
 }
 
@@ -781,19 +807,21 @@ void EditorApp::EventBeginPlay()
 
 void EditorApp::CreatePipes()
 {
+	float maxHeight = GetHeight() - 100;
+
 	// Create first pipes
 	std::string up_pipe_name = "UpPipe_" + std::to_string(m_CurrentMesh);
 	std::vector<vertex> UpPipeVertexes = {
 		{-20, 100},
-		{-20, 800},
-		{ 20, 800},
+		{-20, maxHeight},
+		{ 20, maxHeight},
 		{ 20, 100}
 	};
 	std::string down_pipe_name = "DownPipe_" + std::to_string(m_CurrentMesh);
 	std::vector<vertex> DownPipeVertexes = {
 		{-20, -100},
-		{-20, -800},
-		{ 20, -800},
+		{-20, -maxHeight},
+		{ 20, -maxHeight},
 		{ 20, -100}
 	};
 	std::random_device rd;

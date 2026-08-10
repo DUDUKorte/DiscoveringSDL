@@ -161,15 +161,7 @@ Mesh* Mesh::GetSubMesh(int index){
 	return m_SubMeshes[index];
 }
 
-void Mesh::SetEditMode(bool editMode)
-{
-	MarkDirty();
-	for (Mesh* m : m_SubMeshes) {
-		m->MarkDirty();
-	}
 
-	m_EditMode = editMode;
-}
 
 void Mesh::CalcLocalCentroide(){
 	if (m_LocalVertices.empty()) { return; }
@@ -205,17 +197,7 @@ vertex Mesh::GetCentroide() {
 
 Transform2D& Mesh::GetTransform()
 {
-	if (!m_EditMode) {
-		return m_Transform;
-	}
-	else {
-		Transform2D defaultTransform;
-		defaultTransform.Position = { WIDTH / 2, HEIGHT / 2 };
-		defaultTransform.Rotation = 0.0f;
-		defaultTransform.Scale = { 1.0f, 1.0f };
-
-		return defaultTransform;
-	}
+	return m_Transform;
 }
 
 std::vector<vertex>& Mesh::GetVertices() {

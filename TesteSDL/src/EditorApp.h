@@ -72,4 +72,5 @@ private:
 	int m_CurrentMesh = -1;
 	int m_CurrentSubMesh = -1;
 	int m_CustomPolyFaces = 4;
+	int m_CustomPolySize = 10;
 };
