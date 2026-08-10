@@ -5,14 +5,14 @@
 
 ## Existem 2 maneiras de executar o projeto: Pelo Release construído para WindowsX64 ou fazendo sua própria build pelo visual studio e executando.
 
-#Instruções para Rodar pelo RELEASE (mais fácil)
-### 1 - Basta baixar a [release mais recente no github]()
+# Instruções para Rodar pelo RELEASE (mais fácil)
+### 1 - Basta baixar a [release mais recente no github](https://github.com/DUDUKorte/DiscoveringSDL/releases)
 ### 2 - Descompacte o arquivo .zip
 ### 3 - Execute o arquivo "TesteSDL.exe"
 
 ---
 
-#Instruções para Buildar o projeto com Visual Studio 2026:
+# Instruções para Buildar o projeto com Visual Studio 2026:
 
 
 ### 1 - Descompacte o código fonte e abra o arquivo TesteSDL.slnx do projeto
