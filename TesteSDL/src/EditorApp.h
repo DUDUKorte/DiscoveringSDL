@@ -4,6 +4,7 @@
 #include <imgui.h>
 
 #include "Mesh.h"
+#include "Pipe.h"
 
 #define WIDTH 1280
 #define HEIGHT 720
@@ -31,6 +32,11 @@ private:
 	void UpdateGizmoHover(float mouseX, float mouseY, Mesh* activeMesh, EEditMode);
 	void OnChangeMode(EEditMode new_mode);
 
+	// flappy pipe
+	void EventBeginPlay();
+	void CreatePipes();
+	void CreatePlayer();
+
 private:
 	// Estado do SDL e ImGUi
 	SDL_Window* m_Window = nullptr;
@@ -52,6 +58,13 @@ private:
 
 	bool m_bLMB = false;
 	bool m_bRMB = false;
+	bool m_GameStarted = false;
+
+	// Delta time
+	Uint64 new_deltaTime;
+	Uint64 old_deltaTime = 0;
+	double deltaTime = 0;
+	double timeAcc = 0;
 
 	// Meshes
 	std::vector<Mesh*> m_GlobalMeshes;

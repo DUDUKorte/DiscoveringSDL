@@ -2,6 +2,7 @@
 #include <vector>
 #include <imgui.h>
 #include <string>
+#include <SDL3/SDL.h>
 
 struct vertex {
 	float x;
@@ -22,7 +23,10 @@ struct Transform2D {
 class Mesh {
 public:
 	Mesh(std::string name, vertex firstVertex = {0,0}, std::vector<vertex> v = {});
-	~Mesh();
+	virtual ~Mesh();
+
+	virtual void EventTick(float deltaTime);
+	virtual void EventInput(SDL_Event* event);
 
 	void addVertex(vertex worldPosition);
 	void removeVertex();
@@ -54,6 +58,8 @@ public:
 	inline ImVec4& GetColor() { return m_Color; }
 	inline ImVec4& GetOutlineColor() { return m_OutlineColor; }
 	inline std::string& GetName() { return m_Name; }
+	inline bool& GetTickEnabled() { return m_TickEnabled; }
+	inline Vec2& GetVelocity() { return m_Velocity; }
 
 	// setters
 	inline void MarkDirty() { m_IsDirty = true; }
@@ -65,6 +71,7 @@ public:
 	inline void SetVelocity(Vec2 velocity) { m_Velocity = velocity; }
 	inline void SetColor(ImVec4 color) { m_Color = color; }
 	inline void SetName(std::string name) { m_Name = name; }
+	inline void SetTickEnabled(bool enabled) { m_TickEnabled = enabled; }
 
 public:
 	Mesh* m_Parent = nullptr;
@@ -85,11 +92,13 @@ private:
 	std::vector<vertex> m_LocalVertices = {}; // Vértices Locais
 
 	std::vector<Mesh*> m_SubMeshes = {};
-	Vec2 m_Velocity;
+	Vec2 m_Velocity = {0.0f, 1.0f};
 	vertex m_LocalCentroide;
+	
 	// do centroide
 	float m_CentroideXSum = 0;
 	float m_CentroideYSum = 0;
+	
 	// atributos de aparencia
 	bool m_IsActive = false; // se está selecionado ou nn
 	bool m_Fill = false; // se preenche o meio dele
@@ -97,7 +106,9 @@ private:
 	bool m_Gravity = false; // se é afetado pela gravidade ou nn
 	bool m_Outline = true;
 	bool m_EditMode = false; // se estiver em modo de edição
-	//
+	bool m_TickEnabled = false;
+	
+	//Cores
 	ImVec4 m_Color = { 0, 1, 0 , 1 };
 	ImVec4 m_OutlineColor = { 1, 1 ,1 , 1 };
 };

@@ -6,6 +6,7 @@
 #include <string>
 #include <numbers>
 #include <cmath>
+#include <random>
 
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
@@ -204,6 +205,8 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 	/// EVENTOS DE TECLA PRESSIONADA ///////////////////////////////////////////////////////
 	if (event->type == SDL_EVENT_KEY_DOWN) {
 		SDL_KeyboardEvent e = event->key;
+		Mesh* activeMesh = GetActiveMesh();
+		if (activeMesh != nullptr) { activeMesh->EventInput(event); }
 
 		// MODE SWITCH
 		switch (e.key) {
@@ -372,6 +375,22 @@ void EditorApp::ProcessMouseMotion(SDL_Event* event)
 ///////////////////////////////////////////////////////////
 SDL_AppResult EditorApp::UpdateAndRender()
 {
+	//Calc delta Time
+	old_deltaTime = new_deltaTime;
+	new_deltaTime = SDL_GetPerformanceCounter();
+	deltaTime = (double)((new_deltaTime - old_deltaTime) * 1000 / (double)SDL_GetPerformanceFrequency());
+
+	// Cria novos pipes após X tempo
+	if (m_GameStarted) {
+		if(timeAcc > 5000.0){
+			CreatePipes();
+			timeAcc = 0;
+		}
+		else {
+			timeAcc += deltaTime;
+		}
+	}
+
 	/* IMGUI */
 	if (SDL_GetWindowFlags(m_Window) & SDL_WINDOW_MINIMIZED)
 	{
@@ -387,7 +406,9 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 	Renderer2D::DrawGizmo(GetActiveMesh(), m_CurrentMode, m_CurrentGizmoState, m_ActiveGizmoState);
 
-	RenderUI();
+	if (!m_GameStarted) {
+		RenderUI();
+	}
 
 	SDL_SetRenderDrawColorFloat(m_Renderer, 0.2f, 0.2f, 0.2f, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
 	SDL_RenderClear(m_Renderer);
@@ -428,6 +449,13 @@ SDL_AppResult EditorApp::UpdateAndRender()
 		}
 
 		Renderer2D::DrawLinesWithVertices(m_Renderer, vertices, m->IsClosed());
+
+		// Run tick
+		m->EventTick(deltaTime);
+		// Talvez verificar a colisão aqui?
+		if (m->GetTransform().Position.y >= GetHeight()) {
+			m->SetVelocity({ 0.0f, 0.0f });
+		}
 	}
 
 	// Rendering
@@ -518,40 +546,6 @@ void EditorApp::RenderUI()
 	}
 	ImGui::Separator();
 
-	//// Meshes pré feitas
-	//if (ImGui::Button("Create Square")) {
-	//	m_CurrentMesh = m_GlobalMeshes.size();
-	//	m_CurrentSubMesh = -1;
-
-	//	std::string mesh_name = "Mesh_Square" + std::to_string(m_CurrentMesh);
-	//	std::vector<vertex> square = {
-	//		{-10, -10},
-	//		{ 10, -10},
-	//		{ 10, 10},
-	//		{-10, 10}
-	//	};
-	//	m_GlobalMeshes.push_back(new Mesh(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }, square));
-
-	//	m_CurrentMode = CreatePoly;
-	//}
-
-	//ImGui::SameLine();
-	//
-	//if (ImGui::Button("Create Triangle")) {
-	//	m_CurrentMesh = m_GlobalMeshes.size();
-	//	m_CurrentSubMesh = -1;
-
-	//	std::string mesh_name = "Mesh_Triangle" + std::to_string(m_CurrentMesh);
-	//	std::vector<vertex> triangle = {
-	//		{ 0, -10},
-	//		{-10, 10},
-	//		{ 10, 10},
-	//	};
-	//	m_GlobalMeshes.push_back(new Mesh(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }, triangle));
-
-	//	m_CurrentMode = CreatePoly;
-	//}
-
 	// Criar polígono personalizado
 	ImGui::SliderInt("Num. Faces", &m_CustomPolyFaces, 3, 100);
 	if (ImGui::Button("Create Cusotm Poly")) {
@@ -600,6 +594,11 @@ void EditorApp::RenderUI()
 	ImGui::Separator();
 	ImGui::Text("Scale Speed: %f", m_ScaleMeshSpeed);
 	ImGui::Text("Move Speed: %f", m_MoveMeshSpeed);
+	
+	ImGui::Separator();
+	if (ImGui::Button("Flappy Fill!")) {
+		EventBeginPlay();
+	}
 
 	ImGui::End();
 
@@ -665,6 +664,8 @@ void EditorApp::RenderUI()
 
 			ImGui::Checkbox("Closed", &selectedMesh->IsClosed());
 			ImGui::Checkbox("Outline Color", &selectedMesh->GetOutline());
+
+			ImGui::Checkbox("Tick Enabled", &selectedMesh->GetTickEnabled());
 		}
 		ImGui::Checkbox("Fill Color", &selectedMesh->IsActive());
 
@@ -724,4 +725,67 @@ void EditorApp::OnChangeMode(EEditMode new_mode)
 	}
 	
 	m_CurrentMode = new_mode;
+}
+
+void EditorApp::EventBeginPlay()
+{
+	CreatePipes();
+	CreatePlayer();
+	m_GameStarted = true;
+}
+
+void EditorApp::CreatePipes()
+{
+	// Create first pipes
+	std::string up_pipe_name = "UpPipe_" + std::to_string(m_CurrentMesh);
+	std::vector<vertex> UpPipeVertexes = {
+		{-20, 100},
+		{-20, 800},
+		{ 20, 800},
+		{ 20, 100}
+	};
+	std::string down_pipe_name = "DownPipe_" + std::to_string(m_CurrentMesh);
+	std::vector<vertex> DownPipeVertexes = {
+		{-20, -100},
+		{-20, -800},
+		{ 20, -800},
+		{ 20, -100}
+	};
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	float min = 120.0f;
+	float max = GetHeight() - 100.0f;
+	std::uniform_real_distribution<float> distr(min, max);
+	float random_pos = distr(gen);
+
+	m_GlobalMeshes.push_back(new Pipe(up_pipe_name, { (float)GetWidth(), (float)random_pos }, UpPipeVertexes));
+	m_GlobalMeshes.push_back(new Pipe(down_pipe_name, { (float)GetWidth(), (float)random_pos }, DownPipeVertexes));
+}
+
+void EditorApp::CreatePlayer()
+{
+	m_CurrentMesh = m_GlobalMeshes.size();
+	m_CurrentSubMesh = -1;
+
+	std::string mesh_name = "Player" + std::to_string(m_CurrentMesh);
+	std::vector<vertex> custom_poly;
+
+	vertex start_vertex = { -10, -10 }; // Ponto inicial
+	float angle = (360.0f / (float)m_CustomPolyFaces) * std::numbers::pi / 180.0f;
+
+	// Rotaciona o ponto
+	for (int i = 0; i < m_CustomPolyFaces; i++) {
+		custom_poly.push_back(start_vertex);
+		float tx = start_vertex.x * std::cos(angle) - start_vertex.y * std::sin(angle);
+		float ty = start_vertex.x * std::sin(angle) + start_vertex.y * std::cos(angle);
+		start_vertex.x = tx;
+		start_vertex.y = ty;
+	}
+
+	m_GlobalMeshes.push_back(new Mesh(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }, custom_poly));
+	m_GlobalMeshes[m_CurrentMesh]->SetClosed(true);
+	m_GlobalMeshes[m_CurrentMesh]->SetFill(true);
+	m_GlobalMeshes[m_CurrentMesh]->SetTickEnabled(true);
+
+	OnChangeMode(Selection);
 }

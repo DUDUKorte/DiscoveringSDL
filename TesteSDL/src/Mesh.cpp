@@ -1,11 +1,12 @@
 #include "Mesh.h"
 #include "EditorApp.h"
+#include "Log.h"
 #include <cmath>
 
 Mesh::Mesh(std::string name, vertex firstVertex, std::vector<vertex> v) {
 	
 	m_Name = name;
-	m_Velocity = { 0,0 };
+	m_Velocity = { 0.0f, 0.001f};
 	GetTransform().Position = { firstVertex.x, firstVertex.y };
 
 	if (!(v.empty())) {
@@ -26,6 +27,40 @@ Mesh::~Mesh(){
 	}
 	m_SubMeshes.clear();
 	//delete &m_Vertices;
+}
+
+void Mesh::EventTick(float deltaTime)
+{
+	// Calcula a cada frame, seria a gravidade, colisões, etc...
+	if (!GetTickEnabled()) { return; }
+	// gravidadeeeeee
+	GetTransform().Position.x += GetVelocity().x * deltaTime;
+	GetTransform().Position.y += GetVelocity().y * deltaTime;
+	
+	// Aceleração
+	SetVelocity({GetVelocity().x, GetVelocity().y + 0.001f * deltaTime});
+
+	//Tem q verificar colisão
+	//Nem ideia de como fazer isso aqui
+
+	// Última linha sempre, pra desenhar o polígono com o transform novo
+	MarkDirty();
+}
+
+void Mesh::EventInput(SDL_Event* event)
+{
+	if (!GetTickEnabled()) { return; }
+
+	if (event->type == SDL_EVENT_KEY_DOWN) {
+		SDL_KeyboardEvent e = event->key;
+
+		// MODE SWITCH
+		switch (e.key) {
+		case SDLK_SPACE:
+			SetVelocity({ 0.0f, -0.3f });
+			break;
+		}
+	}
 }
 
 // Recebe o world posisiton e converte pra local
