@@ -3,10 +3,12 @@
 #include <imgui.h>
 #include <string>
 #include <SDL3/SDL.h>
+#include <glm/glm.hpp>
 
 struct vertex {
 	float x;
 	float y;
+	float z;
 };
 
 struct Vec2 {
