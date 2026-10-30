@@ -3,11 +3,11 @@
 #include "Log.h"
 #include <cmath>
 
-Mesh2D::Mesh2D(std::string name, vertex firstVertex, std::vector<vertex> v) : Mesh(name, { }, { {} }) {
+Mesh2D::Mesh2D(std::string name, glm::vec3 firstVertex, std::vector<glm::vec3> v) {
 
 	m_Name = name;
-	m_Velocity = { 0.0f, 0.001f };
-	GetTransform().Position = { firstVertex.x, firstVertex.y };
+	m_Velocity = { 0.0f, 0.001f, 0.0f };
+	GetTransform().Position = firstVertex;
 
 	if (!(v.empty())) {
 		m_LocalVertices = v;
@@ -22,11 +22,7 @@ Mesh2D::Mesh2D(std::string name, vertex firstVertex, std::vector<vertex> v) : Me
 }
 
 Mesh2D::~Mesh2D() {
-	for (Mesh2D* m : m_SubMeshes) {
-		delete m;
-	}
-	m_SubMeshes.clear();
-	//delete &m_Vertices;
+
 }
 
 void Mesh2D::EventTick(float deltaTime)
@@ -38,7 +34,7 @@ void Mesh2D::EventTick(float deltaTime)
 	GetTransform().Position.y += GetVelocity().y * deltaTime;
 
 	// Aceleração
-	SetVelocity({ GetVelocity().x, GetVelocity().y + 0.001f * deltaTime });
+	SetVelocity({ GetVelocity().x, GetVelocity().y + 0.001f * deltaTime, 0.0f });
 
 	//Tem q verificar colisão
 	//Nem ideia de como fazer isso aqui
@@ -57,24 +53,25 @@ void Mesh2D::EventInput(SDL_Event* event)
 		// MODE SWITCH
 		switch (e.key) {
 		case SDLK_SPACE:
-			SetVelocity({ 0.0f, -0.3f });
+			SetVelocity({ 0.0f, -0.3f, 0.0f });
 			break;
 		}
 	}
 }
 
 // Recebe o world posisiton e converte pra local
-void Mesh2D::addVertex(vertex worldPosition) {
-	vertex localPosition = worldPosition;
+void Mesh2D::addVertex(glm::vec3 newVertex) {
+	glm::vec3 localPosition = newVertex;
 
 	// Se for uma submesh
 	if (m_Parent) {
 		// defaz a translação, rotação e escala da mesh pai
-		localPosition.x -= (m_Parent->m_LocalCentroide.x + m_Parent->GetTransform().Position.x);
-		localPosition.y -= (m_Parent->m_LocalCentroide.y + m_Parent->GetTransform().Position.y);
 
-		if (m_Parent->GetTransform().Rotation != 0.0f) {
-			float invRot = -m_Parent->GetTransform().Rotation;
+		localPosition.x -= (m_Parent->GetLocalCentroide().x + m_Parent->GetTransform().Position.x);
+		localPosition.y -= (m_Parent->GetLocalCentroide().y + m_Parent->GetTransform().Position.y);
+
+		if (m_Parent->GetTransform().Rotation.z != 0.0f) {
+			float invRot = -m_Parent->GetTransform().Rotation.z;
 			float tx = localPosition.x * std::cos(invRot) - localPosition.y * std::sin(invRot);
 			float ty = localPosition.x * std::sin(invRot) + localPosition.y * std::cos(invRot);
 			localPosition.x = tx;
@@ -91,173 +88,7 @@ void Mesh2D::addVertex(vertex worldPosition) {
 
 	m_LocalVertices.push_back(localPosition);
 
-	m_CentroideXSum += localPosition.x;
-	m_CentroideYSum += localPosition.y;
+	m_CentroideSum += localPosition;
 	CalcLocalCentroide();
 	m_IsDirty = true;
-}
-
-void Mesh2D::removeVertex() {
-	if (m_LocalVertices.empty()) { return; }
-
-	m_CentroideXSum -= m_LocalVertices.back().x;
-	m_CentroideYSum -= m_LocalVertices.back().y;
-
-	m_LocalVertices.pop_back();
-
-	CalcLocalCentroide();
-	m_IsDirty = true;
-}
-
-void Mesh2D::addSubMesh(Mesh2D* mesh) {
-	mesh->m_Parent = this;
-
-	vertex parentPivot;
-	parentPivot.x = m_LocalCentroide.x + GetTransform().Position.x;
-	parentPivot.y = m_LocalCentroide.y + GetTransform().Position.y;
-
-	mesh->GetTransform().Position.x -= parentPivot.x;
-	mesh->GetTransform().Position.y -= parentPivot.y;
-
-	m_SubMeshes.push_back(mesh);
-}
-
-void Mesh2D::removeSubMesh(int index)
-{
-	Mesh2D* markForDelte = GetSubMesh(index);
-	m_SubMeshes.erase(m_SubMeshes.begin() + index);
-	delete markForDelte;
-}
-
-void Mesh2D::ResetTransform(int x_offset, int y_offset)
-{
-	// Save old transform
-	m_CacheTransform = m_Transform;
-	// Reset transform
-	GetTransform().Position = { 0.0f + x_offset, 0.0f + y_offset };
-	if (m_Parent != nullptr) {
-		GetTransform().Position = { 0.0f, 0.0f };
-	}
-	GetTransform().Rotation = 0.0f;
-	GetTransform().Scale = { 1.0f, 1.0f };
-	MarkDirty();
-	for (Mesh2D* subMesh : GetSubMeshes()) {
-		subMesh->MarkDirty();
-	}
-}
-
-void Mesh2D::RestoreTransform()
-{
-	m_Transform = m_CacheTransform;
-	MarkDirty();
-	for (Mesh2D* subMesh : GetSubMeshes()) {
-		subMesh->MarkDirty();
-	}
-}
-
-
-
-Mesh2D* Mesh2D::GetSubMesh(int index) {
-	return m_SubMeshes[index];
-}
-
-
-
-void Mesh2D::CalcLocalCentroide() {
-	if (m_LocalVertices.empty()) { return; }
-
-	m_LocalCentroide.x = m_CentroideXSum / m_LocalVertices.size();
-	m_LocalCentroide.y = m_CentroideYSum / m_LocalVertices.size();
-}
-
-vertex Mesh2D::GetCentroide() {
-	float px = m_LocalCentroide.x + GetTransform().Position.x;
-	float py = m_LocalCentroide.y + GetTransform().Position.y;
-
-	// Se for submesh, arrumar a posição
-	if (m_Parent) {
-		px *= m_Parent->GetTransform().Scale.x;
-		py *= m_Parent->GetTransform().Scale.y;
-
-		if (m_Parent->GetTransform().Rotation != 0.0f) {
-			float pCosA = std::cos(m_Parent->GetTransform().Rotation);
-			float pSinA = std::sin(m_Parent->GetTransform().Rotation);
-			float tx = px * pCosA - py * pSinA;
-			float ty = px * pSinA + py * pCosA;
-			px = tx;
-			py = ty;
-		}
-
-		px += m_Parent->GetLocalCentroide().x + m_Parent->GetTransform().Position.x;
-		py += m_Parent->GetLocalCentroide().y + m_Parent->GetTransform().Position.y;
-	}
-
-	return { px, py };
-}
-
-Transform2D& Mesh2D::GetTransform()
-{
-	return m_Transform;
-}
-
-std::vector<vertex>& Mesh2D::GetVertices() {
-	if (m_IsDirty) {
-		UpdateWorldVertices();
-	}
-	return m_Vertices;
-}
-
-void Mesh2D::UpdateWorldVertices() {
-	m_Vertices.clear();
-	m_Vertices.reserve(m_LocalVertices.size());
-
-	float cosA = std::cos(GetTransform().Rotation);
-	float sinA = std::sin(GetTransform().Rotation);
-
-	// Se for submesh, pega a rotação do pai
-	float pCosA = 1.0f, pSinA = 0.0f;
-	if (m_Parent) {
-		pCosA = std::cos(m_Parent->GetTransform().Rotation);
-		pSinA = std::sin(m_Parent->GetTransform().Rotation);
-	}
-
-	for (const vertex& localVertex : m_LocalVertices) {
-		// Apply sacale
-		float px = localVertex.x - m_LocalCentroide.x;
-		float py = localVertex.y - m_LocalCentroide.y;
-
-		px *= GetTransform().Scale.x;
-		py *= GetTransform().Scale.y;
-
-		// Apply rotation
-		if (GetTransform().Rotation != 0.0f) {
-			float tx = px * cosA - py * sinA;
-			float ty = px * sinA + py * cosA;
-			px = tx;
-			py = ty;
-		}
-
-		// Applt transform
-		px += m_LocalCentroide.x + GetTransform().Position.x;
-		py += m_LocalCentroide.y + GetTransform().Position.y;
-
-		// Herdar o transform do pai
-		if (m_Parent) {
-			px *= m_Parent->GetTransform().Scale.x;
-			py *= m_Parent->GetTransform().Scale.y;
-
-			if (m_Parent->GetTransform().Rotation != 0.0f) {
-				float tx = px * pCosA - py * pSinA;
-				float ty = px * pSinA + py * pCosA;
-				px = tx;
-				py = ty;
-			}
-
-			px += m_Parent->GetLocalCentroide().x + m_Parent->GetTransform().Position.x;
-			py += m_Parent->GetLocalCentroide().y + m_Parent->GetTransform().Position.y;
-		}
-
-		m_Vertices.push_back({ px, py });
-	}
-	m_IsDirty = false;
 }

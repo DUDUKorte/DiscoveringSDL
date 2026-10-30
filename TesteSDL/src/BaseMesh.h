@@ -34,7 +34,7 @@ public:
 
 	inline std::vector<glm::vec3>& GetLocalVertices() { return m_LocalVertices; }
 	inline std::vector<BaseMesh*>& GetSubMeshes() { return m_SubMeshes; }
-	virtual BaseMesh* GetSubMesh(int index) = 0;
+	virtual BaseMesh* GetSubMesh(int index);
 
 	inline glm::vec3 Velocity() { return m_Velocity; }
 	glm::vec3 GetCentroide();
@@ -55,6 +55,7 @@ public:
 	inline glm::vec3& GetVelocity() { return m_Velocity; }
 	inline bool& GetShouldDestroy() { return m_ShouldDestroy; }
 	inline MeshTypes GetType() { return meshType; }
+	inline glm::vec2& GetMinMax() { return m_MinMaxY; }
 
 	// setters
 	inline void MarkDirty() { m_IsDirty = true; }
@@ -83,6 +84,7 @@ protected:
 	Transform m_Transform;
 	Transform m_CacheTransform;
 	glm::mat4 m_TransformMatrix = glm::mat4(1.0f);
+	glm::vec2 m_MinMaxY = { 10000.0f, -1.0f };
 
 	//Transform2D m_Transform;
 	//Transform2D m_CacheTransform;

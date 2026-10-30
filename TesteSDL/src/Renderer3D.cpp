@@ -8,7 +8,7 @@
 #include <glm/gtc/random.hpp>
 
 namespace Renderer3D {
-	void Draw3DLinesWithVertices(SDL_Renderer* renderer, std::vector<vertex3D>& vertices, bool closed)
+	void Draw3DLinesWithVertices(SDL_Renderer* renderer, const std::vector<glm::vec3>& vertices, bool closed)
 	{
 		if (vertices.size() < 2) { // só desenha se tiver 2 ou mais vertices
 			SDL_RenderPoint(renderer, vertices[0].x, vertices[0].y);
@@ -26,12 +26,22 @@ namespace Renderer3D {
 
 	void DrawMesh(SDL_Renderer* renderer, Mesh& meshTeste)
 	{
-		std::vector<vertex3D> allVertices = meshTeste.GetVertices();
-		for (face currentFace : meshTeste.GetFaces()) {
+		std::vector<glm::vec3>& allVertices = meshTeste.GetVertices();
+		std::vector<glm::vec3> currentVertices = {};
+		glm::vec2 minMaxFace = { 10000, -1 };
 
-			std::vector<vertex3D> currentVertices = {};
+		for (face& currentFace : meshTeste.GetFaces()) {
+			minMaxFace = { 10000.0f, -1.0f };
+			currentVertices.clear();
+
 			for (int i : currentFace.vertices) {
 				currentVertices.push_back(allVertices[i]);
+				if (allVertices[i].y > minMaxFace.y) {
+					minMaxFace.y = allVertices[i].y;
+				}
+				if (allVertices[i].y < minMaxFace.x) {
+					minMaxFace.x = allVertices[i].y;
+				}
 			}
 			///* choose the color for the frame we will draw. The sine wave trick makes it fade between colors smoothly. */
 			//const float red = (float)glm::linearRand(0.1, 1.0);
@@ -39,16 +49,23 @@ namespace Renderer3D {
 			//const float blue = (float)glm::linearRand(0.1, 1.0);
 			//SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
 
-			Draw3DLinesWithVertices(renderer, currentVertices, true);
-			//FillPoly(renderer, currentVertices, 1280);
+				FillPoly(renderer, currentVertices, minMaxFace);
+				Draw3DLinesWithVertices(renderer, currentVertices, true);
+			if (meshTeste.GetOutline()) {
+			}
+			if (meshTeste.GetFill()) {
+			}
 		}
 	}
 
-	void FindIntersections(std::vector<vertex3D>& vertices, std::vector<std::vector<float>>& intersecoes, int height)
+	void FindIntersections(const std::vector<glm::vec3>& vertices, std::vector<std::vector<float>>& intersecoes, int height, glm::vec2 yMinMax)
 	{
+		int meshYMin = int(yMinMax.x);
+		int meshYMax = int(yMinMax.y);
+
 		for (int i = 0; i < vertices.size(); i++) {
-			vertex3D source = vertices[i];
-			vertex3D point = vertices[(i + 1) % vertices.size()];
+			glm::vec3 source = vertices[i];
+			glm::vec3 point = vertices[(i + 1) % vertices.size()];
 
 			if (point.y == source.y) { continue; }
 
@@ -74,13 +91,13 @@ namespace Renderer3D {
 			//float new_b = source.color.z;
 
 			// Pegar as interseções
-			for (int y = ymin; y < ymax; y++) { // Scanlines de 0 à Ns-1
+			for (int y = ymin - meshYMin; y < ymax - meshYMin; y++) { // Scanlines de 0 à Ns-1
 				//SDL_SetRenderDrawColorFloat(renderer, 1, 0, 0, SDL_ALPHA_OPAQUE_FLOAT);
 				//SDL_RenderLine(renderer, new_x, ymin + i, new_x, ymin+i);
 				//SDL_RenderPoint(renderer, new_x, ymin + i);
 				if (y > 0 && y < height) {
 					intersecoes[y].push_back(new_x);
-					LE_CORE_ASSERT(y > 0 && y < height, "Coordenada Y com valor INVALIDO!");
+					//LE_CORE_ASSERT(y > 0 && y < height, "Coordenada Y com valor INVALIDO!");
 				}
 				new_x += Tx;
 				//new_r += Tr;
@@ -90,28 +107,31 @@ namespace Renderer3D {
 		}
 	}
 
-	void FillPoly(SDL_Renderer* renderer, std::vector<vertex3D> vertices, int height)
+	void FillPoly(SDL_Renderer* renderer, const std::vector<glm::vec3>& vertices, glm::vec2 minMaxY)
 	{
+		int yMin = int(minMaxY.x);
+		int yMax = int(minMaxY.y);
+
 		if (vertices.size() < 3) { return; }
 
 		std::vector<std::vector<float>> intersecoes;
-		intersecoes.resize(height);
-		LE_CORE_ASSERT(intersecoes.size() == height, "Intersecoes com tamanho incorreto alocado!");
+		intersecoes.resize(yMax - yMin + 1);
+		//LE_CORE_ASSERT(intersecoes.size() == height, "Intersecoes com tamanho incorreto alocado!");
 
-		FindIntersections(vertices, intersecoes, height);
+		FindIntersections(vertices, intersecoes, yMax - yMin + 1, minMaxY);
 
 		/*Sub Polygons adicionados às interseções (talvez não seja a melhor forma de fazer, mas é uma forma)*/
-		//for (Mesh* submesh : mesh->GetSubMeshes()) {
-		//	std::vector<vertex3D> sub_vertices = submesh->GetVertices();
+		//for (BaseMesh* submesh : mesh->GetSubMeshes()) {
+		//	std::vector<glm::vec3> sub_vertices = submesh->GetVertices();
 		//	if (sub_vertices.size() < 3) { continue; }
 		//	if (submesh->IsActive()) {
 		//		ImVec4 old_color = mesh->GetColor();
 		//		ImVec4 submesh_color = submesh->GetColor();
 		//		SDL_SetRenderDrawColorFloat(renderer, submesh_color.x, submesh_color.y, submesh_color.z, SDL_ALPHA_OPAQUE_FLOAT);
-		//		FillPoly(renderer, submesh, height);
+		//		FillPoly(renderer, submesh, yMax - yMin + 1);
 		//		SDL_SetRenderDrawColorFloat(renderer, old_color.x, old_color.y, old_color.z, SDL_ALPHA_OPAQUE_FLOAT);
 		//	}
-		//	FindIntersections(sub_vertices, intersecoes, height);
+		//	FindIntersections(sub_vertices, intersecoes, yMax - yMin + 1, minMaxY);
 		//}
 
 		// Ordenar todas as interceções
@@ -121,14 +141,14 @@ namespace Renderer3D {
 
 		// Fazer o fill no poly
 		for (int y = 0; y < intersecoes.size(); y++) {
-			std::vector<float> lista = intersecoes[y];
+			std::vector<float>& lista = intersecoes[y];
 
 			for (int i = 0; i + 1 < lista.size(); i += 2) {
 				//if (i + 1 < lista.size()) {
 				//	SDL_RenderPoint(renderer, (int)lista[i].x, y);
 				//	SDL_RenderPoint(renderer, (int)lista[i + 1].x, y);
 				//}
-				SDL_RenderLine(renderer, lista[i], (float)y, lista[i + 1], (float)y);
+				SDL_RenderLine(renderer, lista[i], (float)y + yMin, lista[i + 1], (float)y + yMin);
 			}
 		}
 	}

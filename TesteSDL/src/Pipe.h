@@ -3,7 +3,7 @@
 
 class Pipe : public Mesh2D {
 public:
-	Pipe(std::string name, vertex firstVertex = { 0,0 }, std::vector<vertex> v = {});
+	Pipe(std::string name, glm::vec3 firstVertex = { 0.0f, 0.0f, 0.0f }, std::vector<glm::vec3> v = {});
 
 	void EventTick(float deltaTime) override;
 	void EventInput(SDL_Event* event) override;

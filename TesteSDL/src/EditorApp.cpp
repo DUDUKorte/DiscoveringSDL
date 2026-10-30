@@ -85,16 +85,19 @@ bool EditorApp::Init()
 	//Update Width/Height values
 	SDL_GetWindowSize(m_Window, &m_Width, &m_Height);
 
-	LoadObjFile("./cubo.obj", &cubinho);
-	LoadObjFile("./zelda.obj", &macaquinho);
+	LoadObjFile("./cubo.obj", cubinho);
+	LoadObjFile("./zelda.obj", macaquinho);
 
-	cubinho.GetTransform().Scale = { 100.0f, 100.0f, 100.0f };
-	cubinho.GetTransform().Position = { 740.0f, 480.0f, 0.0f };
-	cubinho.GetTransform().Rotation = { 40.0f, 30.0f, 10.0f };
+	cubinho->GetTransform().Scale = { 100.0f, 100.0f, 100.0f };
+	cubinho->GetTransform().Position = { 740.0f, 480.0f, 0.0f };
+	cubinho->GetTransform().Rotation = { 40.0f, 30.0f, 10.0f };
 
-	macaquinho.GetTransform().Scale = { 100.0f, 100.0f, 100.0f };
-	macaquinho.GetTransform().Position = { 340.0f, 280.0f, 0.0f };
-	macaquinho.GetTransform().Rotation = { 0.2f, 0.0f, 2.0f };
+	macaquinho->GetTransform().Scale = { 100.0f, 100.0f, 100.0f };
+	macaquinho->GetTransform().Position = { 340.0f, 280.0f, 0.0f };
+	macaquinho->GetTransform().Rotation = { 0.2f, 0.0f, 2.0f };
+
+	m_GlobalMeshes.push_back(cubinho);
+	m_GlobalMeshes.push_back(macaquinho);
 
 	return true;
 }
@@ -126,13 +129,13 @@ void EditorApp::Shutdown()
 ///////////////////////////////////////////////////////////
 ///////////////////GET ACTIVE MESH/////////////////////////
 ///////////////////////////////////////////////////////////
-Mesh2D* EditorApp::GetActiveMesh()
+BaseMesh* EditorApp::GetActiveMesh()
 {
 	if (m_GlobalMeshes.empty() || m_CurrentMesh < 0 || m_CurrentMesh >= m_GlobalMeshes.size()) {
 		return nullptr;
 	}
 	LE_CORE_ASSERT(m_CurrentMesh <= m_GlobalMeshes.size() && m_CurrentMesh >= 0, "Tentando acessar Mesh INVALIDA!");
-	Mesh2D* mainMesh = m_GlobalMeshes[m_CurrentMesh];
+	BaseMesh* mainMesh = m_GlobalMeshes[m_CurrentMesh];
 
 	if (m_CurrentSubMesh >= 0 && m_CurrentSubMesh < mainMesh->GetSubMeshes().size()) {
 		return mainMesh->GetSubMesh(m_CurrentSubMesh);
@@ -148,12 +151,12 @@ Mesh2D* EditorApp::GetActiveMesh()
 ///////////////////////////////////////////////////////////
 ////////////////UPDATE GIZMO HOVER/////////////////////////
 ///////////////////////////////////////////////////////////
-void EditorApp::UpdateGizmoHover(float mouseX, float mouseY, Mesh2D* activeMesh, EEditMode mode)
+void EditorApp::UpdateGizmoHover(float mouseX, float mouseY, BaseMesh* activeMesh, EEditMode mode)
 {
 	m_CurrentGizmoState = GIZMO_NONE;
 	if (activeMesh == nullptr || (mode == Selection || mode == CreatePoly)) { return; }
 
-	vertex centroide = activeMesh->GetCentroide();
+	glm::vec3 centroide = activeMesh->GetCentroide();
 	float cx = centroide.x;
 	float cy = centroide.y;
 	float size = 60.0f;
@@ -161,7 +164,7 @@ void EditorApp::UpdateGizmoHover(float mouseX, float mouseY, Mesh2D* activeMesh,
 	// Pegar rotação do pai pro gizmo local, da submesh
 	float gizmoRot = 0.0f;
 	if (activeMesh->m_Parent != nullptr) {
-		gizmoRot = activeMesh->m_Parent->GetTransform().Rotation;
+		gizmoRot = activeMesh->m_Parent->GetTransform().Rotation.z;
 	}
 
 	//desfazer rotação do pai
@@ -217,7 +220,7 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 	/// EVENTOS DE TECLA PRESSIONADA ///////////////////////////////////////////////////////
 	if (event->type == SDL_EVENT_KEY_DOWN) {
 		SDL_KeyboardEvent e = event->key;
-		Mesh2D* activeMesh = GetActiveMesh();
+		BaseMesh* activeMesh = GetActiveMesh();
 		if (activeMesh != nullptr) { activeMesh->EventInput(event); }
 
 		// MODE SWITCH
@@ -259,9 +262,9 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		SDL_MouseButtonEvent e = event->button;
 		if (e.button == 1) { // LMB
 			if (m_CurrentMode == CreatePoly){
-				Mesh2D* ActiveMesh = GetActiveMesh();
+				BaseMesh* ActiveMesh = GetActiveMesh();
 				if (ActiveMesh != nullptr) {
-					ActiveMesh->addVertex({ e.x, e.y });
+					ActiveMesh->addVertex({ e.x, e.y, 1.0f });
 				}
 			}
 			else {
@@ -323,14 +326,14 @@ void EditorApp::ProcessMouseMotion(SDL_Event* event)
 
 	// Aqui é quando tá segurando o botão esquerdo do mouse
 	if (m_bLMB) {
-		Mesh2D* activeMesh = GetActiveMesh();
+		BaseMesh* activeMesh = GetActiveMesh();
 		if (activeMesh != nullptr) {
-			Transform2D& MeshTransform = activeMesh->GetTransform();
+			Transform& MeshTransform = activeMesh->GetTransform();
 
 			// Pega rotação do pai e tira da mesh filha
 			float gizmoRot = 0.0f;
 			if (activeMesh->m_Parent != nullptr) {
-				gizmoRot = activeMesh->m_Parent->GetTransform().Rotation;
+				gizmoRot = activeMesh->m_Parent->GetTransform().Rotation.z;
 			}
 
 			// Pega o movimento cm a rotação do pai
@@ -366,16 +369,16 @@ void EditorApp::ProcessMouseMotion(SDL_Event* event)
 				}
 			}
 			else if (m_CurrentMode == RotatePoly) {
-				MeshTransform.Rotation += event->motion.xrel * m_RotateMeshSpeed;
+				MeshTransform.Rotation.z += event->motion.xrel * m_RotateMeshSpeed;
 			}
 			else if (m_CurrentMode == CreatePoly) {
-				activeMesh->addVertex({e.x, e.y});
+				activeMesh->addVertex({e.x, e.y, 1.0f});
 			}
 
 			activeMesh->MarkDirty();
 
 			if (m_CurrentSubMesh == -1) {
-				for (Mesh2D* subMesh : activeMesh->GetSubMeshes()) {
+				for (BaseMesh* subMesh : activeMesh->GetSubMeshes()) {
 					subMesh->MarkDirty();
 				}
 			}
@@ -422,6 +425,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	ImGui_ImplSDL3_NewFrame();
 	ImGui::NewFrame();
 
+	// BUG TODO
 	Renderer2D::DrawGizmo(GetActiveMesh(), m_CurrentMode, m_CurrentGizmoState, m_ActiveGizmoState);
 
 	if (!m_GameStarted) {
@@ -432,8 +436,8 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	SDL_RenderClear(m_Renderer);
 
 	// Draw polygons
-	for (Mesh2D* m : m_GlobalMeshes) {
-		std::vector<vertex>& vertices = m->GetVertices();
+	for (BaseMesh* m : m_GlobalMeshes) {
+		std::vector<glm::vec3>& vertices = m->GetVertices();
 		if (vertices.empty()) { continue; }
 		
 		// Verifica se tusa fill color e seta a cor
@@ -450,8 +454,14 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			SDL_SetRenderDrawColorFloat(m_Renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
 		}
 
+		if (m->GetType() == MeshTypes::Type3D) {
+			Renderer3D::DrawMesh(m_Renderer, static_cast<Mesh&>(*(m)));
+			continue;
+		}
+
 		// Fill poly
 		if (m->GetFill()) {
+			// BUG TODO
 			Renderer2D::FillPoly(m_Renderer, m, GetHeight());
 		}
 		
@@ -461,7 +471,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			SDL_SetRenderDrawColorFloat(m_Renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
 
 			// Se tiver filhos, desenha o outline de cada filho
-			for (Mesh2D* subMesh : m->GetSubMeshes()) {
+			for (BaseMesh* subMesh : m->GetSubMeshes()) {
 				Renderer2D::DrawLinesWithVertices(m_Renderer, subMesh->GetVertices(), true);
 			}
 		}
@@ -472,14 +482,14 @@ SDL_AppResult EditorApp::UpdateAndRender()
 		m->EventTick(deltaTime);
 		// Talvez verificar a colisão aqui?
 		if (m->GetTransform().Position.y >= GetHeight()) {
-			m->SetVelocity({ 0.0f, 0.0f });
+			m->SetVelocity({ 0.0f, 0.0f, 0.0f });
 		}
 	}
 
 	SDL_SetRenderDrawColorFloat(m_Renderer, 1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT);
-	// Draw Test Mesh
-	Renderer3D::DrawMesh(m_Renderer, cubinho);
-	Renderer3D::DrawMesh(m_Renderer, macaquinho);
+	//// Draw Test Mesh
+	//Renderer3D::DrawMesh(m_Renderer, *(cubinho));
+	//Renderer3D::DrawMesh(m_Renderer, *(macaquinho));
 
 	// Rendering
 	ImGui::Render();
@@ -500,12 +510,14 @@ SDL_AppResult EditorApp::UpdateAndRender()
 ///////////////////////////////////////////////////////////
 void EditorApp::RenderUI()
 {
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+
 	// Draw Control pannelk
 	ImGui::Begin("Control pannel");
 	ImGui::SeparatorText("Outliner");
 	if (ImGui::BeginChild("Mesh Tree", ImVec2(0, 200), true)) {
 		for (int i = 0; i < m_GlobalMeshes.size(); i++) {
-			Mesh* m = m_GlobalMeshes[i];
+			BaseMesh* m = m_GlobalMeshes[i];
 			if (m->GetVertices().empty()) { continue; }
 
 			ImGuiTreeNodeFlags node_flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
@@ -529,7 +541,7 @@ void EditorApp::RenderUI()
 			if (nodeOpen) {
 				auto& subMeshes = m->GetSubMeshes();
 				for (int j = 0; j < subMeshes.size(); j++) {
-					Mesh* subMesh = subMeshes[j];
+					BaseMesh* subMesh = subMeshes[j];
 
 					ImGuiTreeNodeFlags sub_node_flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
 					bool isSubSelected = (m_CurrentMesh == i && m_CurrentSubMesh == j);
@@ -561,7 +573,7 @@ void EditorApp::RenderUI()
 		m_CurrentSubMesh = -1;
 
 		std::string mesh_name = "Mesh_" + std::to_string(m_CurrentMesh);
-		m_GlobalMeshes.push_back(new Mesh2D(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }));
+		m_GlobalMeshes.push_back(new Mesh2D(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f, 1.0f }));
 		
 		LE_TRACE("Mesh: " + mesh_name + " Created!");
 		OnChangeMode(CreatePoly);
@@ -569,10 +581,10 @@ void EditorApp::RenderUI()
 	ImGui::SameLine();
 	if (ImGui::Button("Create SubMesh")) {
 		if (m_CurrentMesh >= 0 && m_CurrentMesh < m_GlobalMeshes.size()) {
-			Mesh* parent = m_GlobalMeshes[m_CurrentMesh];
+			BaseMesh* parent = m_GlobalMeshes[m_CurrentMesh];
 
 			std::string mesh_name = "Mesh_" + std::to_string(m_CurrentMesh) + "_Child_" + std::to_string(parent->GetSubMeshes().size());
-			parent->addSubMesh(new Mesh(mesh_name, { parent->GetCentroide().x, parent->GetCentroide().y }));
+			parent->addSubMesh(new Mesh2D(mesh_name, { parent->GetCentroide().x, parent->GetCentroide().y, 1.0f }));
 			m_CurrentSubMesh = (int)parent->GetSubMeshes().size() - 1;
 
 			OnChangeMode(CreatePoly);
@@ -591,9 +603,9 @@ void EditorApp::RenderUI()
 		m_CurrentSubMesh = -1;
 
 		std::string mesh_name = "Mesh_Poly" + std::to_string(m_CurrentMesh);
-		std::vector<vertex> custom_poly;
+		std::vector<glm::vec3> custom_poly;
 
-		vertex start_vertex = {-10 * m_CustomPolySize, -10 * m_CustomPolySize }; // Ponto inicial
+		glm::vec3 start_vertex = {-10 * m_CustomPolySize, -10 * m_CustomPolySize, 1.0f }; // Ponto inicial
 		float angle = (360.0f / (float)m_CustomPolyFaces) * std::numbers::pi / 180.0f;
 
 		// Rotaciona o ponto
@@ -605,7 +617,7 @@ void EditorApp::RenderUI()
 			start_vertex.y = ty;
 		}
 
-		m_GlobalMeshes.push_back(new Mesh2D(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }, custom_poly));
+		m_GlobalMeshes.push_back(new Mesh2D(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f, 1.0f }, custom_poly));
 		m_GlobalMeshes[m_CurrentMesh]->SetClosed(true);
 
 		LE_TRACE("Custom Mesh: " + mesh_name + " Created!");
@@ -663,48 +675,57 @@ void EditorApp::RenderUI()
 		EventBeginPlay();
 	}
 
+	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+
 	ImGui::End();
 
-	// Inspector winodw
+	// Inspector window
 	ImGui::Begin("Inspector");
-	Mesh2D* activeMesh = GetActiveMesh();
+	BaseMesh* activeMesh = GetActiveMesh();
 	if (activeMesh != nullptr) {
-		Mesh2D* selectedMesh = activeMesh;
+		BaseMesh* selectedMesh = activeMesh;
 
 		ImGui::Text("Editing: %s", selectedMesh->GetName().c_str());
 		ImGui::Separator();
 
 		// Tarnsformações da mesj
 		if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
-			Transform2D& MeshTransform = selectedMesh->GetTransform();
+			Transform& MeshTransform = selectedMesh->GetTransform();
 			bool transformChanged = false;
 
 			// posicao
-			float pos[2] = { MeshTransform.Position.x, MeshTransform.Position.y };
-			if (ImGui::DragFloat2("Position", pos, 1.0f)) {
+			float pos[3] = { MeshTransform.Position.x, MeshTransform.Position.y, MeshTransform.Position.z };
+			if (ImGui::DragFloat3("Position", pos, 1.0f)) {
 				MeshTransform.Position.x = pos[0];
 				MeshTransform.Position.y = pos[1];
+				MeshTransform.Position.z = pos[2];
 				transformChanged = true;
 			}
 
 			// rotacao
-			float rotDeg = MeshTransform.Rotation * (180.0f / std::numbers::pi);
-			if (ImGui::DragFloat("Rotation", &rotDeg, 1.0f)) {
-				MeshTransform.Rotation = rotDeg * (std::numbers::pi / 180.0f);
+			float rotDegX = MeshTransform.Rotation.x * (180.0f / std::numbers::pi);
+			float rotDegY = MeshTransform.Rotation.y * (180.0f / std::numbers::pi);
+			float rotDegZ = MeshTransform.Rotation.z * (180.0f / std::numbers::pi);
+			float rotDeg[3] = { rotDegX, rotDegY, rotDegZ };
+			if (ImGui::DragFloat3("Rotation", rotDeg, 1.0f)) {
+				MeshTransform.Rotation.x = rotDeg[0] * (std::numbers::pi / 180.0f);
+				MeshTransform.Rotation.y = rotDeg[1] * (std::numbers::pi / 180.0f);
+				MeshTransform.Rotation.z = rotDeg[2] * (std::numbers::pi / 180.0f);
 				transformChanged = true;
 			}
 
 			// escala
-			float scale[2] = { MeshTransform.Scale.x, MeshTransform.Scale.y };
-			if (ImGui::DragFloat2("Scale", scale, 0.1f)) {
+			float scale[3] = { MeshTransform.Scale.x, MeshTransform.Scale.y, MeshTransform.Scale.z };
+			if (ImGui::DragFloat3("Scale", scale, 0.1f)) {
 				MeshTransform.Scale.x = scale[0];
 				MeshTransform.Scale.y = scale[1];
+				MeshTransform.Scale.z = scale[2];
 				transformChanged = true;
 			}
 
 			if (ImGui::Button("Reset Rotation and Scale")) {
-				MeshTransform.Rotation = 0.0f;
-				MeshTransform.Scale = { 1.0f, 1.0f };
+				MeshTransform.Rotation = {0.0f, 0.0f, 0.0f};
+				MeshTransform.Scale = { 1.0f, 1.0f, 1.0f };
 				transformChanged = true;
 			}
 
@@ -713,7 +734,7 @@ void EditorApp::RenderUI()
 				OnChangeMode(MovePoly);
 
 				if (m_CurrentSubMesh == -1) {
-					for (Mesh* submesh : selectedMesh->GetSubMeshes()) {
+					for (BaseMesh* submesh : selectedMesh->GetSubMeshes()) {
 						submesh->MarkDirty();
 					}
 				}
@@ -763,7 +784,7 @@ void EditorApp::RenderUI()
 ///////////////////////////////////////////////////////////
 void EditorApp::OnChangeMode(EEditMode new_mode)
 {
-	Mesh* activeMesh = GetActiveMesh();
+	BaseMesh* activeMesh = GetActiveMesh();
 	if (activeMesh) {
 		switch (new_mode) {
 		case CreatePoly:
@@ -784,7 +805,7 @@ void EditorApp::OnChangeMode(EEditMode new_mode)
 void EditorApp::OnDestroySelectedMesh()
 {
 	if (m_CurrentSubMesh == -1) { // se for mesh pai
-		Mesh2D* markForDelete = m_GlobalMeshes[m_CurrentMesh];
+		BaseMesh* markForDelete = m_GlobalMeshes[m_CurrentMesh];
 		m_GlobalMeshes.erase(m_GlobalMeshes.begin() + m_CurrentMesh);
 
 		delete markForDelete;
@@ -801,7 +822,7 @@ void EditorApp::OnDestroySelectedMesh()
 		LE_INFO("Mesh destroyed!");
 	}
 	else { // se for mesh filha
-		Mesh2D* parent = m_GlobalMeshes[m_CurrentMesh];
+		BaseMesh* parent = m_GlobalMeshes[m_CurrentMesh];
 		parent->removeSubMesh(m_CurrentSubMesh);
 
 		m_CurrentSubMesh = -1;
@@ -841,7 +862,7 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 				// vértices
 				LE_CORE_TRACE("LOAD VERTICES");
 				// pegar os vértices
-				vertex3D loadedVertex;
+				glm::vec3 loadedVertex;
 				sstream >> loadedVertex.x >> loadedVertex.y >> loadedVertex.z;
 
 				mesh->addVertex(loadedVertex);
@@ -925,18 +946,18 @@ void EditorApp::CreatePipes()
 
 	// Create first pipes
 	std::string up_pipe_name = "UpPipe_" + std::to_string(m_CurrentMesh);
-	std::vector<vertex> UpPipeVertexes = {
-		{-20, 100},
-		{-20, maxHeight},
-		{ 20, maxHeight},
-		{ 20, 100}
+	std::vector<glm::vec3> UpPipeVertexes = {
+		{-20, 100, 1.0f},
+		{-20, maxHeight, 1.0f},
+		{ 20, maxHeight, 1.0f},
+		{ 20, 100, 1.0f}
 	};
 	std::string down_pipe_name = "DownPipe_" + std::to_string(m_CurrentMesh);
-	std::vector<vertex> DownPipeVertexes = {
-		{-20, -100},
-		{-20, -maxHeight},
-		{ 20, -maxHeight},
-		{ 20, -100}
+	std::vector<glm::vec3> DownPipeVertexes = {
+		{-20, -100, 1.0f},
+		{-20, -maxHeight, 1.0f},
+		{ 20, -maxHeight, 1.0f},
+		{ 20, -100, 1.0f}
 	};
 	std::random_device rd;
 	std::mt19937 gen(rd());
@@ -945,8 +966,8 @@ void EditorApp::CreatePipes()
 	std::uniform_real_distribution<float> distr(min, max);
 	float random_pos = distr(gen);
 
-	m_GlobalMeshes.push_back(new Pipe(up_pipe_name, { (float)GetWidth(), (float)random_pos }, UpPipeVertexes));
-	m_GlobalMeshes.push_back(new Pipe(down_pipe_name, { (float)GetWidth(), (float)random_pos }, DownPipeVertexes));
+	m_GlobalMeshes.push_back(new Pipe(up_pipe_name, { (float)GetWidth(), (float)random_pos, 1.0f }, UpPipeVertexes));
+	m_GlobalMeshes.push_back(new Pipe(down_pipe_name, { (float)GetWidth(), (float)random_pos, 1.0f }, DownPipeVertexes));
 }
 
 void EditorApp::CreatePlayer()
@@ -957,9 +978,9 @@ void EditorApp::CreatePlayer()
 	m_CurrentSubMesh = -1;
 
 	std::string mesh_name = "Player" + std::to_string(m_CurrentMesh);
-	std::vector<vertex> custom_poly;
+	std::vector<glm::vec3> custom_poly;
 
-	vertex start_vertex = { -10, -10 }; // Ponto inicial
+	glm::vec3 start_vertex = { -10, -10, 1.0f }; // Ponto inicial
 	float angle = (360.0f / (float)m_CustomPolyFaces) * std::numbers::pi / 180.0f;
 
 	// Rotaciona o ponto
@@ -971,7 +992,7 @@ void EditorApp::CreatePlayer()
 		start_vertex.y = ty;
 	}
 
-	m_GlobalMeshes.push_back(new Mesh2D(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }, custom_poly));
+	m_GlobalMeshes.push_back(new Mesh2D(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f, 1.0f }, custom_poly));
 	m_GlobalMeshes[m_CurrentMesh]->SetClosed(true);
 	m_GlobalMeshes[m_CurrentMesh]->SetFill(true);
 	m_GlobalMeshes[m_CurrentMesh]->SetTickEnabled(true);

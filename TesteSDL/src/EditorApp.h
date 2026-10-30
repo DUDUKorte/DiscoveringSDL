@@ -3,7 +3,7 @@
 #include <vector>
 #include <imgui.h>
 
-#include "Mesh2D.h"
+#include "BaseMesh.h"
 #include "Mesh.h"
 #include "Pipe.h"
 
@@ -27,14 +27,14 @@ public:
 	inline int GetHeight() { return m_Height; }
 
 	// VARIÁVEL GLOBAL APENAS PARA TESTES
-	Mesh cubinho = Mesh("cubinho", { 0.0f, 0.0f, 0.0f }, {});
-	Mesh macaquinho = Mesh("macaquinho", { 0.0f, 0.0f, 0.0f }, {});
+	Mesh* cubinho = new Mesh("cubinho");
+	Mesh* macaquinho = new Mesh("Monkey");
 
 private:
 	void RenderUI();
 	void ProcessMouseMotion(SDL_Event* event);
-	Mesh2D* GetActiveMesh();
-	void UpdateGizmoHover(float mouseX, float mouseY, Mesh2D* activeMesh, EEditMode);
+	BaseMesh* GetActiveMesh();
+	void UpdateGizmoHover(float mouseX, float mouseY, BaseMesh* activeMesh, EEditMode);
 	void OnChangeMode(EEditMode new_mode);
 	void OnDestroySelectedMesh();
 
@@ -78,7 +78,7 @@ private:
 	double timeAcc = 0;
 
 	// Meshes
-	std::vector<Mesh2D*> m_GlobalMeshes;
+	std::vector<BaseMesh*> m_GlobalMeshes;
 	int m_CurrentMesh = -1;
 	int m_CurrentSubMesh = -1;
 	int m_CustomPolyFaces = 4;

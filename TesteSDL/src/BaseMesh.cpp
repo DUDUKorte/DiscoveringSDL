@@ -74,6 +74,11 @@ std::vector<glm::vec3>& BaseMesh::GetVertices()
 	return m_Vertices;
 }
 
+BaseMesh* BaseMesh::GetSubMesh(int index)
+{
+	return m_SubMeshes[index];
+}
+
 glm::vec3 BaseMesh::GetCentroide()
 {
 	if (m_IsDirty) { UpdateWorldVertices(); }
@@ -110,6 +115,7 @@ void BaseMesh::UpdateWorldVertices()
 	m_Vertices.clear();
 	m_Vertices.reserve(m_LocalVertices.size());
 	m_TransformMatrix = glm::mat4(1.0f);
+	m_MinMaxY = { 10000.0f, -1.0f };
 
 	// Move pra postição de volta
 	m_TransformMatrix = glm::translate(m_TransformMatrix, m_LocalCentroide + m_Transform.Position);
@@ -131,6 +137,14 @@ void BaseMesh::UpdateWorldVertices()
 		glm::vec4 adjustVertex = { localVertex.x, localVertex.y, localVertex.z, 1.0f };
 		adjustVertex = m_TransformMatrix * adjustVertex;
 		m_Vertices.push_back({ adjustVertex.x, adjustVertex.y, adjustVertex.z });
+
+		// Atualiza o minmax
+		if (adjustVertex.y < m_MinMaxY.x) {
+			m_MinMaxY.x = adjustVertex.y;
+		}
+		if (adjustVertex.y > m_MinMaxY.y) {
+			m_MinMaxY.y = adjustVertex.y;
+		}
 	}
 
 	m_IsDirty = false;

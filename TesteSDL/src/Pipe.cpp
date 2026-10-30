@@ -1,9 +1,9 @@
 #include "Pipe.h"
 
-Pipe::Pipe(std::string name, vertex firstVertex, std::vector<vertex> v)
+Pipe::Pipe(std::string name, glm::vec3 firstVertex, std::vector<glm::vec3> v)
     : Mesh2D(name, firstVertex, v)
 {
-    SetVelocity({-0.1f, 0.0f});
+    SetVelocity({-0.1f, 0.0f, 0.0f});
 	SetTickEnabled(true);
 	SetClosed(true);
 	SetFill(false);
