@@ -49,11 +49,11 @@ namespace Renderer3D {
 			//const float blue = (float)glm::linearRand(0.1, 1.0);
 			//SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
 
-				FillPoly(renderer, currentVertices, minMaxFace);
-				Draw3DLinesWithVertices(renderer, currentVertices, true);
-			if (meshTeste.GetOutline()) {
-			}
 			if (meshTeste.GetFill()) {
+				FillPoly(renderer, currentVertices, minMaxFace);
+			}
+			if (meshTeste.GetOutline()) {
+				Draw3DLinesWithVertices(renderer, currentVertices, true);
 			}
 		}
 	}
