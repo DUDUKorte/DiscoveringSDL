@@ -137,12 +137,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\BaseMesh.cpp" />
     <ClCompile Include="src\EditorApp.cpp" />
     <ClCompile Include="src\Log.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Mesh.cpp" />
+    <ClCompile Include="src\Mesh2D.cpp" />
     <ClCompile Include="src\Pipe.cpp" />
     <ClCompile Include="src\Renderer2D.cpp" />
+    <ClCompile Include="src\Renderer3D.cpp" />
     <ClCompile Include="vendor\ImGui\imgui\backends\imgui_impl_sdl3.cpp" />
     <ClCompile Include="vendor\ImGui\imgui\backends\imgui_impl_sdlrenderer3.cpp" />
     <ClCompile Include="vendor\ImGui\imgui\imgui.cpp" />
@@ -157,11 +160,14 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\BaseMesh.h" />
     <ClInclude Include="src\EditorApp.h" />
     <ClInclude Include="src\Log.h" />
     <ClInclude Include="src\Mesh.h" />
+    <ClInclude Include="src\Mesh2D.h" />
     <ClInclude Include="src\Pipe.h" />
     <ClInclude Include="src\Renderer2D.h" />
+    <ClInclude Include="src\Renderer3D.h" />
     <ClInclude Include="vendor\ImGui\imgui\backends\imgui_impl_sdl3.h" />
     <ClInclude Include="vendor\ImGui\imgui\backends\imgui_impl_sdlrenderer3.h" />
     <ClInclude Include="vendor\ImGui\imgui\imconfig.h" />

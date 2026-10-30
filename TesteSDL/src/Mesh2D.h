@@ -1,0 +1,118 @@
+#pragma once
+#pragma once
+#include <vector>
+#include <imgui.h>
+#include <string>
+#include <SDL3/SDL.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include "Mesh.h"
+
+struct vertex {
+	float x;
+	float y;
+};
+
+struct Vec2 {
+	float x;
+	float y;
+};
+
+struct Transform2D {
+	Vec2 Position = { 0, 0 };
+	float Rotation = 0.0f;
+	Vec2 Scale = { 1.0f, 1.0f };
+};
+
+class Mesh2D : public Mesh {
+public:
+	Mesh2D(std::string name, vertex firstVertex = { 0,0 }, std::vector<vertex> v = {});
+	virtual ~Mesh2D();
+
+	virtual void EventTick(float deltaTime);
+	virtual void EventInput(SDL_Event* event);
+
+	void addVertex(vertex worldPosition);
+	void removeVertex();
+
+	void addSubMesh(Mesh2D* mesh);
+	void removeSubMesh(int index);
+
+	void ResetTransform(int x_offset = 0, int y_offset = 0);
+	void RestoreTransform();
+
+	std::vector<vertex>& GetVertices();
+
+	inline std::vector<vertex>& GetLocalVertices() { return m_LocalVertices; }
+	inline std::vector<Mesh2D*>& GetSubMeshes() { return m_SubMeshes; }
+	Mesh2D* GetSubMesh(int index);
+
+	inline Vec2 Velocity() { return m_Velocity; }
+	vertex GetCentroide();
+	Transform2D& GetTransform();
+
+	// getters
+	inline vertex& GetLocalCentroide() { return m_LocalCentroide; }
+	inline bool& IsActive() { return m_IsActive; }
+	inline bool& GetFill() { return m_Fill; }
+	inline bool& GetOutline() { return m_Outline; }
+	inline bool& IsClosed() { return m_Closed; }
+	inline bool& GetGravity() { return m_Gravity; }
+	inline ImVec4& GetColor() { return m_Color; }
+	inline ImVec4& GetOutlineColor() { return m_OutlineColor; }
+	inline std::string& GetName() { return m_Name; }
+	inline bool& GetTickEnabled() { return m_TickEnabled; }
+	inline Vec2& GetVelocity() { return m_Velocity; }
+	inline bool& GetShouldDestroy() { return m_ShouldDestroy; }
+
+	// setters
+	inline void MarkDirty() { m_IsDirty = true; }
+	inline void SetActive(bool active) { m_IsActive = active; }
+	inline void SetFill(bool fill) { m_Fill = fill; }
+	inline void SetClosed(bool closed) { m_Closed = closed; }
+	inline void SetGravity(bool gravity) { m_Gravity = gravity; }
+	inline void SetVelocity(Vec2 velocity) { m_Velocity = velocity; }
+	inline void SetColor(ImVec4 color) { m_Color = color; }
+	inline void SetName(std::string name) { m_Name = name; }
+	inline void SetTickEnabled(bool enabled) { m_TickEnabled = enabled; }
+	inline void SetShouldDestroy(bool should) { m_ShouldDestroy = should; }
+
+public:
+	Mesh2D* m_Parent = nullptr;
+
+private:
+	void CalcLocalCentroide();
+	void UpdateWorldVertices();
+
+private:
+	// principais atributos
+	std::string m_Name = "New Mesh";
+
+	Transform2D m_Transform;
+	Transform2D m_CacheTransform;
+	bool m_IsDirty = true;
+
+	std::vector<vertex> m_Vertices = {}; // Vértices Globais (usa como cache)
+	std::vector<vertex> m_LocalVertices = {}; // Vértices Locais
+
+	std::vector<Mesh2D*> m_SubMeshes = {};
+	Vec2 m_Velocity = { 0.0f, 1.0f };
+	vertex m_LocalCentroide;
+
+	// do centroide
+	float m_CentroideXSum = 0;
+	float m_CentroideYSum = 0;
+
+	// atributos de aparencia
+	bool m_IsActive = false; // se está selecionado ou nn
+	bool m_Fill = false; // se preenche o meio dele
+	bool m_Closed = false; // se o último vértice é conectado cm o primeiro
+	bool m_Gravity = false; // se é afetado pela gravidade ou nn
+	bool m_Outline = true;
+	bool m_TickEnabled = false;
+	bool m_ShouldDestroy = false; // Define se deveria ser detruido no próximo frame
+
+	//Cores
+	ImVec4 m_Color = { 0, 1, 0 , 1 };
+	ImVec4 m_OutlineColor = { 1, 1 ,1 , 1 };
+};

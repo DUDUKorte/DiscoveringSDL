@@ -1,6 +1,7 @@
 #pragma once
 #include <SDL3/SDL.h>
 #include <vector>
+#include "Mesh2D.h"
 #include "Mesh.h"
 
 namespace Renderer2D {
@@ -8,7 +9,7 @@ namespace Renderer2D {
 	
 	void FindIntersections(std::vector<vertex>& vertices, std::vector<std::vector<float>>& intersecoes, int height);
 	
-	void FillPoly(SDL_Renderer* renderer, Mesh* mesh, int height);
+	void FillPoly(SDL_Renderer* renderer, Mesh2D* mesh, int height);
 
-	void DrawGizmo(Mesh* activeMesh, int mode, int currentGizmoState, int activeGizmoState);
+	void DrawGizmo(Mesh2D* activeMesh, int mode, int currentGizmoState, int activeGizmoState);
 }

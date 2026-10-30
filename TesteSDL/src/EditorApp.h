@@ -3,6 +3,7 @@
 #include <vector>
 #include <imgui.h>
 
+#include "Mesh2D.h"
 #include "Mesh.h"
 #include "Pipe.h"
 
@@ -25,18 +26,27 @@ public:
 	inline int GetWidth() { return m_Width; }
 	inline int GetHeight() { return m_Height; }
 
+	// VARIÁVEL GLOBAL APENAS PARA TESTES
+	Mesh cubinho = Mesh("cubinho", { 0.0f, 0.0f, 0.0f }, {});
+	Mesh macaquinho = Mesh("macaquinho", { 0.0f, 0.0f, 0.0f }, {});
+
 private:
 	void RenderUI();
 	void ProcessMouseMotion(SDL_Event* event);
-	Mesh* GetActiveMesh();
-	void UpdateGizmoHover(float mouseX, float mouseY, Mesh* activeMesh, EEditMode);
+	Mesh2D* GetActiveMesh();
+	void UpdateGizmoHover(float mouseX, float mouseY, Mesh2D* activeMesh, EEditMode);
 	void OnChangeMode(EEditMode new_mode);
 	void OnDestroySelectedMesh();
+
+	void LoadObjFile(std::string path, Mesh* mesh);
 
 	// flappy pipe
 	void EventBeginPlay();
 	void CreatePipes();
 	void CreatePlayer();
+
+
+	std::vector<std::string> split(const std::string& str, char delim);
 
 private:
 	// Estado do SDL e ImGUi
@@ -68,7 +78,7 @@ private:
 	double timeAcc = 0;
 
 	// Meshes
-	std::vector<Mesh*> m_GlobalMeshes;
+	std::vector<Mesh2D*> m_GlobalMeshes;
 	int m_CurrentMesh = -1;
 	int m_CurrentSubMesh = -1;
 	int m_CustomPolyFaces = 4;

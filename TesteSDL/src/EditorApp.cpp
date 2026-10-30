@@ -1,5 +1,6 @@
 #include "EditorApp.h"
 #include "Renderer2D.h"
+#include "Renderer3D.h"
 #include "Log.h"
 
 #include <iostream>
@@ -17,12 +18,11 @@ EditorApp::EditorApp()
 
 EditorApp::~EditorApp()
 {
-	for (Mesh* m : m_GlobalMeshes) {
+	for (auto m : m_GlobalMeshes) {
 		delete m;
 	}
 	m_GlobalMeshes.clear();
 }
-
 
 ///////////////////////////////////////////////////////////
 //////////INITIALIZE SDL IMGUI AND EDITOR//////////////////
@@ -85,6 +85,17 @@ bool EditorApp::Init()
 	//Update Width/Height values
 	SDL_GetWindowSize(m_Window, &m_Width, &m_Height);
 
+	LoadObjFile("./cubo.obj", &cubinho);
+	LoadObjFile("./zelda.obj", &macaquinho);
+
+	cubinho.GetTransform().Scale = { 100.0f, 100.0f, 100.0f };
+	cubinho.GetTransform().Position = { 740.0f, 480.0f, 0.0f };
+	cubinho.GetTransform().Rotation = { 40.0f, 30.0f, 10.0f };
+
+	macaquinho.GetTransform().Scale = { 100.0f, 100.0f, 100.0f };
+	macaquinho.GetTransform().Position = { 340.0f, 280.0f, 0.0f };
+	macaquinho.GetTransform().Rotation = { 0.2f, 0.0f, 2.0f };
+
 	return true;
 }
 ///////////////////////////////////////////////////////////
@@ -115,13 +126,13 @@ void EditorApp::Shutdown()
 ///////////////////////////////////////////////////////////
 ///////////////////GET ACTIVE MESH/////////////////////////
 ///////////////////////////////////////////////////////////
-Mesh* EditorApp::GetActiveMesh()
+Mesh2D* EditorApp::GetActiveMesh()
 {
 	if (m_GlobalMeshes.empty() || m_CurrentMesh < 0 || m_CurrentMesh >= m_GlobalMeshes.size()) {
 		return nullptr;
 	}
 	LE_CORE_ASSERT(m_CurrentMesh <= m_GlobalMeshes.size() && m_CurrentMesh >= 0, "Tentando acessar Mesh INVALIDA!");
-	Mesh* mainMesh = m_GlobalMeshes[m_CurrentMesh];
+	Mesh2D* mainMesh = m_GlobalMeshes[m_CurrentMesh];
 
 	if (m_CurrentSubMesh >= 0 && m_CurrentSubMesh < mainMesh->GetSubMeshes().size()) {
 		return mainMesh->GetSubMesh(m_CurrentSubMesh);
@@ -137,7 +148,7 @@ Mesh* EditorApp::GetActiveMesh()
 ///////////////////////////////////////////////////////////
 ////////////////UPDATE GIZMO HOVER/////////////////////////
 ///////////////////////////////////////////////////////////
-void EditorApp::UpdateGizmoHover(float mouseX, float mouseY, Mesh* activeMesh, EEditMode mode)
+void EditorApp::UpdateGizmoHover(float mouseX, float mouseY, Mesh2D* activeMesh, EEditMode mode)
 {
 	m_CurrentGizmoState = GIZMO_NONE;
 	if (activeMesh == nullptr || (mode == Selection || mode == CreatePoly)) { return; }
@@ -206,7 +217,7 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 	/// EVENTOS DE TECLA PRESSIONADA ///////////////////////////////////////////////////////
 	if (event->type == SDL_EVENT_KEY_DOWN) {
 		SDL_KeyboardEvent e = event->key;
-		Mesh* activeMesh = GetActiveMesh();
+		Mesh2D* activeMesh = GetActiveMesh();
 		if (activeMesh != nullptr) { activeMesh->EventInput(event); }
 
 		// MODE SWITCH
@@ -248,7 +259,7 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		SDL_MouseButtonEvent e = event->button;
 		if (e.button == 1) { // LMB
 			if (m_CurrentMode == CreatePoly){
-				Mesh* ActiveMesh = GetActiveMesh();
+				Mesh2D* ActiveMesh = GetActiveMesh();
 				if (ActiveMesh != nullptr) {
 					ActiveMesh->addVertex({ e.x, e.y });
 				}
@@ -312,7 +323,7 @@ void EditorApp::ProcessMouseMotion(SDL_Event* event)
 
 	// Aqui é quando tá segurando o botão esquerdo do mouse
 	if (m_bLMB) {
-		Mesh* activeMesh = GetActiveMesh();
+		Mesh2D* activeMesh = GetActiveMesh();
 		if (activeMesh != nullptr) {
 			Transform2D& MeshTransform = activeMesh->GetTransform();
 
@@ -364,7 +375,7 @@ void EditorApp::ProcessMouseMotion(SDL_Event* event)
 			activeMesh->MarkDirty();
 
 			if (m_CurrentSubMesh == -1) {
-				for (Mesh* subMesh : activeMesh->GetSubMeshes()) {
+				for (Mesh2D* subMesh : activeMesh->GetSubMeshes()) {
 					subMesh->MarkDirty();
 				}
 			}
@@ -421,7 +432,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	SDL_RenderClear(m_Renderer);
 
 	// Draw polygons
-	for (Mesh* m : m_GlobalMeshes) {
+	for (Mesh2D* m : m_GlobalMeshes) {
 		std::vector<vertex>& vertices = m->GetVertices();
 		if (vertices.empty()) { continue; }
 		
@@ -450,7 +461,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			SDL_SetRenderDrawColorFloat(m_Renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
 
 			// Se tiver filhos, desenha o outline de cada filho
-			for (Mesh* subMesh : m->GetSubMeshes()) {
+			for (Mesh2D* subMesh : m->GetSubMeshes()) {
 				Renderer2D::DrawLinesWithVertices(m_Renderer, subMesh->GetVertices(), true);
 			}
 		}
@@ -464,6 +475,11 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			m->SetVelocity({ 0.0f, 0.0f });
 		}
 	}
+
+	SDL_SetRenderDrawColorFloat(m_Renderer, 1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT);
+	// Draw Test Mesh
+	Renderer3D::DrawMesh(m_Renderer, cubinho);
+	Renderer3D::DrawMesh(m_Renderer, macaquinho);
 
 	// Rendering
 	ImGui::Render();
@@ -545,7 +561,7 @@ void EditorApp::RenderUI()
 		m_CurrentSubMesh = -1;
 
 		std::string mesh_name = "Mesh_" + std::to_string(m_CurrentMesh);
-		m_GlobalMeshes.push_back(new Mesh(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }));
+		m_GlobalMeshes.push_back(new Mesh2D(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }));
 		
 		LE_TRACE("Mesh: " + mesh_name + " Created!");
 		OnChangeMode(CreatePoly);
@@ -589,7 +605,7 @@ void EditorApp::RenderUI()
 			start_vertex.y = ty;
 		}
 
-		m_GlobalMeshes.push_back(new Mesh(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }, custom_poly));
+		m_GlobalMeshes.push_back(new Mesh2D(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }, custom_poly));
 		m_GlobalMeshes[m_CurrentMesh]->SetClosed(true);
 
 		LE_TRACE("Custom Mesh: " + mesh_name + " Created!");
@@ -651,9 +667,9 @@ void EditorApp::RenderUI()
 
 	// Inspector winodw
 	ImGui::Begin("Inspector");
-	Mesh* activeMesh = GetActiveMesh();
+	Mesh2D* activeMesh = GetActiveMesh();
 	if (activeMesh != nullptr) {
-		Mesh* selectedMesh = activeMesh;
+		Mesh2D* selectedMesh = activeMesh;
 
 		ImGui::Text("Editing: %s", selectedMesh->GetName().c_str());
 		ImGui::Separator();
@@ -768,7 +784,7 @@ void EditorApp::OnChangeMode(EEditMode new_mode)
 void EditorApp::OnDestroySelectedMesh()
 {
 	if (m_CurrentSubMesh == -1) { // se for mesh pai
-		Mesh* markForDelete = m_GlobalMeshes[m_CurrentMesh];
+		Mesh2D* markForDelete = m_GlobalMeshes[m_CurrentMesh];
 		m_GlobalMeshes.erase(m_GlobalMeshes.begin() + m_CurrentMesh);
 
 		delete markForDelete;
@@ -785,7 +801,7 @@ void EditorApp::OnDestroySelectedMesh()
 		LE_INFO("Mesh destroyed!");
 	}
 	else { // se for mesh filha
-		Mesh* parent = m_GlobalMeshes[m_CurrentMesh];
+		Mesh2D* parent = m_GlobalMeshes[m_CurrentMesh];
 		parent->removeSubMesh(m_CurrentSubMesh);
 
 		m_CurrentSubMesh = -1;
@@ -794,6 +810,104 @@ void EditorApp::OnDestroySelectedMesh()
 	}
 }
 
+
+void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
+{
+	// TESTE
+	// CARREGANDO UM ARQUIVO OBJ
+	std::ifstream file;
+
+	file.open(path, std::ifstream::in);
+	LE_CORE_ASSERT(file.is_open(), "FALHA AO ABRIR O ARQUIVO OBJ!!!");
+
+	std::string line;
+
+	while (std::getline(file, line))
+	{
+		std::stringstream sstream(line);
+
+		std::string prefix;
+		sstream >> prefix;
+
+		if (prefix.size() > 0)
+		{
+			if ("mtlib" == prefix)
+			{
+				// Carregar mtlib
+				LE_CORE_TRACE("LOAD MTLIB");
+			}
+			else if ("v" == prefix)
+			{
+				// vértices
+				LE_CORE_TRACE("LOAD VERTICES");
+				// pegar os vértices
+				vertex3D loadedVertex;
+				sstream >> loadedVertex.x >> loadedVertex.y >> loadedVertex.z;
+
+				mesh->addVertex(loadedVertex);
+
+			}
+			else if ("vn" == prefix)
+			{
+				// normals
+				LE_CORE_TRACE("LOAD NORMALS");
+
+			}
+			else if ("vt" == prefix)
+			{
+				// texture coordenadas
+				LE_CORE_TRACE("LOAD TEXTURE COORDS");
+
+			}
+			else if ("usemtl" == prefix)
+			{
+				LE_CORE_TRACE("USE MTL");
+
+			}
+			else if ("f" == prefix)
+			{
+				// Faces
+				LE_CORE_TRACE("LOAD FACES");
+				std::string indexGroup;
+				std::vector<int> facesIndices = {};
+
+				while (sstream >> indexGroup)
+				{
+					std::vector<std::string> indices = split(indexGroup, '/');
+					facesIndices.push_back(std::stoi(indices[0]) - 1);
+
+					if (1 == indices.size())
+					{
+
+					}
+					else if (2 == indices.size())
+					{
+
+					}
+					else if (3 == indices.size())
+					{
+
+					}
+					else
+					{
+						// ERROR
+					}
+				}
+
+				mesh->addFace(facesIndices);
+
+			}
+			else
+			{
+				continue;
+			}
+		}
+	}
+
+	file.close();
+
+	// CARREGANDO UM ARQUIVO OBJ
+}
 
 ///////////////////////////////////////////////////////////
 //////////////////////FLAPPY POLY///////////////////////////
@@ -857,8 +971,19 @@ void EditorApp::CreatePlayer()
 		start_vertex.y = ty;
 	}
 
-	m_GlobalMeshes.push_back(new Mesh(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }, custom_poly));
+	m_GlobalMeshes.push_back(new Mesh2D(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f }, custom_poly));
 	m_GlobalMeshes[m_CurrentMesh]->SetClosed(true);
 	m_GlobalMeshes[m_CurrentMesh]->SetFill(true);
 	m_GlobalMeshes[m_CurrentMesh]->SetTickEnabled(true);
+}
+
+std::vector<std::string> EditorApp::split(const std::string& str, char delim) {
+	std::vector<std::string> items;
+	std::stringstream sstream(str);
+	std::string item;
+
+	while (std::getline(sstream, item, delim))
+		items.push_back(item);
+
+	return items;
 }

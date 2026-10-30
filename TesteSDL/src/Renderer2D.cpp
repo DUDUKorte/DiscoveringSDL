@@ -69,7 +69,7 @@ namespace Renderer2D {
 		}
 	}
 
-	void FillPoly(SDL_Renderer* renderer, Mesh* mesh, int height)
+	void FillPoly(SDL_Renderer* renderer, Mesh2D* mesh, int height)
 	{
 		std::vector<vertex> vertices = mesh->GetVertices();
 		if (vertices.size() < 3) { return; }
@@ -81,7 +81,7 @@ namespace Renderer2D {
 		FindIntersections(vertices, intersecoes, height);
 
 		/*Sub Polygons adicionados às interseções (talvez não seja a melhor forma de fazer, mas é uma forma)*/
-		for (Mesh* submesh : mesh->GetSubMeshes()) {
+		for (Mesh2D* submesh : mesh->GetSubMeshes()) {
 			std::vector<vertex> sub_vertices = submesh->GetVertices();
 			if (sub_vertices.size() < 3) { continue; }
 			if (submesh->IsActive()) {
@@ -113,7 +113,7 @@ namespace Renderer2D {
 		}
 	}
 
-	void DrawGizmo(Mesh* activeMesh, int mode, int currentGizmoState, int activeGizmoState)
+	void DrawGizmo(Mesh2D* activeMesh, int mode, int currentGizmoState, int activeGizmoState)
 	{
 		if (activeMesh == nullptr || activeMesh->GetVertices().empty()) { return; }
 		if (mode == Selection || mode == CreatePoly) { return; }

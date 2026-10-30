@@ -1,7 +1,7 @@
 #pragma once
-#include "Mesh.h"
+#include "Mesh2D.h"
 
-class Pipe : public Mesh {
+class Pipe : public Mesh2D {
 public:
 	Pipe(std::string name, vertex firstVertex = { 0,0 }, std::vector<vertex> v = {});
 

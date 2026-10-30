@@ -1,7 +1,7 @@
 #include "Pipe.h"
 
 Pipe::Pipe(std::string name, vertex firstVertex, std::vector<vertex> v)
-    : Mesh(name, firstVertex, v)
+    : Mesh2D(name, firstVertex, v)
 {
     SetVelocity({-0.1f, 0.0f});
 	SetTickEnabled(true);
