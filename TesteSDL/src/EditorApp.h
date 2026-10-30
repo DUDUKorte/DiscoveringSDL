@@ -7,11 +7,23 @@
 #include "Mesh.h"
 #include "Pipe.h"
 
-#define WIDTH 1280
-#define HEIGHT 720
+#ifndef LeandroColor
+#define LeandroColor(r, g, b, a) \
+	( ((uint32_t) ((r) * 255.0f + 0.5f) << 24) | \
+	((uint32_t) ((g) * 255.0f + 0.5f) << 16) | \
+	((uint32_t) ((b) * 255.0f + 0.5f) << 8) | \
+	((uint32_t) ((a) * 255.0f + 0.5f)))
+#endif
 
 enum EEditMode {Selection = 0, CreatePoly, MovePoly, ScalePoly, RotatePoly};
 enum EGizmoState { GIZMO_NONE, GIZMO_HOVER_X, GIZMO_HOVER_Y, GIZMO_HOVER_CENTER, GIZMO_HOVER_ROT };
+
+typedef struct WindowProperties {
+	int Width = 1280;
+	int Height = 720;
+	SDL_Window* Window = nullptr;
+	SDL_Renderer* Renderer = nullptr;
+} WindowProperties;
 
 class EditorApp {
 public:
@@ -23,8 +35,8 @@ public:
 	SDL_AppResult UpdateAndRender();
 	void Shutdown();
 
-	inline int GetWidth() { return m_Width; }
-	inline int GetHeight() { return m_Height; }
+	inline int GetWidth() { return m_WindowProperties.Width; }
+	inline int GetHeight() { return m_WindowProperties.Height; }
 
 	// VARIÁVEL GLOBAL APENAS PARA TESTES
 	Mesh* cubinho = new Mesh("cubinho");
@@ -50,10 +62,13 @@ private:
 
 private:
 	// Estado do SDL e ImGUi
-	SDL_Window* m_Window = nullptr;
-	SDL_Renderer* m_Renderer = nullptr;
-	int m_Width = 1280;
-	int m_Height = 720;
+	//SDL_Window* m_Window = nullptr;
+	//SDL_Renderer* m_Renderer = nullptr;
+
+	WindowProperties m_WindowProperties;
+	
+	SDL_Texture* m_Buffer = nullptr;
+	std::vector<uint32_t>* m_VertexBuffer = new std::vector<uint32_t>(m_WindowProperties.Width * m_WindowProperties.Height);
 
 
 	// Estado do editor

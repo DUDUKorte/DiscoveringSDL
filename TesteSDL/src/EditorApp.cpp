@@ -8,6 +8,8 @@
 #include <numbers>
 #include <cmath>
 #include <random>
+#include <algorithm>
+#include <complex>
 
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
@@ -42,24 +44,24 @@ bool EditorApp::Init()
 	SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
 
 	LE_CORE_TRACE("Creating SDL Window...");
-	m_Window = SDL_CreateWindow("LeandroEditor 2D", (int)(WIDTH * main_scale), (int)(HEIGHT * main_scale), window_flags);
-	if (m_Window == nullptr)
+	m_WindowProperties.Window = SDL_CreateWindow("LeandroEditor 2D", (int)(m_WindowProperties.Width * main_scale), (int)(m_WindowProperties.Height * main_scale), window_flags);
+	if (m_WindowProperties.Window == nullptr)
 	{
 		printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
 		return SDL_APP_FAILURE;
 	}
 
 	LE_CORE_TRACE("Creating SDL Renderer...");
-	m_Renderer = SDL_CreateRenderer(m_Window, nullptr);
-	SDL_SetRenderVSync(m_Renderer, 1);
-	if (m_Renderer == nullptr)
+	m_WindowProperties.Renderer = SDL_CreateRenderer(m_WindowProperties.Window, nullptr);
+	SDL_SetRenderVSync(m_WindowProperties.Renderer, 0);
+	if (m_WindowProperties.Renderer == nullptr)
 	{
 		SDL_Log("Error: SDL_CreateRenderer(): %s\n", SDL_GetError());
 		return SDL_APP_FAILURE;
 	}
 
-	SDL_SetWindowPosition(m_Window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-	SDL_ShowWindow(m_Window);
+	SDL_SetWindowPosition(m_WindowProperties.Window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+	SDL_ShowWindow(m_WindowProperties.Window);
 
 	LE_CORE_TRACE("Setting up Dear ImGui context...");
 	// Setup Dear ImGui context
@@ -78,12 +80,18 @@ bool EditorApp::Init()
 	style.FontScaleDpi = main_scale;        // Set initial font scale. (in docking branch: using io.ConfigDpiScaleFonts=true automatically overrides this for every window depending on the current monitor)
 
 	// Setup Platform/Renderer backends
-	ImGui_ImplSDL3_InitForSDLRenderer(m_Window, m_Renderer);
-	ImGui_ImplSDLRenderer3_Init(m_Renderer);
+	ImGui_ImplSDL3_InitForSDLRenderer(m_WindowProperties.Window, m_WindowProperties.Renderer);
+	ImGui_ImplSDLRenderer3_Init(m_WindowProperties.Renderer);
 
 	LE_CORE_TRACE("Updating Window size...");
 	//Update Width/Height values
-	SDL_GetWindowSize(m_Window, &m_Width, &m_Height);
+	SDL_GetWindowSize(m_WindowProperties.Window, &m_WindowProperties.Width, &m_WindowProperties.Height);
+
+	// Inicializa o buffer
+	m_Buffer = SDL_CreateTexture(m_WindowProperties.Renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, m_WindowProperties.Width, m_WindowProperties.Height);
+
+	// Seta as variáveis do renderer
+	Renderer3D::Init(m_VertexBuffer, &m_WindowProperties, nullptr);
 
 	LoadObjFile("./cubo.obj", cubinho);
 	LoadObjFile("./zelda.obj", macaquinho);
@@ -117,8 +125,8 @@ void EditorApp::Shutdown()
 	ImGui_ImplSDL3_Shutdown();
 	ImGui::DestroyContext();
 
-	SDL_DestroyRenderer(m_Renderer);
-	SDL_DestroyWindow(m_Window);
+	SDL_DestroyRenderer(m_WindowProperties.Renderer);
+	SDL_DestroyWindow(m_WindowProperties.Window);
 	SDL_Quit();
 }
 ///////////////////////////////////////////////////////////
@@ -211,7 +219,12 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		return SDL_APP_SUCCESS;
 	}
 	else if (event->type == SDL_EVENT_WINDOW_RESIZED) {
-		SDL_GetWindowSize(m_Window, &m_Width, &m_Height);
+		SDL_GetWindowSize(m_WindowProperties.Window, &m_WindowProperties.Width, &m_WindowProperties.Height);
+		m_VertexBuffer->resize(m_WindowProperties.Width * m_WindowProperties.Height);
+		SDL_Texture* markForDelete = m_Buffer;
+		m_Buffer = SDL_CreateTexture(m_WindowProperties.Renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, m_WindowProperties.Width, m_WindowProperties.Height);
+		Renderer3D::UpdateResize();
+		SDL_DestroyTexture(markForDelete);
 	}
 
 	// Se o comando for absorvido pela UI, ignora os outros comandos
@@ -413,7 +426,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	}
 
 	/* IMGUI */
-	if (SDL_GetWindowFlags(m_Window) & SDL_WINDOW_MINIMIZED)
+	if (SDL_GetWindowFlags(m_WindowProperties.Window) & SDL_WINDOW_MINIMIZED)
 	{
 		SDL_Delay(10);
 		return SDL_APP_CONTINUE;
@@ -425,15 +438,17 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	ImGui_ImplSDL3_NewFrame();
 	ImGui::NewFrame();
 
-	// BUG TODO
 	Renderer2D::DrawGizmo(GetActiveMesh(), m_CurrentMode, m_CurrentGizmoState, m_ActiveGizmoState);
 
 	if (!m_GameStarted) {
 		RenderUI();
 	}
 
-	SDL_SetRenderDrawColorFloat(m_Renderer, 0.2f, 0.2f, 0.2f, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
-	SDL_RenderClear(m_Renderer);
+	SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, 0.2f, 0.2f, 0.2f, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
+	SDL_RenderClear(m_WindowProperties.Renderer); // antigo, usar o buffer
+
+	// Preenche o buffer com a cor neutra do fundo
+	std::fill(m_VertexBuffer->begin(), m_VertexBuffer->end(), LeandroColor(0.2f, 0.2f, 0.2f, 1.0f)); // Limpa a tela na cor que queremos
 
 	// Draw polygons
 	for (BaseMesh* m : m_GlobalMeshes) {
@@ -443,7 +458,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 		// Verifica se tusa fill color e seta a cor
 		if (m->IsActive()) {
 			ImVec4 color = m->GetColor();
-			SDL_SetRenderDrawColorFloat(m_Renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
+			SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
 		}
 		else{
 			const double now = ((double)SDL_GetTicks() * 0.001);  /* convert from milliseconds to seconds. */
@@ -451,32 +466,32 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			const float red = (float)(0.5 + 0.5 * SDL_sin(now));
 			const float green = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 2 / 3));
 			const float blue = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 4 / 3));
-			SDL_SetRenderDrawColorFloat(m_Renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
+			SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
 		}
 
 		if (m->GetType() == MeshTypes::Type3D) {
-			Renderer3D::DrawMesh(m_Renderer, static_cast<Mesh&>(*(m)));
+			Renderer3D::DrawMesh(static_cast<Mesh&>(*(m)));
 			continue;
 		}
 
 		// Fill poly
 		if (m->GetFill()) {
 			// BUG TODO
-			Renderer2D::FillPoly(m_Renderer, m, GetHeight());
+			Renderer2D::FillPoly(m_WindowProperties.Renderer, m, GetHeight());
 		}
 		
 		// Pega a cor do outline e desenha ela
 		if (m->GetOutline()) {
 			ImVec4 color = m->GetOutlineColor();
-			SDL_SetRenderDrawColorFloat(m_Renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
+			SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
 
 			// Se tiver filhos, desenha o outline de cada filho
 			for (BaseMesh* subMesh : m->GetSubMeshes()) {
-				Renderer2D::DrawLinesWithVertices(m_Renderer, subMesh->GetVertices(), true);
+				Renderer2D::DrawLinesWithVertices(m_WindowProperties.Renderer, subMesh->GetVertices(), true);
 			}
 		}
 
-		Renderer2D::DrawLinesWithVertices(m_Renderer, vertices, m->IsClosed());
+		Renderer2D::DrawLinesWithVertices(m_WindowProperties.Renderer, vertices, m->IsClosed());
 
 		// Run tick
 		m->EventTick(deltaTime);
@@ -486,16 +501,20 @@ SDL_AppResult EditorApp::UpdateAndRender()
 		}
 	}
 
-	SDL_SetRenderDrawColorFloat(m_Renderer, 1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT);
+	SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, 1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT);
 	//// Draw Test Mesh
 	//Renderer3D::DrawMesh(m_Renderer, *(cubinho));
 	//Renderer3D::DrawMesh(m_Renderer, *(macaquinho));
 
+	SDL_UpdateTexture(m_Buffer, nullptr, m_VertexBuffer->data(), m_WindowProperties.Width * sizeof(uint32_t));
+	SDL_RenderTexture(m_WindowProperties.Renderer, m_Buffer, nullptr, nullptr);
+
 	// Rendering
 	ImGui::Render();
-	SDL_SetRenderScale(m_Renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
-	ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), m_Renderer);
-	SDL_RenderPresent(m_Renderer);
+	SDL_SetRenderScale(m_WindowProperties.Renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
+	ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), m_WindowProperties.Renderer);
+	SDL_RenderPresent(m_WindowProperties.Renderer);
+
 
 	return SDL_APP_CONTINUE;
 }

@@ -2,13 +2,41 @@
 #include <SDL3/SDL.h>
 #include <vector>
 #include "Mesh.h"
+#include "EditorApp.h"
+#include "Log.h"
 
-namespace Renderer3D {
-	void Draw3DLinesWithVertices(SDL_Renderer* renderer, const std::vector<glm::vec3>& vertices, bool closed);
+#ifndef LeandroColor
+#define LeandroColor(r, g, b, a) \
+	( ((uint32_t) ((r) * 255.0f + 0.5f) << 24) | \
+	((uint32_t) ((g) * 255.0f + 0.5f) << 16) | \
+	((uint32_t) ((b) * 255.0f + 0.5f) << 8) | \
+	((uint32_t) ((a) * 255.0f + 0.5f)))
+#endif
 
-	void DrawMesh(SDL_Renderer* renderer, Mesh& meshTeste);
+// temp
+class LightObject;
 
-	void FindIntersections(const std::vector<glm::vec3>& vertices, std::vector<std::vector<float>>& intersecoes, int height, glm::vec2 yMinMax);
+class Renderer3D {
 
-	void FillPoly(SDL_Renderer* renderer, const std::vector<glm::vec3>& vertices, glm::vec2 minMaxY);
-}
+public:
+	static void Init(std::vector<uint32_t>* buffer, WindowProperties* window, std::vector<LightObject>* lights);
+
+	static void UpdateResize();
+
+	static void DrawLine(glm::vec3 source, glm::vec3 target);
+
+	static void Draw3DLinesWithVertices(const std::vector<glm::vec3>& vertices);
+
+	static void DrawMesh(Mesh& meshTeste);
+
+	static void FindIntersections(const std::vector<glm::vec3>& vertices, glm::vec2 yMinMax);
+
+	static void FillPoly(const std::vector<glm::vec3>& vertices, glm::vec2 minMaxY);
+
+	static std::vector<uint32_t>* Buffer;
+	static std::vector<LightObject>* SceneLights;
+	static WindowProperties* MainWindow;
+	static uint32_t DrawColor;
+	static std::vector<std::vector<float>> intersecoes;
+
+};

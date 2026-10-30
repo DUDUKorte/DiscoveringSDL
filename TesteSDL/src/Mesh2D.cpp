@@ -9,6 +9,8 @@ Mesh2D::Mesh2D(std::string name, glm::vec3 firstVertex, std::vector<glm::vec3> v
 	m_Velocity = { 0.0f, 0.001f, 0.0f };
 	GetTransform().Position = firstVertex;
 
+	meshType = MeshTypes::Type2D;
+
 	if (!(v.empty())) {
 		m_LocalVertices = v;
 		// Aqui calcularia o centroide

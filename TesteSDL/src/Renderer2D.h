@@ -4,6 +4,14 @@
 #include "BaseMesh.h"
 #include "Mesh2D.h"
 
+#ifndef LeandroColor
+#define LeandroColor(r, g, b, a) \
+	( ((uint32_t) ((r) * 255.0f + 0.5f) << 24) | \
+	((uint32_t) ((g) * 255.0f + 0.5f) << 16) | \
+	((uint32_t) ((b) * 255.0f + 0.5f) << 8) | \
+	((uint32_t) ((a) * 255.0f + 0.5f)))
+#endif
+
 namespace Renderer2D {
 	void DrawLinesWithVertices(SDL_Renderer* renderer, std::vector<glm::vec3>& vertices, bool closed);
 	
