@@ -5,6 +5,7 @@
 
 #include "BaseMesh.h"
 #include "Mesh.h"
+#include "MeshLight.h"
 #include "Pipe.h"
 
 #ifndef LeandroColor
@@ -41,6 +42,7 @@ public:
 	// VARIÁVEL GLOBAL APENAS PARA TESTES
 	Mesh* cubinho = new Mesh("cubinho");
 	Mesh* macaquinho = new Mesh("Monkey");
+	MeshLight* sun = new MeshLight("sun");
 
 private:
 	void RenderUI();
@@ -96,6 +98,7 @@ private:
 
 	// Meshes
 	std::vector<BaseMesh*> m_GlobalMeshes;
+	std::vector<MeshLight*> m_GlobalMeshLights;
 	int m_CurrentMesh = -1;
 	int m_CurrentSubMesh = -1;
 	int m_CustomPolyFaces = 4;

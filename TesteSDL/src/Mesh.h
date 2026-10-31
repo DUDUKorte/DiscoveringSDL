@@ -26,7 +26,4 @@ public:
 private:
 	std::vector<face> m_Faces = {}; // Faces da mesh
 	std::vector<glm::vec3> m_Normals = {}; // os vetores normais das faces
-
-
-
 };

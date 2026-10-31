@@ -6,7 +6,14 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-enum MeshTypes { Type3D = 0, Type2D = 1};
+enum MeshTypes { Type3D = 0, Type2D = 1, TypeLight, TypeText};
+
+struct MeshMaterial {
+	float ambientReflection = 0.2f; // ka
+	float diffuse = 0.7f; // kd
+	float specular = 0.5f; // ks
+	float specular_brightness = 32.0f; // n
+};
 
 struct Transform {
 	glm::vec3 Position = glm::vec3(0.0f);
@@ -56,6 +63,7 @@ public:
 	inline bool& GetShouldDestroy() { return m_ShouldDestroy; }
 	inline MeshTypes GetType() { return meshType; }
 	inline glm::vec2& GetMinMax() { return m_MinMaxY; }
+	inline MeshMaterial& GetMaterial() { return m_Material; }
 
 	// setters
 	inline void MarkDirty() { m_IsDirty = true; }
@@ -68,6 +76,7 @@ public:
 	inline void SetName(std::string name) { m_Name = name; }
 	inline void SetTickEnabled(bool enabled) { m_TickEnabled = enabled; }
 	inline void SetShouldDestroy(bool should) { m_ShouldDestroy = should; }
+	inline void SetMaterial(MeshMaterial material) { m_Material = material; }
 
 public:
 	BaseMesh* m_Parent = nullptr;
@@ -109,9 +118,11 @@ protected:
 	bool m_TickEnabled = false;
 	bool m_ShouldDestroy = false; // Define se deveria ser detruido no próximo frame
 
+	MeshMaterial m_Material;
+
 	MeshTypes meshType;
 
 	//Cores
-	ImVec4 m_Color = { 0, 1, 0 , 1 };
+	ImVec4 m_Color = { 0.2, 0.2, 0.2 , 1 };
 	ImVec4 m_OutlineColor = { 1, 1 ,1 , 1 };
 };

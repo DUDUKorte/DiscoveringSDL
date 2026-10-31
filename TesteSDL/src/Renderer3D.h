@@ -13,13 +13,10 @@
 	((uint32_t) ((a) * 255.0f + 0.5f)))
 #endif
 
-// temp
-class LightObject;
-
 class Renderer3D {
 
 public:
-	static void Init(std::vector<uint32_t>* buffer, std::vector<float>* zbuffer, WindowProperties* window, std::vector<LightObject>* lights);
+	static void Init(std::vector<uint32_t>* buffer, std::vector<float>* zbuffer, WindowProperties* window, std::vector<MeshLight*>* lights);
 
 	static void UpdateResize();
 
@@ -35,9 +32,9 @@ public:
 
 	static std::vector<uint32_t>* Buffer;
 	static std::vector<float>* ZBuffer;
-	static std::vector<LightObject>* SceneLights;
+	static std::vector<MeshLight*>* SceneLights;
 	static WindowProperties* MainWindow;
 	static uint32_t DrawColor;
 	static std::vector<std::vector<std::pair<float, float>>> intersecoes;
-
+	static glm::vec3 AmbientLight;
 };

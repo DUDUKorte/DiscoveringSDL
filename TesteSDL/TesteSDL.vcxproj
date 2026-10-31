@@ -143,6 +143,7 @@
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Mesh.cpp" />
     <ClCompile Include="src\Mesh2D.cpp" />
+    <ClCompile Include="src\MeshLight.cpp" />
     <ClCompile Include="src\Pipe.cpp" />
     <ClCompile Include="src\Renderer2D.cpp" />
     <ClCompile Include="src\Renderer3D.cpp" />
@@ -165,6 +166,7 @@
     <ClInclude Include="src\Log.h" />
     <ClInclude Include="src\Mesh.h" />
     <ClInclude Include="src\Mesh2D.h" />
+    <ClInclude Include="src\MeshLight.h" />
     <ClInclude Include="src\Pipe.h" />
     <ClInclude Include="src\Renderer2D.h" />
     <ClInclude Include="src\Renderer3D.h" />

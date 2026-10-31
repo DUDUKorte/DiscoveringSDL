@@ -7,12 +7,13 @@
 
 std::vector<uint32_t>* Renderer3D::Buffer = nullptr;
 std::vector<float>* Renderer3D::ZBuffer = nullptr;
-std::vector<LightObject>* Renderer3D::SceneLights = nullptr;
+std::vector<MeshLight*>* Renderer3D::SceneLights = nullptr;
 WindowProperties* Renderer3D::MainWindow = nullptr;
 uint32_t Renderer3D::DrawColor = LeandroColor(0.8f, 0.8f, 0.2f, 1.0f);
 std::vector<std::vector<std::pair<float, float>>> Renderer3D::intersecoes(0);
+glm::vec3 Renderer3D::AmbientLight = { 0.2f, 0.2f, 0.2f };
 
-void Renderer3D::Init(std::vector<uint32_t>* buffer, std::vector<float>* zbuffer, WindowProperties* window, std::vector<LightObject>* lights)
+void Renderer3D::Init(std::vector<uint32_t>* buffer, std::vector<float>* zbuffer, WindowProperties* window, std::vector<MeshLight*>* lights)
 {
 	Buffer = buffer;
 	ZBuffer = zbuffer;
@@ -46,7 +47,6 @@ void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
 		int x = (int)std::lround(source.x);
 		int y = (int)std::lround(source.y);
 		if (x >= 0 && x < width && y >= 0 && y < height) {
-
 			Buffer->at(y * MainWindow->Width + x) = DrawColor;
 		}
 		return;
@@ -72,9 +72,6 @@ void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
 
 	//int ymin = (int)source.y;
 	//int ymax = (int)target.y;
-
-
-
 	//for (int y = ymin; y < ymax; y++) {
 	//	vertexBuffer->at(y * 1280 + int(new_x)) = LeandroColor(0.2f, 0.2f, 0.8, 1.0);
 	//	new_x += Tx;
@@ -110,16 +107,17 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 
 	// Luzes pra testar a iluminação
 	// TODO: Criar objetos de luz pra modificar na cena
-	glm::vec3 solPos = { 900.0f, 100.0f, -500.0f };
-	glm::vec3 solIntensity = { 1.0f, 1.0f, 1.0f };
-	glm::vec3 solColor = { 0.5f, 0.2f, 0.2f };
-	glm::vec3 ambientLight = { 0.2f, 0.2f, 0.2f };
+	glm::vec3 solPos = SceneLights->at(0)->GetTransform().Position;
+	glm::vec3 solIntensity = SceneLights->at(0)->GetLightColor() * SceneLights->at(0)->GetLightIntensity();
+	glm::vec3 solColor = SceneLights->at(0)->GetLightColor();
 
-	float ambientReflection = 0.2f; // ka
-	float diffuse = 0.7f; // kd
-	float specular = 0.5f; // ks
-	float specular_brightness = 32.0f; // n
-	glm::vec3 baseColor = { meshTeste.GetColor().x, meshTeste.GetColor().y, meshTeste.GetColor().z };
+	MeshMaterial& currentMaterial = meshTeste.GetMaterial();
+
+	float ambientReflection = currentMaterial.ambientReflection;
+	float diffuse = currentMaterial.diffuse;
+	float specular = currentMaterial.specular;
+	float specular_brightness = currentMaterial.specular_brightness;
+	glm::vec3 baseColor = { meshTeste.GetColor().x, meshTeste.GetColor().y, meshTeste.GetColor().z};
 
 	for (face& currentFace : meshTeste.GetFaces()) {
 		// Backface culling
@@ -158,7 +156,7 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 			// se o culling funcionar com >= 0 aqui deve ser z = -1, se não z = 1
 			glm::vec3 observerVector = { 0.0f, 0.0f, -1.0f };
 
-			glm::vec3 ambientResult = ambientLight * ambientReflection * baseColor;
+			glm::vec3 ambientResult = AmbientLight * ambientReflection * baseColor;
 			float diffuseScalar = (glm::max(glm::dot(meshNormal, lightVector), 0.0f));
 			glm::vec3 diffuseResult = diffuseScalar * solIntensity * diffuse * baseColor;
 			glm::vec3 specularResult = { 0.0f, 0.0f, 0.0f };
@@ -287,7 +285,7 @@ void Renderer3D::FillPoly(const std::vector<glm::vec3>& vertices, glm::vec2 minM
 			int xStart = (int)std::ceil(lista[i].first);
 			int xEnd = (int)std::ceil(lista[i + 1].first);
 
-			currentZ += ((float)xStart - lista[i].first) * Tz;
+			currentZ += ((float)xStart - lista[i].first) * (dx > 0.0001f ? Tz : 1.0f);
 			// utilizando o buffer
 			for (int x = xStart; x < xEnd; x++) {
 				if (x <= 0 || x >= MainWindow->Width) { continue; }
@@ -296,7 +294,7 @@ void Renderer3D::FillPoly(const std::vector<glm::vec3>& vertices, glm::vec2 minM
 					Buffer->at(y * MainWindow->Width + x) = DrawColor;
 					ZBuffer->at(y * MainWindow->Width + x) = currentZ;
 				}
-				currentZ += Tz;
+				currentZ += (dx > 0.0001f ? Tz : 0.0f);
 			}
 			//SDL_RenderLine(renderer, lista[i], (float)y, lista[i + 1], (float)y);
 		}

@@ -102,7 +102,7 @@ bool EditorApp::Init()
 	m_Buffer = SDL_CreateTexture(m_WindowProperties.Renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, m_WindowProperties.Width, m_WindowProperties.Height);
 
 	// Seta as variáveis do renderer
-	Renderer3D::Init(m_VertexBuffer, m_ZBuffer, &m_WindowProperties, nullptr);
+	Renderer3D::Init(m_VertexBuffer, m_ZBuffer, &m_WindowProperties, &m_GlobalMeshLights);
 
 	LoadObjFile("./cubo.obj", cubinho);
 	LoadObjFile("./zelda.obj", macaquinho);
@@ -115,6 +115,13 @@ bool EditorApp::Init()
 	macaquinho->GetTransform().Position = { 340.0f, 280.0f, 0.0f };
 	macaquinho->GetTransform().Rotation = { 0.2f, 0.0f, 2.0f };
 
+	sun->GetTransform().Position = { 900.0f, 100.0f, -500.0f };
+	sun->GetLightIntensity() = 1.0f;
+	sun->GetLightColor() = { 1.0f, 1.0f, 1.0f };
+
+	m_GlobalMeshLights.push_back(sun);
+
+	m_GlobalMeshes.push_back(sun);
 	m_GlobalMeshes.push_back(cubinho);
 	m_GlobalMeshes.push_back(macaquinho);
 
@@ -551,7 +558,7 @@ void EditorApp::RenderUI()
 	if (ImGui::BeginChild("Mesh Tree", ImVec2(0, 200), true)) {
 		for (int i = 0; i < m_GlobalMeshes.size(); i++) {
 			BaseMesh* m = m_GlobalMeshes[i];
-			if (m->GetVertices().empty()) { continue; }
+			if (m->GetVertices().empty() && m->GetType()!=MeshTypes::TypeLight) { continue; }
 
 			ImGuiTreeNodeFlags node_flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
 			bool isSelected = (m_CurrentMesh == i && m_CurrentSubMesh == -1);
