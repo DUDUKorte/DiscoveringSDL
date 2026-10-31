@@ -1,4 +1,4 @@
-#include "Pipe.h"
+#include "EditorCore/Pipe.h"
 
 Pipe::Pipe(std::string name, glm::vec3 firstVertex, std::vector<glm::vec3> v)
     : Mesh2D(name, firstVertex, v)

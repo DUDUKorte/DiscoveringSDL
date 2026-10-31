@@ -1,5 +1,5 @@
 #pragma once
-#include "Mesh2D.h"
+#include "EditorCore/Mesh2D.h"
 
 class Pipe : public Mesh2D {
 public:

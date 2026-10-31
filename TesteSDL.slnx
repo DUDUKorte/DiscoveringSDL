@@ -3,6 +3,9 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Project Path="Sandbox/Sandbox.vcxproj" Id="543193af-77b7-44d8-a1f3-6a5c7f19124e">
+    <BuildDependency Project="TesteSDL/TesteSDL.vcxproj" />
+  </Project>
   <Project Path="SDL3/VisualC/SDL/SDL.vcxproj" Id="81ce8daf-ebb2-4761-8e45-b71abcca8c68" />
   <Project Path="TesteSDL/TesteSDL.vcxproj" Id="a4e77362-44a2-4ca4-9bff-0a91afda5638" />
 </Solution>

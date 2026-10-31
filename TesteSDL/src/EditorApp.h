@@ -3,10 +3,10 @@
 #include <vector>
 #include <imgui.h>
 
-#include "BaseMesh.h"
-#include "Mesh.h"
-#include "MeshLight.h"
-#include "Pipe.h"
+#include "EditorCore/BaseMesh.h"
+#include "EditorCore/Mesh.h"
+#include "EditorCore/MeshLight.h"
+#include "EditorCore/Pipe.h"
 
 #ifndef LeandroColor
 #define LeandroColor(r, g, b, a) \
@@ -38,11 +38,20 @@ public:
 
 	inline int GetWidth() { return m_WindowProperties.Width; }
 	inline int GetHeight() { return m_WindowProperties.Height; }
+	
+	inline static glm::vec3& GetBGColor() { return m_BgColor; }
+	inline static EditorApp* Get() { return m_Instance; }
+
+	void LoadObjFile(std::string path, Mesh* mesh);
+	void SubmitMesh(BaseMesh* newMesh);
 
 	// VARIÁVEL GLOBAL APENAS PARA TESTES
-	Mesh* cubinho = new Mesh("cubinho");
-	Mesh* macaquinho = new Mesh("Monkey");
-	MeshLight* sun = new MeshLight("sun");
+	//Mesh* cubinho = new Mesh("cubinho");
+	//Mesh* macaquinho = new Mesh("Monkey");
+	//MeshLight* sun = new MeshLight("sun");
+
+	static EditorApp* m_Instance;
+	static glm::vec3 m_BgColor;
 
 private:
 	void RenderUI();
@@ -52,14 +61,10 @@ private:
 	void OnChangeMode(EEditMode new_mode);
 	void OnDestroySelectedMesh();
 
-	void LoadObjFile(std::string path, Mesh* mesh);
 	std::string OpenObjFileDialog(SDL_Window* window);
 
-	// flappy pipe
+	// Game related 
 	void EventBeginPlay();
-	void CreatePipes();
-	void CreatePlayer();
-
 
 	std::vector<std::string> split(const std::string& str, char delim);
 
@@ -89,6 +94,7 @@ private:
 	bool m_bLMB = false;
 	bool m_bRMB = false;
 	bool m_GameStarted = false;
+	bool m_GameSimulate = false;
 
 	// Delta time
 	Uint64 new_deltaTime;

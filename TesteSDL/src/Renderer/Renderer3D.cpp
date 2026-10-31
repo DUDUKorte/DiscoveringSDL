@@ -107,26 +107,16 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 
 	// Luzes pra testar a iluminação
 	// TODO: Criar objetos de luz pra modificar na cena
-	glm::vec3 solPos = SceneLights->at(0)->GetTransform().Position;
-	glm::vec3 solIntensity = SceneLights->at(0)->GetLightColor() * SceneLights->at(0)->GetLightIntensity();
-	glm::vec3 solColor = SceneLights->at(0)->GetLightColor();
-
-	MeshMaterial& currentMaterial = meshTeste.GetMaterial();
-
-	float ambientReflection = currentMaterial.ambientReflection;
-	float diffuse = currentMaterial.diffuse;
-	float specular = currentMaterial.specular;
-	float specular_brightness = currentMaterial.specular_brightness;
-	glm::vec3 baseColor = { meshTeste.GetColor().x, meshTeste.GetColor().y, meshTeste.GetColor().z};
+	
 
 	for (face& currentFace : meshTeste.GetFaces()) {
 		// Backface culling
-		glm::vec4 meshNormal4 = {meshNormals[currentFace.normal].x, meshNormals[currentFace.normal].y, meshNormals[currentFace.normal].z, 0.0f} ;
+		glm::vec4 meshNormal4 = { meshNormals[currentFace.normal].x, meshNormals[currentFace.normal].y, meshNormals[currentFace.normal].z, 0.0f };
 		meshNormal4 = meshTeste.GetTransformMatrix() * meshNormal4;
 		glm::vec3 meshNormal = { meshNormal4.x, meshNormal4.y, meshNormal4.z };
 		meshNormal = glm::normalize(meshNormal);
 
-		if (glm::dot(meshNormal, { 0.0f, 0.0f, 1.0f}) >= 0) {
+		if (glm::dot(meshNormal, { 0.0f, 0.0f, 1.0f }) >= 0) {
 			continue;
 		}
 
@@ -136,35 +126,72 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 		glm::vec3 verticesSum = { 0.0f, 0.0f, 0.0f };
 
 		for (int i : currentFace.vertices) {
-			currentVertices.push_back(allVertices[i]);
-			verticesSum += allVertices[i];
+			glm::vec3 verticeTela = allVertices[i];
 
-			if (allVertices[i].y > minMaxFace.y) {
-				minMaxFace.y = allVertices[i].y;
+			if (meshTeste.GetUsePerspective()) {
+				glm::vec3 vertMundo = allVertices[i];
+				float zc = glm::max(vertMundo.z, 100.0f);
+
+				verticeTela.x = ((vertMundo.x - MainWindow->Width * 0.5f) / zc) * 800.0f + (MainWindow->Width * 0.5f);
+				verticeTela.y = ((vertMundo.y - MainWindow->Width * 0.5f) / zc) * 800.0f + (MainWindow->Height* 0.5f);
+				verticeTela.z = -(1.0f / zc);
 			}
-			if (allVertices[i].y < minMaxFace.x) {
-				minMaxFace.x = allVertices[i].y;
+
+			currentVertices.push_back(verticeTela);
+			verticesSum += verticeTela;
+
+			if (verticeTela.y > minMaxFace.y) {
+				minMaxFace.y = verticeTela.y;
 			}
+			if (verticeTela.y < minMaxFace.x) {
+				minMaxFace.x = verticeTela.y;
+			}
+		}
+
+		glm::vec3 centroide = verticesSum / (float)currentVertices.size();
+
+		if (centroide.x < 0 || centroide.y < 0 || centroide.x > MainWindow->Width || centroide.y > MainWindow->Height) {
+			continue;
 		}
 
 		// Calcular iluminação constante
 		if (meshTeste.GetAfectedByLights()) {
-			glm::vec3 centroide = verticesSum / (float)currentVertices.size();
 			
-			glm::vec3 lightVector = solPos - centroide;
-			lightVector = glm::normalize(lightVector);
+
+			MeshMaterial& currentMaterial = meshTeste.GetMaterial();
+
+			float ambientReflection = currentMaterial.ambientReflection;
+			float diffuse = currentMaterial.diffuse;
+			float specular = currentMaterial.specular;
+			float specular_brightness = currentMaterial.specular_brightness;
+			glm::vec3 baseColor = { meshTeste.GetColor().x, meshTeste.GetColor().y, meshTeste.GetColor().z };
 
 			// se o culling funcionar com >= 0 aqui deve ser z = -1, se não z = 1
 			glm::vec3 observerVector = { 0.0f, 0.0f, -1.0f };
 
 			glm::vec3 ambientResult = AmbientLight * ambientReflection * baseColor;
-			float diffuseScalar = (glm::max(glm::dot(meshNormal, lightVector), 0.0f));
-			glm::vec3 diffuseResult = diffuseScalar * solIntensity * diffuse * baseColor;
+			glm::vec3 diffuseResult = {0.0f, 0.0f, 0.0f};
 			glm::vec3 specularResult = { 0.0f, 0.0f, 0.0f };
-			if (diffuseScalar > 0.0f) {
-				glm::vec3 specularR = glm::reflect(-lightVector, meshNormal);
-				specularResult = glm::pow(glm::max(glm::dot(specularR, observerVector), 0.0f), specular_brightness) * solIntensity * specular;
+
+			for (MeshLight* light : *SceneLights) {
+				if (glm::distance(centroide, light->GetTransform().Position) > light->GetMaxDistance()) {
+					continue;
+				}
+				glm::vec3 lightPos = light->GetTransform().Position;
+				glm::vec3 lightIntensity = light->GetLightColor() * light->GetLightIntensity();
+				
+				glm::vec3 lightVector = lightPos - centroide;
+				lightVector = glm::normalize(lightVector);
+				
+				float diffuseScalar = (glm::max(glm::dot(meshNormal, lightVector), 0.0f));
+				diffuseResult += diffuseScalar * lightIntensity * diffuse * baseColor;
+				
+				if (diffuseScalar > 0.0f) {
+					glm::vec3 specularR = glm::reflect(-lightVector, meshNormal);
+					specularResult += glm::pow(glm::max(glm::dot(specularR, observerVector), 0.0f), specular_brightness) * lightIntensity * specular;
+				}
 			}
+
 			glm::vec3 resultColor = glm::clamp(ambientResult + diffuseResult + specularResult, 0.0f, 1.0f);
 			DrawColor = LeandroColor(resultColor.x, resultColor.y, resultColor.z, 1.0f);
 		}

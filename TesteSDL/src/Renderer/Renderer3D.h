@@ -1,9 +1,9 @@
 #pragma once
 #include <SDL3/SDL.h>
 #include <vector>
-#include "Mesh.h"
+#include "EditorCore/Mesh.h"
 #include "EditorApp.h"
-#include "Log.h"
+#include "Utils/Log.h"
 
 #ifndef LeandroColor
 #define LeandroColor(r, g, b, a) \

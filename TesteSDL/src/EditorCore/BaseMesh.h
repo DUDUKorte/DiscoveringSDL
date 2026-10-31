@@ -25,6 +25,7 @@ class BaseMesh {
 public:
 	virtual ~BaseMesh();
 
+	virtual void BeginPlay() = 0;
 	virtual void EventTick(float deltaTime) = 0;
 	virtual void EventInput(SDL_Event* event) = 0;
 
@@ -59,11 +60,13 @@ public:
 	inline ImVec4& GetOutlineColor() { return m_OutlineColor; }
 	inline std::string& GetName() { return m_Name; }
 	inline bool& GetTickEnabled() { return m_TickEnabled; }
+	inline bool& GetInputEnabled() { return m_InputEnabled; }
 	inline glm::vec3& GetVelocity() { return m_Velocity; }
 	inline bool& GetShouldDestroy() { return m_ShouldDestroy; }
 	inline MeshTypes GetType() { return meshType; }
 	inline glm::vec2& GetMinMax() { return m_MinMaxY; }
 	inline MeshMaterial& GetMaterial() { return m_Material; }
+	inline std::string& GetObj() { return meshObjPath; }
 
 	// setters
 	inline void MarkDirty() { m_IsDirty = true; }
@@ -75,6 +78,7 @@ public:
 	inline void SetColor(ImVec4 color) { m_Color = color; }
 	inline void SetName(std::string name) { m_Name = name; }
 	inline void SetTickEnabled(bool enabled) { m_TickEnabled = enabled; }
+	inline void SetInputEnabled(bool enabled) { m_InputEnabled= enabled; }
 	inline void SetShouldDestroy(bool should) { m_ShouldDestroy = should; }
 	inline void SetMaterial(MeshMaterial material) { m_Material = material; }
 
@@ -116,13 +120,15 @@ protected:
 	bool m_Gravity = false; // se é afetado pela gravidade ou nn
 	bool m_Outline = true;
 	bool m_TickEnabled = false;
+	bool m_InputEnabled = false;
 	bool m_ShouldDestroy = false; // Define se deveria ser detruido no próximo frame
 
+	std::string meshObjPath = "None";
 	MeshMaterial m_Material;
-
 	MeshTypes meshType;
 
 	//Cores
 	ImVec4 m_Color = { 0.2, 0.2, 0.2 , 1 };
 	ImVec4 m_OutlineColor = { 1, 1 ,1 , 1 };
+
 };

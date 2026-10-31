@@ -1,7 +1,7 @@
 #include "EditorApp.h"
-#include "Renderer2D.h"
-#include "Renderer3D.h"
-#include "Log.h"
+#include "Renderer/Renderer2D.h"
+#include "Renderer/Renderer3D.h"
+#include "Utils/Log.h"
 
 #include <iostream>
 #include <string>
@@ -25,8 +25,12 @@
 
 #include <filesystem>
 
+EditorApp* EditorApp::m_Instance = nullptr;
+glm::vec3 EditorApp::m_BgColor = {0.2f, 0.2f, 0.2f};
+
 EditorApp::EditorApp()
 {
+	m_Instance = this;
 }
 
 EditorApp::~EditorApp()
@@ -104,27 +108,29 @@ bool EditorApp::Init()
 	// Seta as variáveis do renderer
 	Renderer3D::Init(m_VertexBuffer, m_ZBuffer, &m_WindowProperties, &m_GlobalMeshLights);
 
-	LoadObjFile("./cubo.obj", cubinho);
-	LoadObjFile("./zelda.obj", macaquinho);
-	LoadObjFile("./sphere.obj", sun);
+	m_BgColor = {0.2f, 0.2f, 0.2f};
 
-	cubinho->GetTransform().Scale = { 100.0f, 100.0f, 100.0f };
-	cubinho->GetTransform().Position = { 740.0f, 480.0f, 0.0f };
-	cubinho->GetTransform().Rotation = { 40.0f, 30.0f, 10.0f };
+	//LoadObjFile("./cubo.obj", cubinho);
+	//LoadObjFile("./zelda.obj", macaquinho);
+	//LoadObjFile("./sphere.obj", sun);
 
-	macaquinho->GetTransform().Scale = { 100.0f, 100.0f, 100.0f };
-	macaquinho->GetTransform().Position = { 340.0f, 280.0f, 0.0f };
-	macaquinho->GetTransform().Rotation = { 0.2f, 0.0f, 2.0f };
+	//cubinho->GetTransform().Scale = { 100.0f, 100.0f, 100.0f };
+	//cubinho->GetTransform().Position = { 740.0f, 480.0f, 0.0f };
+	//cubinho->GetTransform().Rotation = { 40.0f, 30.0f, 10.0f };
 
-	sun->GetTransform().Position = { 900.0f, 100.0f, -500.0f };
-	sun->GetLightIntensity() = 1.0f;
-	sun->GetLightColor() = { 1.0f, 1.0f, 1.0f };
+	//macaquinho->GetTransform().Scale = { 100.0f, 100.0f, 100.0f };
+	//macaquinho->GetTransform().Position = { 340.0f, 280.0f, 0.0f };
+	//macaquinho->GetTransform().Rotation = { 0.2f, 0.0f, 2.0f };
 
-	m_GlobalMeshLights.push_back(sun);
+	//sun->GetTransform().Position = { 900.0f, 100.0f, -500.0f };
+	//sun->GetLightIntensity() = 1.0f;
+	//sun->GetLightColor() = { 1.0f, 1.0f, 1.0f };
 
-	m_GlobalMeshes.push_back(sun);
-	m_GlobalMeshes.push_back(cubinho);
-	m_GlobalMeshes.push_back(macaquinho);
+	//m_GlobalMeshLights.push_back(sun);
+
+	//m_GlobalMeshes.push_back(sun);
+	//m_GlobalMeshes.push_back(cubinho);
+	//m_GlobalMeshes.push_back(macaquinho);
 
 	return true;
 }
@@ -234,6 +240,13 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 {
 	ImGui_ImplSDL3_ProcessEvent(event);
 
+	// Todas as meshes agora devem receber um event
+	for (BaseMesh* m : m_GlobalMeshes) {
+		if (m->GetInputEnabled() && m_GameStarted) {
+			m->EventInput(event);
+		}
+	}
+
 	if (event->type == SDL_EVENT_QUIT) {
 		return SDL_APP_SUCCESS;
 	}
@@ -253,8 +266,8 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 	/// EVENTOS DE TECLA PRESSIONADA ///////////////////////////////////////////////////////
 	if (event->type == SDL_EVENT_KEY_DOWN) {
 		SDL_KeyboardEvent e = event->key;
-		BaseMesh* activeMesh = GetActiveMesh();
-		if (activeMesh != nullptr) { activeMesh->EventInput(event); }
+		//BaseMesh* activeMesh = GetActiveMesh();
+		//if (activeMesh != nullptr) { activeMesh->EventInput(event); }
 
 		// MODE SWITCH
 		switch (e.key) {
@@ -435,15 +448,15 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	deltaTime = (double)((new_deltaTime - old_deltaTime) * 1000 / (double)SDL_GetPerformanceFrequency());
 
 	// Cria novos pipes após X tempo
-	if (m_GameStarted) {
-		if(timeAcc > 5000.0){
-			CreatePipes();
-			timeAcc = 0;
-		}
-		else {
-			timeAcc += deltaTime;
-		}
-	}
+	//if (m_GameStarted) {
+	//	if(timeAcc > 5000.0){
+	//		CreatePipes();
+	//		timeAcc = 0;
+	//	}
+	//	else {
+	//		timeAcc += deltaTime;
+	//	}
+	//}
 
 	/* IMGUI */
 	if (SDL_GetWindowFlags(m_WindowProperties.Window) & SDL_WINDOW_MINIMIZED)
@@ -460,7 +473,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 	Renderer2D::DrawGizmo(GetActiveMesh(), m_CurrentMode, m_CurrentGizmoState, m_ActiveGizmoState);
 
-	if (!m_GameStarted) {
+	if (!m_GameStarted || m_GameSimulate) {
 		RenderUI();
 	}
 
@@ -468,11 +481,16 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	SDL_RenderClear(m_WindowProperties.Renderer); // antigo, usar o buffer
 
 	// Preenche o buffer com a cor neutra do fundo
-	std::fill(m_VertexBuffer->begin(), m_VertexBuffer->end(), LeandroColor(0.2f, 0.2f, 0.2f, 1.0f)); // Limpa a tela na cor que queremos
+	std::fill(m_VertexBuffer->begin(), m_VertexBuffer->end(), LeandroColor(m_BgColor.x, m_BgColor.y, m_BgColor.z, 1.0f)); // Limpa a tela na cor que queremos
 	std::fill(m_ZBuffer->begin(), m_ZBuffer->end(), 9999999.0f); // preenche o zbuffer
 
 	// Draw polygons
 	for (BaseMesh* m : m_GlobalMeshes) {
+		// Run tick SEMPRE FICA PRIMEIRO (Calcula física/lógica -> cálcula desenho -> Mostra na tela)
+		if (m_GameStarted && m->GetTickEnabled()) {
+			m->EventTick(deltaTime);
+		}
+
 		std::vector<glm::vec3>& vertices = m->GetVertices();
 		if (vertices.empty()) { continue; }
 		
@@ -491,11 +509,14 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			Renderer3D::DrawColor = LeandroColor(red, green, blue, 1.0f);
 		}
 
+
+		// Desnha 3D!!!!
 		if (m->GetType() != MeshTypes::Type2D) {
 			Renderer3D::DrawMesh(static_cast<Mesh&>(*(m)));
 			continue;
 		}
 
+		// Desenha 2D!!!!! (Propositalmente por cima do 3D)
 		// Fill poly
 		if (m->GetFill()) {
 			// BUG TODO
@@ -515,12 +536,10 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 		Renderer2D::DrawLinesWithVertices(m_WindowProperties.Renderer, vertices, m->IsClosed());
 
-		// Run tick
-		m->EventTick(deltaTime);
 		// Talvez verificar a colisão aqui?
-		if (m->GetTransform().Position.y >= GetHeight()) {
-			m->SetVelocity({ 0.0f, 0.0f, 0.0f });
-		}
+		//if (m->GetTransform().Position.y >= GetHeight()) {
+		//	m->SetVelocity({ 0.0f, 0.0f, 0.0f });
+		//}
 	}
 
 	SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, 1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT);
@@ -559,7 +578,7 @@ void EditorApp::RenderUI()
 	if (ImGui::BeginChild("Mesh Tree", ImVec2(0, 200), true)) {
 		for (int i = 0; i < m_GlobalMeshes.size(); i++) {
 			BaseMesh* m = m_GlobalMeshes[i];
-			if (m->GetVertices().empty() && m->GetType()!=MeshTypes::TypeLight) { continue; }
+			if (m->GetVertices().empty() && m->GetType()==MeshTypes::Type2D) { continue; }
 
 			ImGuiTreeNodeFlags node_flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
 			bool isSelected = (m_CurrentMesh == i && m_CurrentSubMesh == -1);
@@ -730,11 +749,12 @@ void EditorApp::RenderUI()
 		OnChangeMode(ScalePoly);
 	}
 	
-	ImGui::SeparatorText("BÔNUS");
-	if (ImGui::Button("Flappy Fill!")) {
+	ImGui::SeparatorText("Game Options");
+	if (ImGui::Button("PLAY!")) {
 		LE_TRACE("Thank you for playing!");
 		EventBeginPlay();
 	}
+	ImGui::Checkbox("Simulate", &m_GameSimulate);
 
 	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
 
@@ -827,6 +847,7 @@ void EditorApp::RenderUI()
 
 			Mesh* selectedMeshConv = static_cast<Mesh*>(GetActiveMesh());
 			ImGui::Checkbox("Affected By Lights", &selectedMeshConv->GetAfectedByLights());
+			ImGui::Checkbox("Perspective", &selectedMeshConv->GetUsePerspective());
 			
 			ImGui::SeparatorText("Materials");
 			ImGui::DragFloat("Ambient Reflection", &selectedMeshConv->GetMaterial().ambientReflection, 0.001f, 0.0f, 1.0f);
@@ -925,7 +946,10 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 	std::ifstream file;
 
 	file.open(path, std::ifstream::in);
-	LE_CORE_ASSERT(file.is_open(), "FALHA AO ABRIR O ARQUIVO OBJ!!!");
+	if (!file.is_open()) { 
+		LE_CORE_ERROR("FALHA AO ABRIR O ARQUIVO OBJ: " + path);
+		return; 
+	}
 
 	std::string line;
 
@@ -1015,9 +1039,38 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 		}
 	}
 
+	mesh->GetObj() = path;
+
 	file.close();
 
 	// CARREGANDO UM ARQUIVO OBJ
+}
+
+void EditorApp::SubmitMesh(BaseMesh* newMesh)
+{
+	if (newMesh) {
+		m_GlobalMeshes.push_back(newMesh);
+		switch (newMesh->GetType())
+		{
+		case MeshTypes::Type2D:
+			break;
+		case MeshTypes::Type3D:
+			if (newMesh->GetObj() != "None") {
+				LoadObjFile(newMesh->GetObj(), static_cast<Mesh*>(newMesh));
+			}
+			break;
+		case MeshTypes::TypeLight:
+			if (newMesh->GetObj() != "None") {
+				LoadObjFile(newMesh->GetObj(), static_cast<Mesh*>(newMesh));
+			}
+			m_GlobalMeshLights.push_back(static_cast<MeshLight*>(newMesh));
+			break;
+		case MeshTypes::TypeText:
+			break;
+		default:
+			break;
+		}
+	}
 }
 
 std::string EditorApp::OpenObjFileDialog(SDL_Window* window)
@@ -1045,71 +1098,17 @@ std::string EditorApp::OpenObjFileDialog(SDL_Window* window)
 }
 
 ///////////////////////////////////////////////////////////
-//////////////////////FLAPPY POLY///////////////////////////
+//////////////////////BEGIN PLAY///////////////////////////
 ///////////////////////////////////////////////////////////
 void EditorApp::EventBeginPlay()
 {
-	CreatePipes();
-	CreatePlayer();
-	m_GameStarted = true;
-}
-
-void EditorApp::CreatePipes()
-{
-	float maxHeight = GetHeight() - 100;
-
-	// Create first pipes
-	std::string up_pipe_name = "UpPipe_" + std::to_string(m_CurrentMesh);
-	std::vector<glm::vec3> UpPipeVertexes = {
-		{-20, 100, 1.0f},
-		{-20, maxHeight, 1.0f},
-		{ 20, maxHeight, 1.0f},
-		{ 20, 100, 1.0f}
-	};
-	std::string down_pipe_name = "DownPipe_" + std::to_string(m_CurrentMesh);
-	std::vector<glm::vec3> DownPipeVertexes = {
-		{-20, -100, 1.0f},
-		{-20, -maxHeight, 1.0f},
-		{ 20, -maxHeight, 1.0f},
-		{ 20, -100, 1.0f}
-	};
-	std::random_device rd;
-	std::mt19937 gen(rd());
-	float min = 120.0f;
-	float max = GetHeight() - 100.0f;
-	std::uniform_real_distribution<float> distr(min, max);
-	float random_pos = distr(gen);
-
-	m_GlobalMeshes.push_back(new Pipe(up_pipe_name, { (float)GetWidth(), (float)random_pos, 1.0f }, UpPipeVertexes));
-	m_GlobalMeshes.push_back(new Pipe(down_pipe_name, { (float)GetWidth(), (float)random_pos, 1.0f }, DownPipeVertexes));
-}
-
-void EditorApp::CreatePlayer()
-{
-	OnChangeMode(Selection);
-
-	m_CurrentMesh = m_GlobalMeshes.size();
-	m_CurrentSubMesh = -1;
-
-	std::string mesh_name = "Player" + std::to_string(m_CurrentMesh);
-	std::vector<glm::vec3> custom_poly;
-
-	glm::vec3 start_vertex = { -10, -10, 1.0f }; // Ponto inicial
-	float angle = (360.0f / (float)m_CustomPolyFaces) * std::numbers::pi / 180.0f;
-
-	// Rotaciona o ponto
-	for (int i = 0; i < m_CustomPolyFaces; i++) {
-		custom_poly.push_back(start_vertex);
-		float tx = start_vertex.x * std::cos(angle) - start_vertex.y * std::sin(angle);
-		float ty = start_vertex.x * std::sin(angle) + start_vertex.y * std::cos(angle);
-		start_vertex.x = tx;
-		start_vertex.y = ty;
+	for (BaseMesh* m : m_GlobalMeshes) {
+		m->GetOutline() = false;
+		m->GetFill() = true;
+		m->BeginPlay();
 	}
-
-	m_GlobalMeshes.push_back(new Mesh2D(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f, 1.0f }, custom_poly));
-	m_GlobalMeshes[m_CurrentMesh]->SetClosed(true);
-	m_GlobalMeshes[m_CurrentMesh]->SetFill(true);
-	m_GlobalMeshes[m_CurrentMesh]->SetTickEnabled(true);
+	OnChangeMode(EEditMode::Selection);
+	m_GameStarted = true;
 }
 
 std::vector<std::string> EditorApp::split(const std::string& str, char delim) {

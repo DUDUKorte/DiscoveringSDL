@@ -1,6 +1,6 @@
-#include "Mesh2D.h"
+#include "EditorCore/Mesh2D.h"
 #include "EditorApp.h"
-#include "Log.h"
+#include "Utils/Log.h"
 #include <cmath>
 
 Mesh2D::Mesh2D(std::string name, glm::vec3 firstVertex, std::vector<glm::vec3> v) {
