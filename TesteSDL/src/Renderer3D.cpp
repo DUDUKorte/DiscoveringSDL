@@ -6,21 +6,23 @@
 #include <glm/gtc/random.hpp>
 
 std::vector<uint32_t>* Renderer3D::Buffer = nullptr;
+std::vector<float>* Renderer3D::ZBuffer = nullptr;
 std::vector<LightObject>* Renderer3D::SceneLights = nullptr;
 WindowProperties* Renderer3D::MainWindow = nullptr;
 uint32_t Renderer3D::DrawColor = LeandroColor(0.8f, 0.8f, 0.2f, 1.0f);
-std::vector<std::vector<float>> Renderer3D::intersecoes(0);
+std::vector<std::vector<std::pair<float, float>>> Renderer3D::intersecoes(0);
 
-void Renderer3D::Init(std::vector<uint32_t>* buffer, WindowProperties* window, std::vector<LightObject>* lights)
+void Renderer3D::Init(std::vector<uint32_t>* buffer, std::vector<float>* zbuffer, WindowProperties* window, std::vector<LightObject>* lights)
 {
 	Buffer = buffer;
+	ZBuffer = zbuffer;
 	SceneLights = lights;
 	MainWindow = window;
-	Renderer3D::intersecoes = std::vector<std::vector<float>>(MainWindow->Height);
+	Renderer3D::intersecoes = std::vector<std::vector<std::pair<float, float>>>(MainWindow->Height);
 }
 
 void Renderer3D::UpdateResize() {
-	Renderer3D::intersecoes = std::vector<std::vector<float>>(MainWindow->Height);
+	Renderer3D::intersecoes = std::vector<std::vector<std::pair<float, float>>>(MainWindow->Height);
 }
 
 void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
@@ -44,6 +46,7 @@ void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
 		int x = (int)std::lround(source.x);
 		int y = (int)std::lround(source.y);
 		if (x >= 0 && x < width && y >= 0 && y < height) {
+
 			Buffer->at(y * MainWindow->Width + x) = DrawColor;
 		}
 		return;
@@ -194,20 +197,26 @@ void Renderer3D::FindIntersections(const std::vector<glm::vec3>& vertices, glm::
 		}
 		LE_CORE_ASSERT(point.y >= source.y, "Y FINAL da aresta maior que o INICIAL!");
 
-		int ymin = (int)source.y;
-		int ymax = (int)point.y;
+		int ymin = (int)std::ceil(source.y);
+		int ymax = (int)std::ceil(point.y);
 
 		float dY = (point.y - source.y);
 
 		float Tx = (point.x - source.x) / dY;
+		float Tz = (point.z - source.z) / dY;
 		//float Tr = (point.color.x - source.color.x) / dY;
 		//float Tg = (point.color.y - source.color.y) / dY;
 		//float Tb = (point.color.z - source.color.z) / dY;
 
 		float new_x = source.x;
+		float new_z = source.z;
 		//float new_r = source.color.x;
 		//float new_g = source.color.y;
 		//float new_b = source.color.z;
+
+		float preStep = (float)ymin - source.y;
+		new_x += preStep * Tx;
+		new_z += preStep * Tz;
 
 		// Pegar as interseções
 		for (int y = ymin; y < ymax; y++) { // Scanlines de 0 à Ns-1
@@ -215,10 +224,11 @@ void Renderer3D::FindIntersections(const std::vector<glm::vec3>& vertices, glm::
 			//SDL_RenderLine(renderer, new_x, ymin + i, new_x, ymin+i);
 			//SDL_RenderPoint(renderer, new_x, ymin + i);
 			if (y > 0 && y < MainWindow->Height) {
-				intersecoes[y].push_back(new_x);
+				intersecoes[y].push_back({new_x, new_z});
 				//LE_CORE_ASSERT(y > 0 && y < height, "Coordenada Y com valor INVALIDO!");
 			}
 			new_x += Tx;
+			new_z += Tz;
 			//new_r += Tr;
 			//new_g += Tg;
 			//new_b += Tb;
@@ -228,8 +238,8 @@ void Renderer3D::FindIntersections(const std::vector<glm::vec3>& vertices, glm::
 
 void Renderer3D::FillPoly(const std::vector<glm::vec3>& vertices, glm::vec2 minMaxY)
 {
-	int yMin = int(minMaxY.x);
-	int yMax = int(minMaxY.y);
+	int yMin = (int)std::ceil(minMaxY.x);
+	int yMax = (int)std::ceil(minMaxY.y);
 
 	if (vertices.size() < 3) { return; }
 
@@ -261,19 +271,32 @@ void Renderer3D::FillPoly(const std::vector<glm::vec3>& vertices, glm::vec2 minM
 	// Fazer o fill no poly
 	for (int y = yMin; y < yMax; y++) {
 		if (y < 0 || y >= MainWindow->Height) { continue; }
-		std::vector<float>& lista = intersecoes[y];
+		std::vector<std::pair<float, float>>& lista = intersecoes[y];
 
 		for (int i = 0; i + 1 < lista.size(); i += 2) {
 			//if (i + 1 < lista.size()) {
 			//	SDL_RenderPoint(renderer, (int)lista[i].x, y);
 			//	SDL_RenderPoint(renderer, (int)lista[i + 1].x, y);
 			//}
-				
+
+			float dx = lista[i + 1].first - lista[i].first;
+			float Tz = (lista[i + 1].second - lista[i].second) / dx;
+
+			float currentZ = lista[i].second;
+
+			int xStart = (int)std::ceil(lista[i].first);
+			int xEnd = (int)std::ceil(lista[i + 1].first);
+
+			currentZ += ((float)xStart - lista[i].first) * Tz;
 			// utilizando o buffer
-			for (int x = lista[i]; x < lista[i + 1]; x++) {
+			for (int x = xStart; x < xEnd; x++) {
 				if (x <= 0 || x >= MainWindow->Width) { continue; }
 				if (y <= 0 || y >= MainWindow->Height) { continue; }
-				Buffer->at(y * MainWindow->Width + x) = DrawColor;
+				if (currentZ < ZBuffer->at(y * MainWindow->Width + x)) {
+					Buffer->at(y * MainWindow->Width + x) = DrawColor;
+					ZBuffer->at(y * MainWindow->Width + x) = currentZ;
+				}
+				currentZ += Tz;
 			}
 			//SDL_RenderLine(renderer, lista[i], (float)y, lista[i + 1], (float)y);
 		}

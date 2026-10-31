@@ -19,7 +19,7 @@ class LightObject;
 class Renderer3D {
 
 public:
-	static void Init(std::vector<uint32_t>* buffer, WindowProperties* window, std::vector<LightObject>* lights);
+	static void Init(std::vector<uint32_t>* buffer, std::vector<float>* zbuffer, WindowProperties* window, std::vector<LightObject>* lights);
 
 	static void UpdateResize();
 
@@ -34,9 +34,10 @@ public:
 	static void FillPoly(const std::vector<glm::vec3>& vertices, glm::vec2 minMaxY);
 
 	static std::vector<uint32_t>* Buffer;
+	static std::vector<float>* ZBuffer;
 	static std::vector<LightObject>* SceneLights;
 	static WindowProperties* MainWindow;
 	static uint32_t DrawColor;
-	static std::vector<std::vector<float>> intersecoes;
+	static std::vector<std::vector<std::pair<float, float>>> intersecoes;
 
 };

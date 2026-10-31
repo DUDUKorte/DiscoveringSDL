@@ -102,7 +102,7 @@ bool EditorApp::Init()
 	m_Buffer = SDL_CreateTexture(m_WindowProperties.Renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, m_WindowProperties.Width, m_WindowProperties.Height);
 
 	// Seta as variáveis do renderer
-	Renderer3D::Init(m_VertexBuffer, &m_WindowProperties, nullptr);
+	Renderer3D::Init(m_VertexBuffer, m_ZBuffer, &m_WindowProperties, nullptr);
 
 	LoadObjFile("./cubo.obj", cubinho);
 	LoadObjFile("./zelda.obj", macaquinho);
@@ -232,6 +232,7 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 	else if (event->type == SDL_EVENT_WINDOW_RESIZED) {
 		SDL_GetWindowSize(m_WindowProperties.Window, &m_WindowProperties.Width, &m_WindowProperties.Height);
 		m_VertexBuffer->resize(m_WindowProperties.Width * m_WindowProperties.Height);
+		m_ZBuffer->resize(m_WindowProperties.Width * m_WindowProperties.Height);
 		SDL_Texture* markForDelete = m_Buffer;
 		m_Buffer = SDL_CreateTexture(m_WindowProperties.Renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, m_WindowProperties.Width, m_WindowProperties.Height);
 		Renderer3D::UpdateResize();
@@ -460,6 +461,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 	// Preenche o buffer com a cor neutra do fundo
 	std::fill(m_VertexBuffer->begin(), m_VertexBuffer->end(), LeandroColor(0.2f, 0.2f, 0.2f, 1.0f)); // Limpa a tela na cor que queremos
+	std::fill(m_ZBuffer->begin(), m_ZBuffer->end(), 9999999.0f); // preenche o zbuffer
 
 	// Draw polygons
 	for (BaseMesh* m : m_GlobalMeshes) {
