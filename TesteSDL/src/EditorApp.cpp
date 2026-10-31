@@ -106,6 +106,7 @@ bool EditorApp::Init()
 
 	LoadObjFile("./cubo.obj", cubinho);
 	LoadObjFile("./zelda.obj", macaquinho);
+	LoadObjFile("./sphere.obj", sun);
 
 	cubinho->GetTransform().Scale = { 100.0f, 100.0f, 100.0f };
 	cubinho->GetTransform().Position = { 740.0f, 480.0f, 0.0f };
@@ -490,7 +491,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			Renderer3D::DrawColor = LeandroColor(red, green, blue, 1.0f);
 		}
 
-		if (m->GetType() == MeshTypes::Type3D) {
+		if (m->GetType() != MeshTypes::Type2D) {
 			Renderer3D::DrawMesh(static_cast<Mesh&>(*(m)));
 			continue;
 		}
@@ -716,7 +717,7 @@ void EditorApp::RenderUI()
 	if (ImGui::Button("Selection Mode")) {
 		OnChangeMode(Selection);
 	}
-	if (ImGui::Button("Edit Mode")) {
+	if (ImGui::Button("Edit Mode") && GetActiveMesh()->GetType() == Type2D) {
 		OnChangeMode(CreatePoly);
 	}
 	if (ImGui::Button("Translation Mode")) {
@@ -728,9 +729,6 @@ void EditorApp::RenderUI()
 	if (ImGui::Button("Scale Mode")) {
 		OnChangeMode(ScalePoly);
 	}
-
-	ImGui::SeparatorText("Info.");
-	ImGui::Text("Scale Speed: %f", m_ScaleMeshSpeed);
 	
 	ImGui::SeparatorText("BÔNUS");
 	if (ImGui::Button("Flappy Fill!")) {
@@ -809,20 +807,45 @@ void EditorApp::RenderUI()
 		if (selectedMesh->m_Parent == nullptr) {
 			ImGui::Checkbox("Fillpoly", &selectedMesh->GetFill());
 
-			ImGui::Checkbox("Closed", &selectedMesh->IsClosed());
-			ImGui::Checkbox("Outline Color", &selectedMesh->GetOutline());
+			if (GetActiveMesh()->GetType() == Type2D) {
+				ImGui::Checkbox("Closed", &selectedMesh->IsClosed());
+			}
+			ImGui::Checkbox("Use Outline Color", &selectedMesh->GetOutline());
 
 			ImGui::Checkbox("Tick Enabled", &selectedMesh->GetTickEnabled());
 		}
-		ImGui::Checkbox("Fill Color", &selectedMesh->IsActive());
+		if (GetActiveMesh()->GetType() == Type2D) {
+			ImGui::Checkbox("Fill Color", &selectedMesh->IsActive());
+		}
 
 		ImGui::ColorEdit3("Clear Color", (float*)&m_ClearColor);
 		ImGui::ColorEdit3("Mesh Color", (float*)&selectedMesh->GetColor());
 		ImGui::ColorEdit3("Outline Color", (float*)&selectedMesh->GetOutlineColor());
 
+		if (GetActiveMesh()->GetType() != Type2D) {
+			ImGui::SeparatorText("3DMesh Properties");
+
+			Mesh* selectedMeshConv = static_cast<Mesh*>(GetActiveMesh());
+			ImGui::Checkbox("Affected By Lights", &selectedMeshConv->GetAfectedByLights());
+			
+			ImGui::SeparatorText("Materials");
+			ImGui::DragFloat("Ambient Reflection", &selectedMeshConv->GetMaterial().ambientReflection, 0.001f, 0.0f, 1.0f);
+			ImGui::DragFloat("Diffuse", &selectedMeshConv->GetMaterial().diffuse, 0.001f, 0.0f, 1.0f);
+			ImGui::DragFloat("Specular", &selectedMeshConv->GetMaterial().specular, 0.001f, 0.0f, 1.0f);
+			ImGui::DragFloat("Specular Brightness", &selectedMeshConv->GetMaterial().specular_brightness, 0.1f, 0.0f, 128.0f);
+
+			if (GetActiveMesh()->GetType() == MeshTypes::TypeLight) {
+				MeshLight* selectedLight = static_cast<MeshLight*>(GetActiveMesh());
+				ImGui::SeparatorText("Light Properties");
+				ImGui::DragFloat("Light Intensity", &selectedLight->GetLightIntensity(), 0.001f, 0.0f, 128.0f);
+				ImGui::ColorEdit3("Light Color", (float*)&selectedLight->GetLightColor());
+			}
+		}
+		
+
 		ImGui::SeparatorText("Deleting");
 
-		if (ImGui::Button("Delete Vertex")) {
+		if (ImGui::Button("Delete Vertex") && GetActiveMesh()->GetType() == Type2D) {
 			LE_TRACE("Deleted last vertex on mesh: " + selectedMesh->GetName());
 			selectedMesh->removeVertex();
 		}

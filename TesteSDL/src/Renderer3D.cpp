@@ -130,6 +130,7 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 			continue;
 		}
 
+
 		minMaxFace = { 10000.0f, -1.0f };
 		currentVertices.clear();
 		glm::vec3 verticesSum = { 0.0f, 0.0f, 0.0f };
@@ -147,7 +148,7 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 		}
 
 		// Calcular iluminação constante
-		if (true) {
+		if (meshTeste.GetAfectedByLights()) {
 			glm::vec3 centroide = verticesSum / (float)currentVertices.size();
 			
 			glm::vec3 lightVector = solPos - centroide;
@@ -167,12 +168,15 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 			glm::vec3 resultColor = glm::clamp(ambientResult + diffuseResult + specularResult, 0.0f, 1.0f);
 			DrawColor = LeandroColor(resultColor.x, resultColor.y, resultColor.z, 1.0f);
 		}
+		else {
+			DrawColor = LeandroColor(meshTeste.GetColor().x, meshTeste.GetColor().y, meshTeste.GetColor().z, meshTeste.GetColor().w);
+		}
 
 		if (meshTeste.GetFill()) {
 			FillPoly(currentVertices, minMaxFace);
 		}
 		if (meshTeste.GetOutline()) {
-			DrawColor = LeandroColor(1.0f, 1.0f, 0.0f, 1.0f);
+			DrawColor = LeandroColor(meshTeste.GetOutlineColor().x, meshTeste.GetOutlineColor().y, meshTeste.GetOutlineColor().z, meshTeste.GetOutlineColor().w);
 			Draw3DLinesWithVertices(currentVertices);
 		}
 	}

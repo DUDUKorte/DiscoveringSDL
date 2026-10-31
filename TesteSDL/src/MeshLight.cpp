@@ -1,10 +1,10 @@
 #include "MeshLight.h"
 
-MeshLight::MeshLight(std::string name)
+MeshLight::MeshLight(std::string name, glm::vec3 firstVertex, std::vector<glm::vec3> v) : Mesh(name, firstVertex, v)
 {
 	m_Name = name;
 	meshType = MeshTypes::TypeLight;
-	addVertex({ 0.0f, 0.0f, 0.0f });
+	m_AfectedByLights = false;
 }
 
 MeshLight::~MeshLight() 
@@ -20,15 +20,4 @@ void MeshLight::EventTick(float deltaTime)
 void MeshLight::EventInput(SDL_Event* event)
 {
 	// Input for lights goes here
-}
-
-void MeshLight::addVertex(glm::vec3 newVertex)
-{
-	// Light need to have 1 vertex
-	m_LocalVertices.push_back(newVertex);
-
-	m_CentroideSum += newVertex;
-
-	CalcLocalCentroide();
-	m_IsDirty = true;
 }
