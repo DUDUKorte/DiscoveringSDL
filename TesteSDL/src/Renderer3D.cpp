@@ -44,7 +44,7 @@ void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
 		int x = (int)std::lround(source.x);
 		int y = (int)std::lround(source.y);
 		if (x >= 0 && x < width && y >= 0 && y < height) {
-			Buffer->at(y * MainWindow->Width + x) = LeandroColor(0.2f, 0.2f, 0.8, 1.0);
+			Buffer->at(y * MainWindow->Width + x) = DrawColor;
 		}
 		return;
 	}
@@ -60,7 +60,7 @@ void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
 		int py = (int)std::lround(new_y);
 
 		if (px >= 0 && px < width && py >= 0 && py < height) {
-			Buffer->at(py * MainWindow->Width + px) = LeandroColor(0.2f, 0.2f, 0.8, 1.0);
+			Buffer->at(py * MainWindow->Width + px) = DrawColor;
 		}
 
 		new_x += xInc;
@@ -81,7 +81,7 @@ void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
 void Renderer3D::Draw3DLinesWithVertices(const std::vector<glm::vec3>& vertices)
 {
 	if (vertices.size() < 2) { // só desenha se tiver 2 ou mais vertices
-		Buffer->at(vertices[0].y * MainWindow->Width + vertices[0].x) = LeandroColor(0.2f, 0.2f, 0.8, 1.0);
+		Buffer->at(vertices[0].y * MainWindow->Width + vertices[0].x) = DrawColor;
 		//SDL_RenderPoint(renderer, vertices[0].x, vertices[0].y);
 		return;
 	}
@@ -101,15 +101,42 @@ void Renderer3D::Draw3DLinesWithVertices(const std::vector<glm::vec3>& vertices)
 void Renderer3D::DrawMesh(Mesh& meshTeste)
 {
 	std::vector<glm::vec3>& allVertices = meshTeste.GetVertices();
+	std::vector<glm::vec3>& meshNormals = meshTeste.GetNormals();
 	std::vector<glm::vec3> currentVertices = {};
 	glm::vec2 minMaxFace = { 10000, -1 };
 
+	// Luzes pra testar a iluminação
+	// TODO: Criar objetos de luz pra modificar na cena
+	glm::vec3 solPos = { 900.0f, 100.0f, -500.0f };
+	glm::vec3 solIntensity = { 1.0f, 1.0f, 1.0f };
+	glm::vec3 solColor = { 0.5f, 0.2f, 0.2f };
+	glm::vec3 ambientLight = { 0.2f, 0.2f, 0.2f };
+
+	float ambientReflection = 0.2f; // ka
+	float diffuse = 0.7f; // kd
+	float specular = 0.5f; // ks
+	float specular_brightness = 32.0f; // n
+	glm::vec3 baseColor = { meshTeste.GetColor().x, meshTeste.GetColor().y, meshTeste.GetColor().z };
+
 	for (face& currentFace : meshTeste.GetFaces()) {
+		// Backface culling
+		glm::vec4 meshNormal4 = {meshNormals[currentFace.normal].x, meshNormals[currentFace.normal].y, meshNormals[currentFace.normal].z, 0.0f} ;
+		meshNormal4 = meshTeste.GetTransformMatrix() * meshNormal4;
+		glm::vec3 meshNormal = { meshNormal4.x, meshNormal4.y, meshNormal4.z };
+		meshNormal = glm::normalize(meshNormal);
+
+		if (glm::dot(meshNormal, { 0.0f, 0.0f, 1.0f}) >= 0) {
+			continue;
+		}
+
 		minMaxFace = { 10000.0f, -1.0f };
 		currentVertices.clear();
+		glm::vec3 verticesSum = { 0.0f, 0.0f, 0.0f };
 
 		for (int i : currentFace.vertices) {
 			currentVertices.push_back(allVertices[i]);
+			verticesSum += allVertices[i];
+
 			if (allVertices[i].y > minMaxFace.y) {
 				minMaxFace.y = allVertices[i].y;
 			}
@@ -117,16 +144,34 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 				minMaxFace.x = allVertices[i].y;
 			}
 		}
-		///* choose the color for the frame we will draw. The sine wave trick makes it fade between colors smoothly. */
-		//const float red = (float)glm::linearRand(0.1, 1.0);
-		//const float green = (float)glm::linearRand(0.1, 1.0);
-		//const float blue = (float)glm::linearRand(0.1, 1.0);
-		//SDL_SetRenderDrawColorFloat(renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
+
+		// Calcular iluminação constante
+		if (true) {
+			glm::vec3 centroide = verticesSum / (float)currentVertices.size();
+			
+			glm::vec3 lightVector = solPos - centroide;
+			lightVector = glm::normalize(lightVector);
+
+			// se o culling funcionar com >= 0 aqui deve ser z = -1, se não z = 1
+			glm::vec3 observerVector = { 0.0f, 0.0f, -1.0f };
+
+			glm::vec3 ambientResult = ambientLight * ambientReflection * baseColor;
+			float diffuseScalar = (glm::max(glm::dot(meshNormal, lightVector), 0.0f));
+			glm::vec3 diffuseResult = diffuseScalar * solIntensity * diffuse * baseColor;
+			glm::vec3 specularResult = { 0.0f, 0.0f, 0.0f };
+			if (diffuseScalar > 0.0f) {
+				glm::vec3 specularR = glm::reflect(-lightVector, meshNormal);
+				specularResult = glm::pow(glm::max(glm::dot(specularR, observerVector), 0.0f), specular_brightness) * solIntensity * specular;
+			}
+			glm::vec3 resultColor = glm::clamp(ambientResult + diffuseResult + specularResult, 0.0f, 1.0f);
+			DrawColor = LeandroColor(resultColor.x, resultColor.y, resultColor.z, 1.0f);
+		}
 
 		if (meshTeste.GetFill()) {
 			FillPoly(currentVertices, minMaxFace);
 		}
 		if (meshTeste.GetOutline()) {
+			DrawColor = LeandroColor(1.0f, 1.0f, 0.0f, 1.0f);
 			Draw3DLinesWithVertices(currentVertices);
 		}
 	}
@@ -228,7 +273,7 @@ void Renderer3D::FillPoly(const std::vector<glm::vec3>& vertices, glm::vec2 minM
 			for (int x = lista[i]; x < lista[i + 1]; x++) {
 				if (x <= 0 || x >= MainWindow->Width) { continue; }
 				if (y <= 0 || y >= MainWindow->Height) { continue; }
-				Buffer->at(y * MainWindow->Width + x) = LeandroColor(0.2f, 0.2f, 0.8, 1.0);
+				Buffer->at(y * MainWindow->Width + x) = DrawColor;
 			}
 			//SDL_RenderLine(renderer, lista[i], (float)y, lista[i + 1], (float)y);
 		}

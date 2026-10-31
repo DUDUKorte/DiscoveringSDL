@@ -14,6 +14,17 @@
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
 
+// Pra usar o bglh de carregar o .obj
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <commdlg.h>
+#endif
+
+#include <filesystem>
+
 EditorApp::EditorApp()
 {
 }
@@ -467,6 +478,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			const float green = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 2 / 3));
 			const float blue = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 4 / 3));
 			SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
+			Renderer3D::DrawColor = LeandroColor(red, green, blue, 1.0f);
 		}
 
 		if (m->GetType() == MeshTypes::Type3D) {
@@ -610,6 +622,29 @@ void EditorApp::RenderUI()
 			LE_TRACE("SubMesh: " + mesh_name + " Created!");
 		}
 		LE_ERROR("You Cannot create a SubMesh!");
+	}
+
+	if (ImGui::Button("Import .OBJ")) {
+		std::string selectedPath = OpenObjFileDialog(m_WindowProperties.Window);
+
+		if (!selectedPath.empty()) {
+			std::string meshName = std::filesystem::path(selectedPath).stem().string();
+
+			Mesh* importedMesh = new Mesh(meshName);
+
+			LoadObjFile(selectedPath, importedMesh);
+
+			importedMesh->GetTransform().Position = { GetWidth() / 2.0f, GetHeight() / 2.0f, 0.0f };
+			importedMesh->GetTransform().Scale = { 100.0f, 100.0f, 100.0f };
+			importedMesh->MarkDirty();
+
+			m_GlobalMeshes.push_back(importedMesh);
+			m_CurrentMesh = (int)m_GlobalMeshes.size() - 1;
+			m_CurrentSubMesh = -1;
+
+			OnChangeMode(MovePoly);
+			LE_CORE_INFO("OBJ importado com sucesso: " + selectedPath);
+		}
 	}
 
 	ImGui::SeparatorText("Custom Mesh");
@@ -862,6 +897,7 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 
 	std::string line;
 
+	LE_CORE_INFO("Loading obj...");
 	while (std::getline(file, line))
 	{
 		std::stringstream sstream(line);
@@ -874,12 +910,12 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 			if ("mtlib" == prefix)
 			{
 				// Carregar mtlib
-				LE_CORE_TRACE("LOAD MTLIB");
+				//LE_CORE_TRACE("LOAD MTLIB");
 			}
 			else if ("v" == prefix)
 			{
 				// vértices
-				LE_CORE_TRACE("LOAD VERTICES");
+				//LE_CORE_TRACE("LOAD VERTICES");
 				// pegar os vértices
 				glm::vec3 loadedVertex;
 				sstream >> loadedVertex.x >> loadedVertex.y >> loadedVertex.z;
@@ -890,31 +926,34 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 			else if ("vn" == prefix)
 			{
 				// normals
-				LE_CORE_TRACE("LOAD NORMALS");
+				//LE_CORE_TRACE("LOAD NORMALS");
+				glm::vec3 loadedNormal;
+				sstream >> loadedNormal.x >> loadedNormal.y >> loadedNormal.z;
 
+				mesh->addNormal(loadedNormal);
 			}
 			else if ("vt" == prefix)
 			{
 				// texture coordenadas
-				LE_CORE_TRACE("LOAD TEXTURE COORDS");
+				//LE_CORE_TRACE("LOAD TEXTURE COORDS");
 
 			}
 			else if ("usemtl" == prefix)
 			{
-				LE_CORE_TRACE("USE MTL");
+				//LE_CORE_TRACE("USE MTL");
 
 			}
 			else if ("f" == prefix)
 			{
-				// Faces
-				LE_CORE_TRACE("LOAD FACES");
 				std::string indexGroup;
-				std::vector<int> facesIndices = {};
+				std::vector<int> facesVertexIndices = {};
+				int faceNormalIndice = -1;
 
 				while (sstream >> indexGroup)
 				{
 					std::vector<std::string> indices = split(indexGroup, '/');
-					facesIndices.push_back(std::stoi(indices[0]) - 1);
+					facesVertexIndices.push_back(std::stoi(indices[0]) - 1);
+					faceNormalIndice = std::stoi(indices[2]) - 1;
 
 					if (1 == indices.size())
 					{
@@ -934,7 +973,7 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 					}
 				}
 
-				mesh->addFace(facesIndices);
+				mesh->addFace(facesVertexIndices, faceNormalIndice);
 
 			}
 			else
@@ -947,6 +986,30 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 	file.close();
 
 	// CARREGANDO UM ARQUIVO OBJ
+}
+
+std::string EditorApp::OpenObjFileDialog(SDL_Window* window)
+{
+#ifdef _WIN32
+	char filePath[MAX_PATH] = { 0 };
+
+	OPENFILENAMEA ofn;
+	ZeroMemory(&ofn, sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = nullptr;
+	ofn.lpstrFile = filePath;
+	ofn.nMaxFile = sizeof(filePath);
+	// Filtro: Nome exibido \0 Extensão \0
+	ofn.lpstrFilter = "Wavefront OBJ (*.obj)\0*.obj\0Todos os Arquivos (*.*)\0*.*\0";
+	ofn.nFilterIndex = 1;
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+
+	if (GetOpenFileNameA(&ofn) == TRUE)
+	{
+		return std::string(ofn.lpstrFile);
+	}
+#endif
+	return ""; // se cancelar
 }
 
 ///////////////////////////////////////////////////////////

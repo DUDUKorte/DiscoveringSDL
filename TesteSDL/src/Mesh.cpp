@@ -60,9 +60,15 @@ void Mesh::addVertex(glm::vec3 newVertex){
 	m_IsDirty = true;
 }
 
-void Mesh::addFace(std::vector<int> faceIndices)
+void Mesh::addFace(std::vector<int> vertexIndices, int normalIndice)
 {
-	if (faceIndices.empty()) { return; }
+	if (vertexIndices.empty()) { return; }
 
-	m_Faces.push_back({faceIndices});
+	m_Faces.push_back({ vertexIndices, normalIndice });
+}
+
+void Mesh::addNormal(glm::vec3 newNormal)
+{
+	m_Normals.push_back(newNormal);
+	// talvez calcular o normal central aqui? n sei se precisa
 }

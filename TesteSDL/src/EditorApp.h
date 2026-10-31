@@ -51,6 +51,7 @@ private:
 	void OnDestroySelectedMesh();
 
 	void LoadObjFile(std::string path, Mesh* mesh);
+	std::string OpenObjFileDialog(SDL_Window* window);
 
 	// flappy pipe
 	void EventBeginPlay();
