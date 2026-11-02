@@ -1,6 +1,6 @@
 #include "PointLight.h"
 
-PointLightL::PointLightL(std::string name) : MeshLight(name)
+PointLight::PointLight(std::string name) : MeshLight(name)
 {
 	GetObj() = "./Assets/sphere.obj";
 
@@ -13,17 +13,18 @@ PointLightL::PointLightL(std::string name) : MeshLight(name)
 	GetLightColor() = { 1.0f, 0.8f, 0.5f }; // cor branca
 	GetLightIntensity() = 3.0f;
 	GetMaxDistance() = 600.0f;
+	GetLightType() = LightType::SceneLight;
 
 	m_StartPos = GetTransform().Position;
 	m_EndPos = { 100.0f, 230.0f, -500.f };
 }
 
-PointLightL::~PointLightL()
+PointLight::~PointLight()
 {
 
 }
 
-void PointLightL::BeginPlay()
+void PointLight::BeginPlay()
 {
 	m_Speed = 0.0005f;
 	m_Time = 0.0f;
@@ -31,7 +32,7 @@ void PointLightL::BeginPlay()
 	SetVelocity({ -0.1f, 0.0f, 0.0f });
 }
 
-void PointLightL::EventTick(float deltaTime)
+void PointLight::EventTick(float deltaTime)
 {
 	//LE_INFO("TICK CHAMADO ; VELOCITY: " + std::to_string(Velocity().x) + ", " + std::to_string(Velocity().y) + ", " + std::to_string(Velocity().z));
 	//m_Time += deltaTime * m_Speed;
@@ -50,7 +51,7 @@ void PointLightL::EventTick(float deltaTime)
 	MarkDirty();
 }
 
-void PointLightL::EventInput(SDL_Event* event)
+void PointLight::EventInput(SDL_Event* event)
 {
 
 }

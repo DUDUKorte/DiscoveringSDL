@@ -23,5 +23,5 @@ private:
 	glm::vec3 m_StartPos;
 	glm::vec3 m_EndPos;
 
-	PointLightL* myLight = nullptr;
+	PointLight* myLight = nullptr;
 };

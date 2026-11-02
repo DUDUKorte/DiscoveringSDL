@@ -50,6 +50,15 @@ void TRex::EventTick(float deltaTime)
 	Score += 0.01f * deltaTime;
 	m_Time += m_Speed * deltaTime;
 
+	// Ataque do trex
+	if (isAttacking) {
+		GetTransform().Rotation.y = glm::mix(GetTransform().Rotation.y, m_EndRot.y, glm::clamp(0.01f * deltaTime, 0.0f, 1.0f));
+		if (glm::epsilonEqual(GetTransform().Rotation.y, m_EndRot.y, 0.1f)){
+			GetTransform().Rotation.y = m_EndRot.y;
+			isAttacking = false;
+		}
+	}
+
 	// Verifica se está no chão
 	isGrounded = GetTransform().Position.y >= m_StartPos.y;
 	if (isGrounded) {
@@ -96,12 +105,18 @@ void TRex::EventTick(float deltaTime)
 
 void TRex::EventInput(SDL_Event* event)
 {
-	if (event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP) {
+	if (event->type == SDL_EVENT_KEY_DOWN) {
 		SDL_KeyboardEvent e = event->key;
-		if (e.key == SDLK_P && e.down) {
+		if (e.key == SDLK_P) {
 			EditorApp::Get()->PlaySound("./Assets/Test2.wav");
 		}
+
+		if (e.key == SDLK_F && !e.repeat && !isAttacking) {
+			isAttacking = true;
+			m_EndRot = GetTransform().Rotation + glm::vec3({0.0f, glm::radians(360.0f), 0.0f});
+		}
 	}
+
 	// gamepad connection
 	if ((event->type == SDL_EVENT_GAMEPAD_ADDED || event->type == SDL_EVENT_GAMEPAD_AXIS_MOTION || event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) && !gamepad) {
 		SDL_GamepadButtonEvent e = event->gbutton;

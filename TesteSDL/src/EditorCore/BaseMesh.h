@@ -63,7 +63,7 @@ public:
 	inline bool& GetInputEnabled() { return m_InputEnabled; }
 	inline glm::vec3& GetVelocity() { return m_Velocity; }
 	inline bool& GetShouldDestroy() { return m_ShouldDestroy; }
-	inline MeshTypes GetType() { return meshType; }
+	inline MeshTypes& GetType() { return meshType; }
 	inline glm::vec2& GetMinMax() { return m_MinMaxY; }
 	inline MeshMaterial& GetMaterial() { return m_Material; }
 	inline std::string& GetObj() { return meshObjPath; }

@@ -21,7 +21,7 @@ Cactus::Cactus(std::string name) : Mesh(name)
 
 	// Criar uma point light com uma chance
 	if (glm::linearRand(0.0f, 1.0f) <= 0.3) {
-		myLight = new PointLightL();
+		myLight = new PointLight();
 		myLight->GetTransform().Position = GetTransform().Position;
 		myLight->GetTransform().Position += glm::vec3({0.0f, -15.0f, 0.0f});
 

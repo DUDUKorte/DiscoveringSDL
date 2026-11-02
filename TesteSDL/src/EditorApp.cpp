@@ -148,6 +148,13 @@ void EditorApp::Shutdown()
 	ImGui_ImplSDL3_Shutdown();
 	ImGui::DestroyContext();
 
+	if (m_MusicStream) {
+		SDL_DestroyAudioStream(m_MusicStream);
+	}
+	if (m_WavBuffer) {
+		SDL_free(m_WavBuffer);
+	}
+
 	SDL_DestroyRenderer(m_WindowProperties.Renderer);
 	SDL_DestroyWindow(m_WindowProperties.Window);
 	SDL_Quit();

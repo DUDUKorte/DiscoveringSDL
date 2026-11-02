@@ -5,10 +5,10 @@
 #include <EditorCore/MeshLight.h>
 #include <Utils/CoreEditor.h>
 
-class PointLightL : public MeshLight {
+class PointLight : public MeshLight {
 public:
-	PointLightL(std::string name = "Poinbt Light");
-	~PointLightL();
+	PointLight(std::string name = "Poinbt Light");
+	~PointLight();
 
 	virtual void BeginPlay();
 	virtual void EventTick(float deltaTime);

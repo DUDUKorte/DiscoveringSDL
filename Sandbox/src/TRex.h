@@ -24,6 +24,7 @@ private:
 
 	glm::vec3 m_StartPos;
 	glm::vec3 m_EndPos;
+	glm::vec3 m_EndRot;
 
 	int Direction = 0;
 	float Speed = 0.5f;
@@ -40,6 +41,7 @@ private:
 	bool canJump = true;
 	bool isGrounded = false;
 	bool wasJumpPressed = false;
+	bool isAttacking = false;
 	
 	SDL_Gamepad* gamepad = nullptr;
 };

@@ -53,22 +53,33 @@ void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
 		return;
 	}
 
+
 	float xInc = dX / steps;
 	float yInc = dY / steps;
+	float zInc = (target.z - source.z) / dX;
 
 	float new_x = source.x;
 	float new_y = source.y;
 
+	float currentZ = source.z;
+	int xStart = (int)std::ceil(source.x);
+	currentZ += ((float)xStart - source.x) * (dX > 0.0001f ? zInc : 1.0f);
+	
 	for (int i = 0; i <= steps; i++) {   // <= inclui o ponto final
 		int px = (int)std::lround(new_x);
 		int py = (int)std::lround(new_y);
+		int pz = (int)std::lround(currentZ);
 
 		if (px >= 0 && px < width && py >= 0 && py < height) {
-			Buffer->at(py * MainWindow->Width + px) = DrawColor;
+			if (pz < ZBuffer->at(py * MainWindow->Width + px)) {
+				Buffer->at(py * MainWindow->Width + px) = DrawColor;
+				ZBuffer->at(py * MainWindow->Width + px) = currentZ;
+			}
 		}
 
 		new_x += xInc;
 		new_y += yInc;
+		currentZ += (dX > 0.0001f ? zInc : 0.0f);
 	}
 
 	//int ymin = (int)source.y;
@@ -108,7 +119,7 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 
 	// Luzes pra testar a iluminação
 	// TODO: Criar objetos de luz pra modificar na cena
-	
+
 
 	for (face& currentFace : meshTeste.GetFaces()) {
 		// Backface culling
@@ -134,7 +145,7 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 				float zc = glm::max(vertMundo.z, 100.0f);
 
 				verticeTela.x = ((vertMundo.x - MainWindow->Width * 0.5f) / zc) * 800.0f + (MainWindow->Width * 0.5f);
-				verticeTela.y = ((vertMundo.y - MainWindow->Width * 0.5f) / zc) * 800.0f + (MainWindow->Height* 0.5f);
+				verticeTela.y = ((vertMundo.y - MainWindow->Width * 0.5f) / zc) * 800.0f + (MainWindow->Height * 0.5f);
 				verticeTela.z = -(1.0f / zc);
 			}
 
@@ -157,7 +168,7 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 
 		// Calcular iluminação constante
 		if (meshTeste.GetAfectedByLights()) {
-			
+
 
 			MeshMaterial& currentMaterial = meshTeste.GetMaterial();
 
@@ -171,22 +182,22 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 			glm::vec3 observerVector = { 0.0f, 0.0f, -1.0f };
 
 			glm::vec3 ambientResult = AmbientLight * ambientReflection * baseColor;
-			glm::vec3 diffuseResult = {0.0f, 0.0f, 0.0f};
+			glm::vec3 diffuseResult = { 0.0f, 0.0f, 0.0f };
 			glm::vec3 specularResult = { 0.0f, 0.0f, 0.0f };
 
 			for (MeshLight* light : *SceneLights) {
-				if (glm::distance(centroide, light->GetTransform().Position) > light->GetMaxDistance()) {
+				if (light->GetLightType() != LightType::DirectionalLight && glm::distance(centroide, light->GetTransform().Position) > light->GetMaxDistance()) {
 					continue;
 				}
 				glm::vec3 lightPos = light->GetTransform().Position;
 				glm::vec3 lightIntensity = light->GetLightColor() * light->GetLightIntensity();
-				
+
 				glm::vec3 lightVector = lightPos - centroide;
 				lightVector = glm::normalize(lightVector);
-				
+
 				float diffuseScalar = (glm::max(glm::dot(meshNormal, lightVector), 0.0f));
 				diffuseResult += diffuseScalar * lightIntensity * diffuse * baseColor;
-				
+
 				if (diffuseScalar > 0.0f) {
 					glm::vec3 specularR = glm::reflect(-lightVector, meshNormal);
 					specularResult += glm::pow(glm::max(glm::dot(specularR, observerVector), 0.0f), specular_brightness) * lightIntensity * specular;
@@ -208,6 +219,12 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 			Draw3DLinesWithVertices(currentVertices);
 		}
 	}
+
+	// Aqui iria renderizar as meshes filhas
+	// algo assim sla:
+	//	for(Mesh* submesh : meshTeste->GetSubmeshes(){
+	//		DrawMesh(submesh);
+	//	}
 }
 
 void Renderer3D::FindIntersections(const std::vector<glm::vec3>& vertices, glm::vec2 yMinMax)
@@ -304,31 +321,7 @@ void Renderer3D::FillPoly(const std::vector<glm::vec3>& vertices, glm::vec2 minM
 		std::vector<std::pair<float, float>>& lista = intersecoes[y];
 
 		for (int i = 0; i + 1 < lista.size(); i += 2) {
-			//if (i + 1 < lista.size()) {
-			//	SDL_RenderPoint(renderer, (int)lista[i].x, y);
-			//	SDL_RenderPoint(renderer, (int)lista[i + 1].x, y);
-			//}
-
-			float dx = lista[i + 1].first - lista[i].first;
-			float Tz = (lista[i + 1].second - lista[i].second) / dx;
-
-			float currentZ = lista[i].second;
-
-			int xStart = (int)std::ceil(lista[i].first);
-			int xEnd = (int)std::ceil(lista[i + 1].first);
-
-			currentZ += ((float)xStart - lista[i].first) * (dx > 0.0001f ? Tz : 1.0f);
-			// utilizando o buffer
-			for (int x = xStart; x < xEnd; x++) {
-				if (x <= 0 || x >= MainWindow->Width) { continue; }
-				if (y <= 0 || y >= MainWindow->Height) { continue; }
-				if (currentZ < ZBuffer->at(y * MainWindow->Width + x)) {
-					Buffer->at(y * MainWindow->Width + x) = DrawColor;
-					ZBuffer->at(y * MainWindow->Width + x) = currentZ;
-				}
-				currentZ += (dx > 0.0001f ? Tz : 0.0f);
-			}
-			//SDL_RenderLine(renderer, lista[i], (float)y, lista[i + 1], (float)y);
+			DrawLine({lista[i].first, y, lista[i].second}, {lista[i+1].first, y, lista[i].second});
 		}
 		intersecoes[y].clear();
 	}
