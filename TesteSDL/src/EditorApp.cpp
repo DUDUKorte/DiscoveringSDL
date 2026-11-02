@@ -501,8 +501,8 @@ SDL_AppResult EditorApp::UpdateAndRender()
 		
 		// Verifica se tusa fill color e seta a cor
 		if (m->IsActive()) {
-			ImVec4 color = m->GetColor();
-			SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
+			//ImVec4 color = m->GetColor();
+			//SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
 		}
 		else{
 			const double now = ((double)SDL_GetTicks() * 0.001);  /* convert from milliseconds to seconds. */
@@ -755,7 +755,7 @@ void EditorApp::RenderUI()
 	}
 	
 	ImGui::SeparatorText("Game Options");
-	if (ImGui::Button("PLAY!")) {
+	if (ImGui::Button("PLAY!") && !m_GameStarted) {
 		LE_TRACE("Thank you for playing!");
 		EventBeginPlay();
 	}

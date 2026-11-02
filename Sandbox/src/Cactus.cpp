@@ -6,7 +6,7 @@ Cactus::Cactus(std::string name) : Mesh(name)
 
 	GetTickEnabled() = true;
 	// configurações do nosso sol
-	GetColor() = { 0.2f, 0.9f, 0.2f, 1.0f }; // amarello
+	GetColor() = { 0.2f, 0.9f, 0.2f }; // amarello
 	GetTransform().Position = { 640.0f, 481.0f, 0.0f }; // essa posição ficou massa
 	GetTransform().Scale = { 280.0f, 280.0f, 280.0f }; // por algm motivo tudo é minúsculo aqui
 	GetTransform().Rotation = { 0.0f, 0.0f, glm::radians(180.0f) };

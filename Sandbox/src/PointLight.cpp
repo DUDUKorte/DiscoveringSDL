@@ -6,7 +6,7 @@ PointLight::PointLight(std::string name) : MeshLight(name)
 
 	GetTickEnabled() = true;
 	// configurações do nosso sol
-	GetColor() = { 0.9f, 0.7f, 0.5f, 1.0f }; // amarello
+	GetColor() = { 0.9f, 0.7f, 0.5f }; // amarello
 	//GetTransform().Position = { 1000.0f, 200.0f, 1000.0f }; // essa posição ficou massa
 	GetTransform().Scale = { 5.0f, 5.0f, 5.0f }; // por algm motivo tudo é minúsculo aqui
 

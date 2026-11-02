@@ -92,11 +92,11 @@ namespace Renderer2D {
 			std::vector<glm::vec3> sub_vertices = submesh->GetVertices();
 			if (sub_vertices.size() < 3) { continue; }
 			if (submesh->IsActive()) {
-				ImVec4 old_color = mesh->GetColor();
-				ImVec4 submesh_color = submesh->GetColor();
-				SDL_SetRenderDrawColorFloat(renderer, submesh_color.x, submesh_color.y, submesh_color.z, SDL_ALPHA_OPAQUE_FLOAT);
-				FillPoly(renderer, submesh, yMax - yMin + 1);
-				SDL_SetRenderDrawColorFloat(renderer, old_color.x, old_color.y, old_color.z, SDL_ALPHA_OPAQUE_FLOAT);
+				//ImVec4 old_color = mesh->GetColor();
+				//ImVec4 submesh_color = submesh->GetColor();
+				//SDL_SetRenderDrawColorFloat(renderer, submesh_color.x, submesh_color.y, submesh_color.z, SDL_ALPHA_OPAQUE_FLOAT);
+				//FillPoly(renderer, submesh, yMax - yMin + 1);
+				//SDL_SetRenderDrawColorFloat(renderer, old_color.x, old_color.y, old_color.z, SDL_ALPHA_OPAQUE_FLOAT);
 			}
 			FindIntersections(sub_vertices, intersecoes, yMax - yMin + 1, mesh->GetMinMax());
 		}

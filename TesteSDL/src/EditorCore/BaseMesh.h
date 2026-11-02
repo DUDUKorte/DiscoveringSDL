@@ -13,6 +13,7 @@ struct MeshMaterial {
 	float diffuse = 0.7f; // kd
 	float specular = 0.5f; // ks
 	float specular_brightness = 32.0f; // n
+	glm::vec3 baseColor = { 0.2f, 0.2f, 0.2f };
 };
 
 struct Transform {
@@ -56,7 +57,7 @@ public:
 	inline bool& GetOutline() { return m_Outline; }
 	inline bool& IsClosed() { return m_Closed; }
 	inline bool& GetGravity() { return m_Gravity; }
-	inline ImVec4& GetColor() { return m_Color; }
+	inline glm::vec3& GetColor() { return m_Material.baseColor; }
 	inline ImVec4& GetOutlineColor() { return m_OutlineColor; }
 	inline std::string& GetName() { return m_Name; }
 	inline bool& GetTickEnabled() { return m_TickEnabled; }

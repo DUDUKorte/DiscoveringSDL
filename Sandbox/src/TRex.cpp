@@ -7,7 +7,7 @@ TRex::TRex(std::string name) : Mesh(name)
 	GetTickEnabled() = true;
 	GetInputEnabled() = true;
 	// configurações do nosso sol
-	GetColor() = { 0.4f, 0.4f, 0.4f, 1.0f }; // cinza
+	GetColor() = { 0.4f, 0.4f, 0.4f }; // cinza
 	GetTransform().Position = { 240.0f, 484.0f, 920.0f }; // essa posição ficou massa
 	GetTransform().Scale = { 30.0f, 30.0f, 30.0f }; // por algm motivo tudo é minúsculo aqui
 	GetTransform().Rotation = { glm::radians(20.0f), glm::radians(190.0f), glm::radians(180.0f) };

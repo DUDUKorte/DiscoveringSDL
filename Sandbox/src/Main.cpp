@@ -23,7 +23,7 @@ public:
 		GetEditor()->GetBGColor() = {0.3f, 0.8f, 0.9f};
 
 		Mesh* cubo = new Mesh("Cubin");
-		cubo->GetColor() = { 1.0f, 0.7f, 0.5f, 1.0f };
+		cubo->GetColor() = { 1.0f, 0.7f, 0.5f };
 		cubo->GetTransform().Position = { 640.0f, 620.0f, 1000.0f };
 		cubo->GetTransform().Scale = { 800.0f, 100.0f, 350.0f };
 		cubo->GetTransform().Rotation = { -25.0f, 0.0f, 0.0f };

@@ -168,47 +168,16 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 
 		// Calcular iluminação constante
 		if (meshTeste.GetAfectedByLights()) {
+			glm::vec3 resultColor;
 
-
-			MeshMaterial& currentMaterial = meshTeste.GetMaterial();
-
-			float ambientReflection = currentMaterial.ambientReflection;
-			float diffuse = currentMaterial.diffuse;
-			float specular = currentMaterial.specular;
-			float specular_brightness = currentMaterial.specular_brightness;
-			glm::vec3 baseColor = { meshTeste.GetColor().x, meshTeste.GetColor().y, meshTeste.GetColor().z };
-
-			// se o culling funcionar com >= 0 aqui deve ser z = -1, se não z = 1
-			glm::vec3 observerVector = { 0.0f, 0.0f, -1.0f };
-
-			glm::vec3 ambientResult = AmbientLight * ambientReflection * baseColor;
-			glm::vec3 diffuseResult = { 0.0f, 0.0f, 0.0f };
-			glm::vec3 specularResult = { 0.0f, 0.0f, 0.0f };
-
-			for (MeshLight* light : *SceneLights) {
-				if (light->GetLightType() != LightType::DirectionalLight && glm::distance(centroide, light->GetTransform().Position) > light->GetMaxDistance()) {
-					continue;
-				}
-				glm::vec3 lightPos = light->GetTransform().Position;
-				glm::vec3 lightIntensity = light->GetLightColor() * light->GetLightIntensity();
-
-				glm::vec3 lightVector = lightPos - centroide;
-				lightVector = glm::normalize(lightVector);
-
-				float diffuseScalar = (glm::max(glm::dot(meshNormal, lightVector), 0.0f));
-				diffuseResult += diffuseScalar * lightIntensity * diffuse * baseColor;
-
-				if (diffuseScalar > 0.0f) {
-					glm::vec3 specularR = glm::reflect(-lightVector, meshNormal);
-					specularResult += glm::pow(glm::max(glm::dot(specularR, observerVector), 0.0f), specular_brightness) * lightIntensity * specular;
-				}
+			if (meshTeste.GetLightAlgorithm() == LightAlgorithm::Constant) {
+				resultColor = CalculateConstantLightning(meshNormal, centroide, meshTeste.GetMaterial());
 			}
 
-			glm::vec3 resultColor = glm::clamp(ambientResult + diffuseResult + specularResult, 0.0f, 1.0f);
 			DrawColor = LeandroColor(resultColor.x, resultColor.y, resultColor.z, 1.0f);
 		}
 		else {
-			DrawColor = LeandroColor(meshTeste.GetColor().x, meshTeste.GetColor().y, meshTeste.GetColor().z, meshTeste.GetColor().w);
+			DrawColor = LeandroColor(meshTeste.GetColor().x, meshTeste.GetColor().y, meshTeste.GetColor().z, 1.0f);
 		}
 
 		if (meshTeste.GetFill()) {
@@ -225,6 +194,49 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 	//	for(Mesh* submesh : meshTeste->GetSubmeshes(){
 	//		DrawMesh(submesh);
 	//	}
+}
+
+glm::vec3 Renderer3D::CalculateConstantLightning(glm::vec3 normal, glm::vec3 centroide, MeshMaterial& material)
+{
+	MeshMaterial& currentMaterial = material;
+
+	float ambientReflection = currentMaterial.ambientReflection;
+	float diffuse = currentMaterial.diffuse;
+	float specular = currentMaterial.specular;
+	float specular_brightness = currentMaterial.specular_brightness;
+	glm::vec3 baseColor = material.baseColor;
+
+	// se o culling funcionar com >= 0 aqui deve ser z = -1, se não z = 1
+	glm::vec3 observerVector = { 0.0f, 0.0f, -1.0f };
+
+	glm::vec3 ambientResult = AmbientLight * ambientReflection * baseColor;
+	glm::vec3 diffuseResult = { 0.0f, 0.0f, 0.0f };
+	glm::vec3 specularResult = { 0.0f, 0.0f, 0.0f };
+	float fatAtenuacao = 1.0f;
+
+	for (MeshLight* light : *SceneLights) {
+		float lightDistance = glm::distance(centroide, light->GetTransform().Position);
+
+		if (light->GetLightType() != LightType::DirectionalLight) {
+			fatAtenuacao = glm::min(1.0f / glm::pow(lightDistance, 2.0f), 1.0f);
+			if (lightDistance > light->GetMaxDistance()) { continue; }
+		}
+		glm::vec3 lightPos = light->GetTransform().Position;
+		glm::vec3 lightIntensity = light->GetLightColor() * light->GetLightIntensity();
+
+		glm::vec3 lightVector = lightPos - centroide;
+		lightVector = glm::normalize(lightVector);
+
+		float diffuseScalar = (glm::max(glm::dot(normal, lightVector), 0.0f));
+		diffuseResult += diffuseScalar * lightIntensity * diffuse * baseColor * fatAtenuacao;
+
+		if (diffuseScalar > 0.0f) {
+			glm::vec3 specularR = glm::reflect(-lightVector, normal);
+			specularResult += glm::pow(glm::max(glm::dot(specularR, observerVector), 0.0f), specular_brightness) * lightIntensity * specular;
+		}
+	}
+
+	return glm::clamp(ambientResult + diffuseResult + specularResult, 0.0f, 1.0f);
 }
 
 void Renderer3D::FindIntersections(const std::vector<glm::vec3>& vertices, glm::vec2 yMinMax)

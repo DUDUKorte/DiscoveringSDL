@@ -26,9 +26,12 @@ public:
 
 	static void DrawMesh(Mesh& meshTeste);
 
+	static glm::vec3 CalculateConstantLightning(glm::vec3 normal, glm::vec3 centroide, MeshMaterial& material);
+
 	static void FindIntersections(const std::vector<glm::vec3>& vertices, glm::vec2 yMinMax);
 
 	static void FillPoly(const std::vector<glm::vec3>& vertices, glm::vec2 minMaxY);
+
 
 	static std::vector<uint32_t>* Buffer;
 	static std::vector<float>* ZBuffer;
