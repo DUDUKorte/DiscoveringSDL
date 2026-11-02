@@ -83,7 +83,7 @@ void TRex::EventTick(float deltaTime)
 	
 	if (GetTransform().Position.y + Velocity().y > m_StartPos.y && !isGrounded) {
 		while (GetTransform().Position.y < m_StartPos.y) {
-			GetTransform().Position.y += 0.1f;
+			GetTransform().Position.y += 0.001f;
 		}
 
 		canJump = true;

@@ -860,6 +860,14 @@ void EditorApp::RenderUI()
 			ImGui::DragFloat("Specular", &selectedMeshConv->GetMaterial().specular, 0.001f, 0.0f, 1.0f);
 			ImGui::DragFloat("Specular Brightness", &selectedMeshConv->GetMaterial().specular_brightness, 0.1f, 0.0f, 128.0f);
 
+			ImGui::SeparatorText("Lightning");
+			const char* algorithms[] = {"Constant", "Gouraud", "Phong"};
+			int currentAlgo = static_cast<int>(Renderer3D::LightAlgorithm);
+
+			if (ImGui::Combo("Light Algorithm", &currentAlgo, algorithms, IM_ARRAYSIZE(algorithms))) {
+				Renderer3D::LightAlgorithm = static_cast<LightAlgorithms>(currentAlgo);
+			}
+
 			if (GetActiveMesh()->GetType() == MeshTypes::TypeLight) {
 				MeshLight* selectedLight = static_cast<MeshLight*>(GetActiveMesh());
 				ImGui::SeparatorText("Light Properties");
@@ -1045,6 +1053,25 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 	}
 
 	mesh->GetObj() = path;
+
+	// calcular os vertexNormals
+	mesh->GetVertexNormals() = std::vector<glm::vec3>(mesh->GetLocalVertices().size());
+	for (face& f : mesh->GetFaces()) {
+		glm::vec3 vertexA = mesh->GetLocalVertices()[f.vertices[0]];
+		glm::vec3 vertexB = mesh->GetLocalVertices()[f.vertices[1]];
+		glm::vec3 vertexC = mesh->GetLocalVertices()[f.vertices[2]];
+
+		glm::vec3 faceNormal = glm::normalize(glm::cross((vertexC - vertexA), (vertexB - vertexA)));
+		faceNormal = mesh->GetNormals()[f.normal];
+		for (int i : f.vertices) {
+			mesh->GetVertexNormals()[i] += faceNormal;
+		}
+	}
+	// normalizar os normais das vértices
+	for (glm::vec3& vn : mesh->GetVertexNormals()) {
+		if (glm::length(vn) <= 0) { continue; }
+		vn = glm::normalize(vn);
+	}
 
 	file.close();
 

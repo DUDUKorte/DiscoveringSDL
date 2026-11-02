@@ -13,6 +13,8 @@
 	((uint32_t) ((a) * 255.0f + 0.5f)))
 #endif
 
+enum LightAlgorithms { Constant = 0, Gouraud = 1, Phong };
+
 class Renderer3D {
 
 public:
@@ -22,15 +24,15 @@ public:
 
 	static void DrawLine(glm::vec3 source, glm::vec3 target);
 
-	static void Draw3DLinesWithVertices(const std::vector<glm::vec3>& vertices);
+	static void Draw3DLinesWithVertices(const std::vector<std::pair<glm::vec3, glm::vec3>>& vertices);
 
 	static void DrawMesh(Mesh& meshTeste);
 
 	static glm::vec3 CalculateConstantLightning(glm::vec3 normal, glm::vec3 centroide, MeshMaterial& material);
 
-	static void FindIntersections(const std::vector<glm::vec3>& vertices, glm::vec2 yMinMax);
+	static void FindIntersections(const std::vector<std::pair<glm::vec3, glm::vec3>>& vertices, glm::vec2 yMinMax);
 
-	static void FillPoly(const std::vector<glm::vec3>& vertices, glm::vec2 minMaxY);
+	static void FillPoly(const std::vector<std::pair<glm::vec3, glm::vec3>>& vertices, glm::vec2 minMaxY, bool interpolate = false, std::vector<glm::vec3>* verticesNormals = nullptr, MeshMaterial* meshMaterial = nullptr);
 
 
 	static std::vector<uint32_t>* Buffer;
@@ -38,6 +40,7 @@ public:
 	static std::vector<MeshLight*>* SceneLights;
 	static WindowProperties* MainWindow;
 	static uint32_t DrawColor;
-	static std::vector<std::vector<std::pair<float, float>>> intersecoes;
+	static std::vector<std::vector<std::pair<glm::vec3, glm::vec3>>> intersecoes;
 	static glm::vec3 AmbientLight;
+	static LightAlgorithms LightAlgorithm;
 };

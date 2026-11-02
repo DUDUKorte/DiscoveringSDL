@@ -10,8 +10,8 @@ PointLight::PointLight(std::string name) : MeshLight(name)
 	//GetTransform().Position = { 1000.0f, 200.0f, 1000.0f }; // essa posição ficou massa
 	GetTransform().Scale = { 5.0f, 5.0f, 5.0f }; // por algm motivo tudo é minúsculo aqui
 
-	GetLightColor() = { 1.0f, 0.8f, 0.5f }; // cor branca
-	GetLightIntensity() = 3.0f;
+	GetLightColor() = { 1.0f, 0.2f, 0.2f }; // cor branca
+	GetLightIntensity() = 1.0f;
 	GetMaxDistance() = 600.0f;
 	GetLightType() = LightType::SceneLight;
 
