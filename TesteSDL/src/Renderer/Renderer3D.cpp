@@ -46,6 +46,7 @@ void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
 	if (steps == 0) {
 		int x = (int)std::lround(source.x);
 		int y = (int)std::lround(source.y);
+		int z = (int)std::lround(source.z);
 		if (x >= 0 && x < width && y >= 0 && y < height) {
 			Buffer->at(y * MainWindow->Width + x) = DrawColor;
 		}

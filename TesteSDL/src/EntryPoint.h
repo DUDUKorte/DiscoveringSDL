@@ -31,8 +31,14 @@ inline SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
 }
 
 inline SDL_AppResult SDL_AppIterate(void* appstate) {
-	EditorApp* app = static_cast<LeandroApplication*>(appstate)->GetEditor();
+	LeandroApplication* LeandroApp = static_cast<LeandroApplication*>(appstate);
+	EditorApp* app = LeandroApp->GetEditor();
 	LE_CORE_ASSERT(app, "Falha ao resgatar appstate em AppIterate!");
+	
+	if (app->GetGameStarted()) {
+		LeandroApp->OnTick(app->GetDeltaTime());
+	}
+	
 	return app->UpdateAndRender();
 }
 

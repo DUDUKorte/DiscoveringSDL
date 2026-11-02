@@ -8,6 +8,9 @@
 #include "EditorCore/MeshLight.h"
 #include "EditorCore/Pipe.h"
 
+#include "imgui_impl_sdl3.h"
+#include "imgui_impl_sdlrenderer3.h"
+
 #ifndef LeandroColor
 #define LeandroColor(r, g, b, a) \
 	( ((uint32_t) ((r) * 255.0f + 0.5f) << 24) | \
@@ -38,12 +41,17 @@ public:
 
 	inline int GetWidth() { return m_WindowProperties.Width; }
 	inline int GetHeight() { return m_WindowProperties.Height; }
+	inline bool GetGameStarted() { return m_GameStarted; }
 	
 	inline static glm::vec3& GetBGColor() { return m_BgColor; }
 	inline static EditorApp* Get() { return m_Instance; }
+	inline static double GetDeltaTime() { return deltaTime; }
 
 	void LoadObjFile(std::string path, Mesh* mesh);
 	void SubmitMesh(BaseMesh* newMesh);
+	void PlaySound(const char* filepath);
+
+	bool GetIsKeyPressed(SDL_Scancode ScanCode);
 
 	// VARIÁVEL GLOBAL APENAS PARA TESTES
 	//Mesh* cubinho = new Mesh("cubinho");
@@ -79,7 +87,6 @@ private:
 	std::vector<uint32_t>* m_VertexBuffer = new std::vector<uint32_t>(m_WindowProperties.Width * m_WindowProperties.Height);
 	std::vector<float>* m_ZBuffer = new std::vector<float>(m_WindowProperties.Width * m_WindowProperties.Height);
 
-
 	// Estado do editor
 	EEditMode m_CurrentMode = Selection;
 	EGizmoState m_CurrentGizmoState = GIZMO_NONE;
@@ -99,7 +106,7 @@ private:
 	// Delta time
 	Uint64 new_deltaTime;
 	Uint64 old_deltaTime = 0;
-	double deltaTime = 0;
+	static double deltaTime;
 	double timeAcc = 0;
 
 	// Meshes
@@ -109,4 +116,9 @@ private:
 	int m_CurrentSubMesh = -1;
 	int m_CustomPolyFaces = 4;
 	int m_CustomPolySize = 10;
+
+	// Audio
+	SDL_AudioStream* m_MusicStream = nullptr;
+	Uint8* m_WavBuffer = nullptr;
+	Uint32 m_WavLength = 0;
 };

@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include <LeandroEditor.h>
+#include <imgui.h>
 
 #include "Sol.h"
 #include "Cactus.h"
@@ -41,10 +42,13 @@ public:
 
 		TRex* player = new TRex();
 		GetEditor()->SubmitMesh(player);
-
 	}
 
 	void OnEvent(SDL_Event* event) {
+
+	}
+
+	void OnTick(double deltaTime) {
 
 	}
 

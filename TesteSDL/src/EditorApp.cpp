@@ -11,9 +11,6 @@
 #include <algorithm>
 #include <complex>
 
-#include "imgui_impl_sdl3.h"
-#include "imgui_impl_sdlrenderer3.h"
-
 // Pra usar o bglh de carregar o .obj
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -27,6 +24,7 @@
 
 EditorApp* EditorApp::m_Instance = nullptr;
 glm::vec3 EditorApp::m_BgColor = {0.2f, 0.2f, 0.2f};
+double EditorApp::deltaTime = 0.0f;
 
 EditorApp::EditorApp()
 {
@@ -48,7 +46,7 @@ bool EditorApp::Init()
 {
 	/*IMGUI FUNCIONA PFV*/
 	LE_CORE_TRACE("Initializing SDL...");
-	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
+	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD | SDL_INIT_AUDIO))
 	{
 		printf("Error: SDL_Init(): %s\n", SDL_GetError());
 		return false;
@@ -1073,6 +1071,34 @@ void EditorApp::SubmitMesh(BaseMesh* newMesh)
 	}
 }
 
+void EditorApp::PlaySound(const char* filepath)
+{
+	SDL_AudioSpec spec;
+
+	if (!SDL_LoadWAV(filepath, &spec, &m_WavBuffer, &m_WavLength)) {
+		LE_CORE_ERROR("Falha ao carregar som %s", SDL_GetError());
+		return;
+	}
+
+	m_MusicStream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
+
+	if (!m_MusicStream) {
+		LE_CORE_ERROR("Falaha ao abrir stream de audio %s", SDL_GetError());
+		SDL_free(m_WavBuffer);
+		return;
+	}
+
+	SDL_ResumeAudioStreamDevice(m_MusicStream);
+	SDL_PutAudioStreamData(m_MusicStream, m_WavBuffer, m_WavLength);
+}
+
+bool EditorApp::GetIsKeyPressed(SDL_Scancode ScanCode)
+{
+	int numkeys = 0;
+	const bool* keystate = SDL_GetKeyboardState(&numkeys);
+	return keystate[ScanCode];
+}
+
 std::string EditorApp::OpenObjFileDialog(SDL_Window* window)
 {
 #ifdef _WIN32
@@ -1109,6 +1135,9 @@ void EditorApp::EventBeginPlay()
 	}
 	OnChangeMode(EEditMode::Selection);
 	m_GameStarted = true;
+
+	SDL_Event* BeginPlayEvent = new SDL_Event();
+	BeginPlayEvent->type = SDL_EVENT_FIRST;
 }
 
 std::vector<std::string> EditorApp::split(const std::string& str, char delim) {

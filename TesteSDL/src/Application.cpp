@@ -14,7 +14,3 @@ LeandroApplication::~LeandroApplication()
 
 }
 
-void LeandroApplication::OnEvent(SDL_Event* event)
-{
-	// Lógica de eventos da aplicação
-}

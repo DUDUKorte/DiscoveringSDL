@@ -1,6 +1,7 @@
 #pragma once
 #include <Utils/Log.h>
 #include <Utils/LeandroMath.h>
+#include <Utils/CoreEditor.h>
 #include <EditorCore/MeshLight.h>
 
 class TRex: public Mesh {
@@ -12,6 +13,9 @@ public:
 	virtual void EventTick(float deltaTime);
 	virtual void EventInput(SDL_Event* event);
 
+	int CalculateDirection();
+	int CalculateJump();
+
 private:
 	float m_Time;
 	float m_Speed;
@@ -21,11 +25,21 @@ private:
 	glm::vec3 m_StartPos;
 	glm::vec3 m_EndPos;
 
-	glm::vec3 moveAndSlide = { 0.0f, 0.0f, 0.0f };
-
 	int Direction = 0;
 	float Speed = 0.5f;
-	float Jump = 1.2f;
+	float Score = 0.0f;
+
+	float JumpForce = 0.001f;
+	float JumpImpulse = 1.2f;
+	float JumpMin = 1.2f;
+	float JumpAcc = 0.0f;
+
+	float MaxJumpHeight = 150.0f;
+	float LastYPos = -1.0f;
 
 	bool canJump = true;
+	bool isGrounded = false;
+	bool wasJumpPressed = false;
+	
+	SDL_Gamepad* gamepad = nullptr;
 };

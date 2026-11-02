@@ -26,6 +26,8 @@ TRex::~TRex()
 
 void TRex::BeginPlay()
 {
+	EditorApp::Get()->PlaySound("./Assets/Test.wav");
+
 	m_Speed = 0.005f;
 	m_Time = 0.0f;
 
@@ -35,43 +37,58 @@ void TRex::BeginPlay()
 
 	//GetTransform().Position.y = GetTransform().Position.y + glm::linearRand(-15.0f, 25.0f);
 
-	SetVelocity({ 0.0f, 0.01f, 0.0f });
+	SetVelocity({ 0.0f, 0.0f, 0.0f });
 }
 
 void TRex::EventTick(float deltaTime)
 {
+
+	ImGui::Begin("SCORE");
+	ImGui::Text((std::to_string(int(Score))).c_str());
+	ImGui::End();
+
+	Score += 0.01f * deltaTime;
 	m_Time += m_Speed * deltaTime;
-	//LE_INFO("TICK CHAMADO ; VELOCITY: " + std::to_string(Velocity().x) + ", " + std::to_string(Velocity().y) + ", " + std::to_string(Velocity().z));
-	//m_Time += deltaTime * m_Speed;
-	//float rawFactor = (glm::sin(m_Time) + 1.0f) * 0.5f;
-	//float smoothFactor = glm::smoothstep(0.0f, 1.0f, rawFactor);
 
-	//GetTransform().Position = glm::mix(m_StartPos, m_EndPos, smoothFactor);
-	//GetTransform().Position.y -= 80.0f * glm::sin(smoothFactor * glm::pi<float>());
-	//GetTransform().Position += Velocity() * deltaTime;
+	// Verifica se está no chão
+	isGrounded = GetTransform().Position.y >= m_StartPos.y;
+	if (isGrounded) {
+		Velocity().y = 0.0f;
+	}
 
-	//float rawFactor = (glm::sin(m_Time) + 1.0f) * 0.5f;
-	//float smoothFactor = glm::smoothstep(0.0f, 1.0f, rawFactor);
-	//GetTransform().Scale = glm::mix(initialScale, scaleAnim, smoothFactor);
+	// Movimento horizontal
+	Direction = CalculateDirection();
+	SetVelocity({glm::mix(Velocity().x, int(Direction) * Speed, glm::clamp(0.01f * deltaTime, 0.0f, 1.0f)), Velocity().y, Velocity().z });
 
-	SetVelocity({glm::mix(Velocity().x, Direction * Speed, glm::clamp(0.01f * deltaTime, 0.0f, 1.0f)), Velocity().y, Velocity().z });
+	// Pulo dinâmico (tipo mario)
+	int JumpPressed = CalculateJump();
+	if (JumpPressed && isGrounded) { // Começa a pular
+		SetVelocity({ Velocity().x, -JumpImpulse, Velocity().z });
+		wasJumpPressed = true;
+	}
+	else if (!JumpPressed && wasJumpPressed) { // para o pulo
+		wasJumpPressed = false;
+		SetVelocity({ Velocity().x, -0.3f, Velocity().z });
+	}
+
+	
+	if (GetTransform().Position.y + Velocity().y > m_StartPos.y && !isGrounded) {
+		while (GetTransform().Position.y < m_StartPos.y) {
+			GetTransform().Position.y += 0.1f;
+		}
+
+		canJump = true;
+		m_Time = 0.0f;
+
+		SetVelocity({Velocity().x, 0.0f, Velocity().z });
+	}
+	else if(!isGrounded) {
+		// gravidade
+		SetVelocity({ Velocity().x, Velocity().y + 0.004f * deltaTime, Velocity().z });
+	}
 
 	GetTransform().Position += Velocity() * deltaTime;
 	GetTransform().Position.x = glm::clamp(GetTransform().Position.x, 50.0f, 400.0f);
-	
-	if (GetTransform().Position.y + Velocity().y > m_StartPos.y) {
-		canJump = true;
-
-		while (GetTransform().Position.y < m_StartPos.y) {
-			GetTransform().Position.y += 0.001f;
-		}
-		SetVelocity({Velocity().x, 0.0f, Velocity().z });
-		m_Time = 0.0f;
-	}
-	else {
-		SetVelocity({ Velocity().x, Velocity().y + 0.004f * deltaTime, Velocity().z });
-		canJump = false;
-	}
 
 	// Sempre colocar isso no final de cada tick
 	MarkDirty();
@@ -79,39 +96,36 @@ void TRex::EventTick(float deltaTime)
 
 void TRex::EventInput(SDL_Event* event)
 {
-	LE_INFO("INPUT PROCESSES NO TREX");
-
 	if (event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP) {
 		SDL_KeyboardEvent e = event->key;
-		if (e.key == SDLK_D || e.key == SDLK_A) {
-			Direction = (e.down && (e.key == SDLK_D)) - (e.down && (e.key == SDLK_A));
-		}
-		
-		if ((e.key == SDLK_SPACE || e.key == SDLK_W) && canJump && e.down) {
-//			GetTransform().Position.y -= Jump;
-			SetVelocity({ Velocity().x, -Jump, Velocity().z });
+		if (e.key == SDLK_P && e.down) {
+			EditorApp::Get()->PlaySound("./Assets/Test2.wav");
 		}
 	}
-	// gamepad
-	if (event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN || event->type == SDL_EVENT_GAMEPAD_BUTTON_UP) {
-		 SDL_GamepadButtonEvent e = event->gbutton;
-		if (e.button == SDL_GAMEPAD_BUTTON_DPAD_LEFT || e.button == SDL_GAMEPAD_BUTTON_DPAD_RIGHT) {
-			Direction = (e.down && (e.button == SDL_GAMEPAD_BUTTON_DPAD_RIGHT)) - (e.down && (e.button == SDL_GAMEPAD_BUTTON_DPAD_LEFT));
-		}
+	// gamepad connection
+	if ((event->type == SDL_EVENT_GAMEPAD_ADDED || event->type == SDL_EVENT_GAMEPAD_AXIS_MOTION || event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) && !gamepad) {
+		SDL_GamepadButtonEvent e = event->gbutton;
 
-		if (e.button == SDL_GAMEPAD_BUTTON_SOUTH && canJump && e.down) {
-			//GetTransform().Position.y -= Jump;
-			SetVelocity({ Velocity().x, -Jump, Velocity().z });
-		}
-	}
-
-	if (event->type == SDL_EVENT_KEY_DOWN) {
-		SDL_KeyboardEvent e = event->key;
+		int numgamepad = 0;
+		SDL_JoystickID* gamepads = SDL_GetGamepads(&numgamepad);
 		
+		gamepad = SDL_GetGamepadFromID(gamepads[0]);
+		SDL_free(gamepads);
 	}
+	else if (event->type == SDL_EVENT_GAMEPAD_REMOVED) {
+		gamepad = nullptr;
+	}
+}
 
-	if (event->type == SDL_EVENT_KEY_UP) {
-		SDL_KeyboardEvent e = event->key;
-		
-	}
+int TRex::CalculateDirection()
+{
+	int right = (EditorApp::Get()->GetIsKeyPressed(SDL_SCANCODE_A) || SDL_GetGamepadButton(gamepad, SDL_GAMEPAD_BUTTON_DPAD_LEFT));
+	int left = (EditorApp::Get()->GetIsKeyPressed(SDL_SCANCODE_D) || SDL_GetGamepadButton(gamepad, SDL_GAMEPAD_BUTTON_DPAD_RIGHT));
+	return left - right;
+}
+
+int TRex::CalculateJump()
+{
+	int jumpPressed = (EditorApp::Get()->GetIsKeyPressed(SDL_SCANCODE_SPACE) || EditorApp::Get()->GetIsKeyPressed(SDL_SCANCODE_W) || SDL_GetGamepadButton(gamepad, SDL_GAMEPAD_BUTTON_SOUTH));
+	return jumpPressed;
 }

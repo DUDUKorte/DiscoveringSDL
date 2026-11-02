@@ -44,7 +44,7 @@ public:
 	inline std::vector<BaseMesh*>& GetSubMeshes() { return m_SubMeshes; }
 	virtual BaseMesh* GetSubMesh(int index);
 
-	inline glm::vec3 Velocity() { return m_Velocity; }
+	inline glm::vec3& Velocity() { return m_Velocity; }
 	glm::vec3 GetCentroide();
 	Transform& GetTransform();
 	inline glm::mat4& GetTransformMatrix() { return m_TransformMatrix; }

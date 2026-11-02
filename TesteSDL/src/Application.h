@@ -15,7 +15,8 @@ public:
 
 	virtual void OnStart() = 0;
 
-	void OnEvent(SDL_Event* event);
+	virtual void OnTick(double deltaTime) = 0;
+	virtual void OnEvent(SDL_Event* event) = 0;
 
 	static inline LeandroApplication& Get() { return *s_Instance; }
 	static inline EditorApp* GetEditor() { return s_Editor->Get(); }
