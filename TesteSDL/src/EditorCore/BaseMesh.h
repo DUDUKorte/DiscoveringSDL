@@ -129,7 +129,7 @@ protected:
 	MeshTypes meshType;
 
 	//Cores
-	ImVec4 m_Color = { 0.2, 0.2, 0.2 , 1 };
-	ImVec4 m_OutlineColor = { 1, 1 ,1 , 1 };
+	ImVec4 m_Color = { 0.2f, 0.2f, 0.2f, 1.0f };
+	ImVec4 m_OutlineColor = { 1.0f, 1.0f ,1.0f, 1.0f };
 
 };

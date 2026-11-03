@@ -38,7 +38,7 @@ public:
 	EditorApp();
 	~EditorApp();
 
-	bool Init();
+	SDL_AppResult Init();
 	SDL_AppResult ProcessEvent(SDL_Event* event);
 	SDL_AppResult UpdateAndRender();
 	void Shutdown();

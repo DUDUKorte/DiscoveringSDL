@@ -183,7 +183,7 @@ void Renderer3D::UploadMeshToGPU(Mesh& mesh)
 	mesh.SetGPUBuffer(SDL_CreateGPUBuffer(MainWindow->GPUDevice, &bufInfo));
 
 	// cria transfer buffer
-	SDL_GPUTransferBufferCreateInfo transInfo;
+	//SDL_GPUTransferBufferCreateInfo transInfo;
 }
 
 void Renderer3D::Init(std::vector<uint32_t>* buffer, std::vector<float>* zbuffer, WindowProperties* window, std::vector<MeshLight*>* lights)
@@ -214,7 +214,7 @@ void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
 		return;
 	}
 
-	float steps = (int)std::ceil(std::max(std::abs(dX), std::abs(dY)));
+	float steps = (float)((int)std::ceil(std::max(std::abs(dX), std::abs(dY))));
 
 	if (steps == 0) {
 		int x = (int)std::lround(source.x);
@@ -265,7 +265,7 @@ void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
 void Renderer3D::Draw3DLinesWithVertices(const std::vector<std::pair<glm::vec3, glm::vec3>>& vertices)
 {
 	if (vertices.size() < 2) { // só desenha se tiver 2 ou mais vertices
-		Buffer->at(vertices[0].first.y * MainWindow->Width + vertices[0].first.x) = DrawColor;
+		//Buffer->at(vertices[0].first.y * MainWindow->Width + vertices[0].first.x) = DrawColor;
 		//SDL_RenderPoint(renderer, vertices[0].x, vertices[0].y);
 		return;
 	}

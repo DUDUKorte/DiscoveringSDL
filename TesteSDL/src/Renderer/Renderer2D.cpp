@@ -56,7 +56,7 @@ namespace Renderer2D {
 			//float new_b = source.color.z;
 
 			// Pegar as interseções
-			for (int y = ymin - meshYMin; y < ymax - meshYMin; y++) { // Scanlines de 0 à Ns-1
+			for (int y = ymin - (int)meshYMin; y < ymax - (int)meshYMin; y++) { // Scanlines de 0 à Ns-1
 				//SDL_SetRenderDrawColorFloat(renderer, 1, 0, 0, SDL_ALPHA_OPAQUE_FLOAT);
 				//SDL_RenderLine(renderer, new_x, ymin + i, new_x, ymin+i);
 				//SDL_RenderPoint(renderer, new_x, ymin + i);
@@ -82,10 +82,10 @@ namespace Renderer2D {
 		if (vertices.size() < 3) { return; }
 
 		std::vector<std::vector<float>> intersecoes;
-		intersecoes.resize(yMax - yMin + 1);
+		intersecoes.resize((int)yMax - (int)yMin + 1);
 		//LE_CORE_ASSERT(intersecoes.size() == height, "Intersecoes com tamanho incorreto alocado!");
 
-		FindIntersections(vertices, intersecoes, yMax - yMin + 1, mesh->GetMinMax());
+		FindIntersections(vertices, intersecoes, (int)yMax - (int)yMin + 1, mesh->GetMinMax());
 
 		/*Sub Polygons adicionados às interseções (talvez não seja a melhor forma de fazer, mas é uma forma)*/
 		for (BaseMesh* submesh : mesh->GetSubMeshes()) {
@@ -98,7 +98,7 @@ namespace Renderer2D {
 				//FillPoly(renderer, submesh, yMax - yMin + 1);
 				//SDL_SetRenderDrawColorFloat(renderer, old_color.x, old_color.y, old_color.z, SDL_ALPHA_OPAQUE_FLOAT);
 			}
-			FindIntersections(sub_vertices, intersecoes, yMax - yMin + 1, mesh->GetMinMax());
+			FindIntersections(sub_vertices, intersecoes, (int)yMax - (int)yMin + 1, mesh->GetMinMax());
 		}
 
 		// Ordenar todas as interceções

@@ -42,14 +42,14 @@ EditorApp::~EditorApp()
 ///////////////////////////////////////////////////////////
 //////////INITIALIZE SDL IMGUI AND EDITOR//////////////////
 ///////////////////////////////////////////////////////////
-bool EditorApp::Init()
+SDL_AppResult EditorApp::Init()
 {
 	/*IMGUI FUNCIONA PFV*/
 	LE_CORE_TRACE("Initializing SDL...");
 	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD | SDL_INIT_AUDIO))
 	{
 		printf("Error: SDL_Init(): %s\n", SDL_GetError());
-		return false;
+		return SDL_APP_FAILURE;
 	}
 
 	// Create window with SDL_Renderer graphics context
@@ -119,9 +119,14 @@ bool EditorApp::Init()
 	//ImGui_ImplSDL3_InitForSDLRenderer(m_WindowProperties.Window, m_WindowProperties.Renderer);
 	//ImGui_ImplSDLRenderer3_Init(m_WindowProperties.Renderer);
 
-	LE_CORE_TRACE("Updating Window size...");
 	//Update Width/Height values
-	SDL_GetWindowSize(m_WindowProperties.Window, &m_WindowProperties.Width, &m_WindowProperties.Height);
+	LE_CORE_TRACE("Updating Window size...");
+	SDL_GetWindowSizeInPixels(m_WindowProperties.Window, &m_WindowProperties.Width, &m_WindowProperties.Height);
+	LE_CORE_TRACE("WIDTH: " + std::to_string(m_WindowProperties.Width) + " | HEIGHT: " + std::to_string(m_WindowProperties.Height));
+
+	m_VertexBuffer = new std::vector<uint32_t>(m_WindowProperties.Width * m_WindowProperties.Height);
+	m_ZBuffer = new std::vector<float>(m_WindowProperties.Height * m_WindowProperties.Width);
+
 
 	// Inicializa o buffer
 	SDL_GPUTextureCreateInfo textInfo = {};
@@ -137,13 +142,8 @@ bool EditorApp::Init()
 	
 	SDL_GPUTransferBufferCreateInfo transferInfo = {};
 	transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-	transferInfo.size = m_WindowProperties.Width * m_WindowProperties.Height * sizeof(uint32_t);
+	transferInfo.size = (size_t)m_WindowProperties.Width * m_WindowProperties.Height * sizeof(uint32_t);
 	m_TransferBuffer = SDL_CreateGPUTransferBuffer(m_WindowProperties.GPUDevice, &transferInfo);
-
-	// cria o bglh de shader da gpu
-	// tem q salvar esse GpuPipeline???
-	// TODO TODO TODO TODO
-	//m_WindowProperties.GPUPipeline = SDL_CreateGPUGraphicsPipeline();
 
 	// Seta as variáveis do renderer
 	if (Renderer3D::RendererMode == RendererModes::Software) {
@@ -177,7 +177,7 @@ bool EditorApp::Init()
 	//m_GlobalMeshes.push_back(cubinho);
 	//m_GlobalMeshes.push_back(macaquinho);
 
-	return true;
+	return SDL_APP_CONTINUE;
 }
 ///////////////////////////////////////////////////////////
 //////////INITIALIZE SDL IMGUI AND EDITOR//////////////////
@@ -574,7 +574,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	for (BaseMesh* m : m_GlobalMeshes) {
 		// Run tick SEMPRE FICA PRIMEIRO (Calcula física/lógica -> cálcula desenho -> Mostra na tela)
 		if (m_GameStarted && m->GetTickEnabled()) {
-			m->EventTick(deltaTime);
+			m->EventTick((float)deltaTime);
 		}
 
 		std::vector<glm::vec3>& vertices = m->GetVertices();
@@ -784,7 +784,7 @@ void EditorApp::RenderUI()
 
 	ImGui::Separator();
 	if (ImGui::Button("Create New Mesh")) {
-		m_CurrentMesh = m_GlobalMeshes.size();
+		m_CurrentMesh = (int)m_GlobalMeshes.size();
 		m_CurrentSubMesh = -1;
 
 		std::string mesh_name = "Mesh_" + std::to_string(m_CurrentMesh);
@@ -837,14 +837,14 @@ void EditorApp::RenderUI()
 	ImGui::SliderInt("Num. Faces", &m_CustomPolyFaces, 3, 100);
 	ImGui::SliderInt("Size", &m_CustomPolySize, 10, 100);
 	if (ImGui::Button("Create Cusotm Poly")) {
-		m_CurrentMesh = m_GlobalMeshes.size();
+		m_CurrentMesh = (int)m_GlobalMeshes.size();
 		m_CurrentSubMesh = -1;
 
 		std::string mesh_name = "Mesh_Poly" + std::to_string(m_CurrentMesh);
 		std::vector<glm::vec3> custom_poly;
 
 		glm::vec3 start_vertex = {-10 * m_CustomPolySize, -10 * m_CustomPolySize, 1.0f }; // Ponto inicial
-		float angle = (360.0f / (float)m_CustomPolyFaces) * std::numbers::pi / 180.0f;
+		float angle = (360.0f / (float)m_CustomPolyFaces) * float(std::numbers::pi) / 180.0f;
 
 		// Rotaciona o ponto
 		for (int i = 0; i < m_CustomPolyFaces; i++) {
@@ -939,14 +939,14 @@ void EditorApp::RenderUI()
 			}
 
 			// rotacao
-			float rotDegX = MeshTransform.Rotation.x * (180.0f / std::numbers::pi);
-			float rotDegY = MeshTransform.Rotation.y * (180.0f / std::numbers::pi);
-			float rotDegZ = MeshTransform.Rotation.z * (180.0f / std::numbers::pi);
+			float rotDegX = MeshTransform.Rotation.x * (180.0f / (float)std::numbers::pi);
+			float rotDegY = MeshTransform.Rotation.y * (180.0f / (float)std::numbers::pi);
+			float rotDegZ = MeshTransform.Rotation.z * (180.0f / (float)std::numbers::pi);
 			float rotDeg[3] = { rotDegX, rotDegY, rotDegZ };
 			if (ImGui::DragFloat3("Rotation", rotDeg, 1.0f)) {
-				MeshTransform.Rotation.x = rotDeg[0] * (std::numbers::pi / 180.0f);
-				MeshTransform.Rotation.y = rotDeg[1] * (std::numbers::pi / 180.0f);
-				MeshTransform.Rotation.z = rotDeg[2] * (std::numbers::pi / 180.0f);
+				MeshTransform.Rotation.x = rotDeg[0] * ((float)std::numbers::pi / 180.0f);
+				MeshTransform.Rotation.y = rotDeg[1] * ((float)std::numbers::pi / 180.0f);
+				MeshTransform.Rotation.z = rotDeg[2] * ((float)std::numbers::pi / 180.0f);
 				transformChanged = true;
 			}
 
