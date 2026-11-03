@@ -1014,6 +1014,11 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 			}
 			else if ("f" == prefix)
 			{
+				// @Mattsu TODO: Verificar aqui se a face f tem 3 vértices ou mais, se tiver 3, ok
+				// se tiver 4 ou mais, aí marca sla um booleano ou algo assim pra fazer a triangulação da mesh aqui
+				// assim que terminar o while, o problema é q provavelmente vai ter q descartar todo o vetor
+				// de faces que foi salvo, os normais e etc... mas acontce nas melhores famílias né
+
 				std::string indexGroup;
 				std::vector<int> facesVertexIndices = {};
 				int faceNormalIndice = -1;
@@ -1043,7 +1048,6 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 				}
 
 				mesh->addFace(facesVertexIndices, faceNormalIndice);
-
 			}
 			else
 			{
@@ -1074,8 +1078,6 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 	}
 
 	file.close();
-
-	// CARREGANDO UM ARQUIVO OBJ
 }
 
 void EditorApp::SubmitMesh(BaseMesh* newMesh)

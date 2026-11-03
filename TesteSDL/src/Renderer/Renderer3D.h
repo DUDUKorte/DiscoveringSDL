@@ -13,6 +13,8 @@
 	((uint32_t) ((a) * 255.0f + 0.5f)))
 #endif
 
+// @Mattsu TODO: Depois de fazer a triangulação das meshes tenta implementar um FastPhong (precisa ser com mesh triangulada)
+// Talvez seja melhor tentar fazer o fastphong depois de tu refatorar/reescrever o fillpoly, já q ele vai mudar p krl...
 enum LightAlgorithms { Constant = 0, Gouraud = 1, Phong };
 
 class Renderer3D {
@@ -32,8 +34,14 @@ public:
 
 	static void FindIntersections(const std::vector<std::pair<glm::vec3, glm::vec3>>& vertices, glm::vec2 yMinMax);
 
-	static void FillPoly(const std::vector<std::pair<glm::vec3, glm::vec3>>& vertices, glm::vec2 minMaxY, bool interpolate = false, std::vector<glm::vec3>* verticesNormals = nullptr, MeshMaterial* meshMaterial = nullptr);
-
+	// @Mattsu TODO: Precisamos de um FillPoly pica, novo, primeiro tem que fazer a triangularização das meshes importadas
+	// aí da pra fazer o fill poly determinístico, basicamente não precisa ordenar lista, nem rodar um y que vá pra y+1
+	// resumindo: sendo tudo triangulo da pra pegar qualquer ponto e descobrir a interpolação, o x1 e x2, etc...
+	// O lance é que não vamos usar a CPU, até poderia (talvez usar o OpenMP pra multithread)
+	// Mas a ideia é usar compute shading, cada núcleo da GPU cuida de 1 linha do fillpoly em simultâneo
+	// então vai ficar rápido p krll, como toda GPU, até as mais básicas tem mais de 720 núcleos pra rodar isso
+	// vai ser bem rápido, o tempo de 1 calcular termina o fill inteiro dql poly
+	static void FillPoly(const std::vector<std::pair<glm::vec3, glm::vec3>>& vertices, glm::vec2 minMaxY, bool interpolate = false, Mesh* mesh = nullptr);
 
 	static std::vector<uint32_t>* Buffer;
 	static std::vector<float>* ZBuffer;

@@ -210,7 +210,7 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 		}
 
 		if (meshTeste.GetFill()) {
-			FillPoly(currentVertices, minMaxFace, interpolateVertices, &verticesNormals, &meshTeste.GetMaterial());
+			FillPoly(currentVertices, minMaxFace, interpolateVertices, &meshTeste);
 		}
 		if (meshTeste.GetOutline()) {
 			DrawColor = LeandroColor(meshTeste.GetOutlineColor().x, meshTeste.GetOutlineColor().y, meshTeste.GetOutlineColor().z, meshTeste.GetOutlineColor().w);
@@ -248,8 +248,9 @@ glm::vec3 Renderer3D::CalculateConstantLightning(glm::vec3 normal, glm::vec3 cen
 		float lightDistance = glm::distance(centroide, light->GetTransform().Position);
 
 		if (light->GetLightType() != LightType::DirectionalLight) {
-			fatAtenuacao = glm::min(1.0f / glm::pow(lightDistance, 2.0f), 1.0f);
-			if (lightDistance > light->GetMaxDistance()) { continue; }
+			fatAtenuacao = glm::min(1.0f / (0.2f + (0.2f * lightDistance) + (0.2f * glm::pow(lightDistance, 2.0f))), 1.0f);
+			fatAtenuacao = glm::pow(1.0f - glm::clamp(lightDistance / light->GetMaxDistance(), 0.0f, 1.0f), 2.0f);
+			//if (lightDistance > light->GetMaxDistance()) { continue; }
 		}
 		glm::vec3 lightPos = light->GetTransform().Position;
 		glm::vec3 lightIntensity = light->GetLightColor() * light->GetLightIntensity();
@@ -258,7 +259,7 @@ glm::vec3 Renderer3D::CalculateConstantLightning(glm::vec3 normal, glm::vec3 cen
 		lightVector = glm::normalize(lightVector);
 
 		float diffuseScalar = (glm::max(glm::dot(normal, lightVector), 0.0f));
-		diffuseResult += diffuseScalar * lightIntensity * diffuse * baseColor;
+		diffuseResult += diffuseScalar * lightIntensity * diffuse * baseColor * fatAtenuacao;
 
 		if (diffuseScalar > 0.0f) {
 			glm::vec3 specularR = glm::reflect(-lightVector, normal);
@@ -347,7 +348,7 @@ void Renderer3D::FindIntersections(const std::vector<std::pair<glm::vec3, glm::v
 	}
 }
 
-void Renderer3D::FillPoly(const std::vector<std::pair<glm::vec3, glm::vec3>>& vertices, glm::vec2 minMaxY, bool interpolate, std::vector<glm::vec3>* verticesNormals, MeshMaterial* meshMaterial)
+void Renderer3D::FillPoly(const std::vector<std::pair<glm::vec3, glm::vec3>>& vertices, glm::vec2 minMaxY, bool interpolate, Mesh* mesh)
 {
 	int yMin = (int)std::ceil(minMaxY.x);
 	int yMax = (int)std::ceil(minMaxY.y);
@@ -433,10 +434,10 @@ void Renderer3D::FillPoly(const std::vector<std::pair<glm::vec3, glm::vec3>>& ve
 				if (currentZ <= ZBuffer->at(y * MainWindow->Width + x)) {
 					// Phong a cada pixel né?
 					//glm::vec3 currentColor = CalculateConstantLightning();
-					if (Renderer3D::LightAlgorithm == LightAlgorithms::Phong) {
+					if (Renderer3D::LightAlgorithm == LightAlgorithms::Phong && mesh->GetAfectedByLights()) {
 						glm::vec3 N = { currentR, currentG, currentB };
 						N = glm::normalize(N);
-						glm::vec3 resultColor = CalculateConstantLightning(N, { x, y, currentZ }, *meshMaterial);
+						glm::vec3 resultColor = CalculateConstantLightning(N, { x, y, currentZ }, mesh->GetMaterial());
 
 						Buffer->at(y * MainWindow->Width + x) = LeandroColor(resultColor.x, resultColor.y, resultColor.z, 1.0f);
 					}
