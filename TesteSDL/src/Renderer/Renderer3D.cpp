@@ -72,7 +72,7 @@ void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
 		int py = (int)std::lround(new_y);
 
 		if (px >= 0 && px < width && py >= 0 && py < height) {
-			if (currentZ <= ZBuffer->at(py * MainWindow->Width + px)) {
+			if (currentZ+2000.0f < ZBuffer->at(py * MainWindow->Width + px)) {
 				Buffer->at(py * MainWindow->Width + px) = DrawColor;
 				ZBuffer->at(py * MainWindow->Width + px) = currentZ;
 			}
@@ -195,9 +195,9 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 
 		glm::vec3 centroide = verticesSum / (float)currentVertices.size();
 
-		//if (centroide.x < 0 || centroide.y < 0 || centroide.x > MainWindow->Width || centroide.y > MainWindow->Height) {
-		//	continue;
-		//}
+		if (centroide.x < 0 || centroide.y < 0 || centroide.x > MainWindow->Width || centroide.y > MainWindow->Height) {
+			continue;
+		}
 
 		// Calcular iluminação constante
 		if (meshTeste.GetAfectedByLights() && LightAlgorithm == LightAlgorithms::Constant && meshTeste.GetFill()) {
@@ -452,8 +452,6 @@ void Renderer3D::FillPoly(const std::vector<std::pair<glm::vec3, glm::vec3>>& ve
 				currentG += (dx > 0.0001f ? Tg : 0.0f);
 				currentB += (dx > 0.0001f ? Tb : 0.0f);
 			}
-
-			//DrawLine({lista[i].first, y, lista[i].second}, {lista[i+1].first, y, lista[i+1].second});
 		}
 		intersecoes[y].clear();
 	}
