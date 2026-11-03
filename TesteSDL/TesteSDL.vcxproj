@@ -77,13 +77,17 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)TesteSDL/src/;./vendor/ImGui/imgui/backends/;./vendor/SDL/;./vendor/ImGui/imgui/;./vendor/spdlog/include/;./vendor/glm;./vendor/ImGui/imgui/./vendor/ImGui/imgui/D:\TesteSDL\TesteSDL\SDL3-3.4.8\include;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VULKAN_SDK)/Include/;$(SolutionDir)TesteSDL/src/;./vendor/ImGui/imgui/backends/;./vendor/SDL/;./vendor/ImGui/imgui/;./vendor/spdlog/include/;./vendor/glm;./vendor/ImGui/imgui/./vendor/ImGui/imgui/D:\TesteSDL\TesteSDL\SDL3-3.4.8\include;;$(VULKAN_SDK)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <Lib>
+      <AdditionalDependencies>
+      </AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -94,13 +98,17 @@
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)TesteSDL/src/;./vendor/ImGui/imgui/backends/;./vendor/SDL/;./vendor/ImGui/imgui/;./vendor/spdlog/include/;./vendor/glm;./vendor/ImGui/imgui/./vendor/ImGui/imgui/D:\TesteSDL\TesteSDL\SDL3-3.4.8\include;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VULKAN_SDK)/Include/;$(SolutionDir)TesteSDL/src/;./vendor/ImGui/imgui/backends/;./vendor/SDL/;./vendor/ImGui/imgui/;./vendor/spdlog/include/;./vendor/glm;./vendor/ImGui/imgui/./vendor/ImGui/imgui/D:\TesteSDL\TesteSDL\SDL3-3.4.8\include;;$(VULKAN_SDK)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <Lib>
+      <AdditionalDependencies>
+      </AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -109,7 +117,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)TesteSDL/src/;./vendor/ImGui/imgui/backends/;./vendor/SDL/;./vendor/ImGui/imgui/;./vendor/spdlog/include/;./vendor/glm;./vendor/ImGui/imgui/./vendor/ImGui/imgui/vendor\SDL\;vendor\ImGui\imgui\backends\;vendor\ImGui\imgui\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VULKAN_SDK)/Include/;$(SolutionDir)TesteSDL/src/;./vendor/ImGui/imgui/backends/;./vendor/SDL/;./vendor/ImGui/imgui/;./vendor/spdlog/include/;./vendor/glm;./vendor/ImGui/imgui/./vendor/ImGui/imgui/vendor\SDL\;vendor\ImGui\imgui\backends\;vendor\ImGui\imgui\;%(AdditionalIncludeDirectories);$(VULKAN_SDK)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
@@ -118,6 +126,10 @@
       <AdditionalLibraryDirectories>D:\TesteSDL\TesteSDL\TesteSDL\vendor\SDL;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);opengl32.lib</AdditionalDependencies>
     </Link>
+    <Lib>
+      <AdditionalDependencies>
+      </AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -128,13 +140,17 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)TesteSDL/src/;./vendor/ImGui/imgui/backends/;./vendor/SDL/;./vendor/ImGui/imgui/;./vendor/spdlog/include/;./vendor/glm;./vendor/ImGui/imgui/./vendor/ImGui/imgui/../SDL3/include/;vendor\spdlog\include;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(VULKAN_SDK)/Include/;$(SolutionDir)TesteSDL/src/;./vendor/ImGui/imgui/backends/;./vendor/SDL/;./vendor/ImGui/imgui/;./vendor/spdlog/include/;./vendor/glm;./vendor/ImGui/imgui/./vendor/ImGui/imgui/../SDL3/include/;vendor\spdlog\include;;$(VULKAN_SDK)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <Lib>
+      <AdditionalDependencies>
+      </AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\EditorCore\BaseMesh.cpp" />
@@ -148,6 +164,7 @@
     <ClCompile Include="src\Renderer\Renderer2D.cpp" />
     <ClCompile Include="src\Renderer\Renderer3D.cpp" />
     <ClCompile Include="vendor\ImGui\imgui\backends\imgui_impl_sdl3.cpp" />
+    <ClCompile Include="vendor\ImGui\imgui\backends\imgui_impl_sdlgpu3.cpp" />
     <ClCompile Include="vendor\ImGui\imgui\backends\imgui_impl_sdlrenderer3.cpp" />
     <ClCompile Include="vendor\ImGui\imgui\imgui.cpp" />
     <ClCompile Include="vendor\ImGui\imgui\imgui_demo.cpp" />
@@ -176,6 +193,7 @@
     <ClInclude Include="src\Renderer\Renderer2D.h" />
     <ClInclude Include="src\Renderer\Renderer3D.h" />
     <ClInclude Include="vendor\ImGui\imgui\backends\imgui_impl_sdl3.h" />
+    <ClInclude Include="vendor\ImGui\imgui\backends\imgui_impl_sdlgpu3.h" />
     <ClInclude Include="vendor\ImGui\imgui\backends\imgui_impl_sdlrenderer3.h" />
     <ClInclude Include="vendor\ImGui\imgui\imconfig.h" />
     <ClInclude Include="vendor\ImGui\imgui\imgui.h" />

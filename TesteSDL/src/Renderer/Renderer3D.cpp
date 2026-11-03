@@ -14,6 +14,177 @@ uint32_t Renderer3D::DrawColor = LeandroColor(0.8f, 0.8f, 0.2f, 1.0f);
 std::vector<std::vector<std::pair<glm::vec3, glm::vec3>>> Renderer3D::intersecoes(0);
 glm::vec3 Renderer3D::AmbientLight = { 0.2f, 0.2f, 0.2f };
 LightAlgorithms Renderer3D::LightAlgorithm = Constant;
+SDL_GPUTexture* Renderer3D::DepthTexture = nullptr;
+
+#ifndef USE_HARDWARE_RENDERER
+RendererModes Renderer3D::RendererMode = RendererModes::Software;
+#else
+RendererModes Renderer3D::RendererMode = RendererModes::Hardware;
+#endif
+
+const char* vertexShaderSource = R"(
+#version 450
+
+layout(location = 0) in vec3 inPosition;
+layout(location = 1) in vec3 inNormal;
+
+layout(location = 0) out vec3 fragWorldPos;
+layout(location = 1) out vec3 fragNormal;
+
+layout(set = 1, binding = 0) uniform VertexUniforms {
+    mat4 modelMatrix;
+    mat4 viewProjMatrix;
+    mat4 normalMatrix;
+} ubo;
+
+void main() {
+    vec4 worldPos = ubo.modelMatrix * vec4(inPosition, 1.0);
+    fragWorldPos = worldPos.xyz;
+    fragNormal = normalize(mat3(ubo.normalMatrix) * inNormal);
+    gl_Position = ubo.viewProjMatrix * worldPos;
+}
+)";
+
+const char* fragmentShaderSource = R"(
+#version 450
+
+layout(location = 0) in vec3 fragWorldPos;
+layout(location = 1) in vec3 fragNormal;
+
+layout(location = 0) out vec4 outColor;
+
+layout(set = 3, binding = 0) uniform FragmentUniforms {
+    vec4 baseColor;
+    vec4 materialProps;        // x: ambient, y: diffuse, z: specular, w: shininess
+    vec4 ambientLight;
+    vec4 lightPosAndType;      // xyz: pos, w: isPointLight
+    vec4 lightColorAndMaxDist; // xyz: color*intensity, w: maxDist
+} fragUbo;
+
+void main() {
+    vec3 N = normalize(fragNormal);
+    vec3 baseCol = fragUbo.baseColor.rgb;
+
+    vec3 ambient = fragUbo.ambientLight.rgb * fragUbo.materialProps.x * baseCol;
+    vec3 L = normalize(fragUbo.lightPosAndType.xyz - fragWorldPos);
+    float dist = length(fragUbo.lightPosAndType.xyz - fragWorldPos);
+
+    float attenuation = 1.0;
+    if (fragUbo.lightPosAndType.w > 0.5) { // Point Light
+        float ratio = clamp(dist / fragUbo.lightColorAndMaxDist.w, 0.0, 1.0);
+        attenuation = (1.0 - ratio) * (1.0 - ratio);
+    }
+
+    float diff = max(dot(N, L), 0.0);
+    vec3 diffuse = diff * fragUbo.lightColorAndMaxDist.rgb * fragUbo.materialProps.y * baseCol * attenuation;
+
+    vec3 specular = vec3(0.0);
+    if (diff > 0.0) {
+        vec3 V = vec3(0.0, 0.0, -1.0);
+        vec3 R = reflect(-L, N);
+        float spec = pow(max(dot(R, V), 0.0), fragUbo.materialProps.w);
+        specular = spec * fragUbo.lightColorAndMaxDist.rgb * fragUbo.materialProps.z * attenuation;
+    }
+
+    outColor = vec4(clamp(ambient + diffuse + specular, 0.0, 1.0), 1.0);
+}
+)";
+
+void Renderer3D::InitGPU(WindowProperties* window)
+{
+	Renderer3D::MainWindow = window;
+
+	SDL_GPUTextureCreateInfo depthInfo = {};
+	depthInfo.type = SDL_GPU_TEXTURETYPE_2D;
+	depthInfo.width = MainWindow->Width;
+	depthInfo.height = MainWindow->Height;
+	depthInfo.layer_count_or_depth = 1;
+	depthInfo.num_levels = 1;
+	depthInfo.format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+	depthInfo.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET;
+	DepthTexture = SDL_CreateGPUTexture(MainWindow->GPUDevice, &depthInfo);
+
+	// SHader compilation
+	SDL_GPUShader* vertShader = CompileGLSLToSDLShader(MainWindow->GPUDevice, vertexShaderSource, shaderc_glsl_vertex_shader, SDL_GPU_SHADERSTAGE_VERTEX, 1);
+	SDL_GPUShader* fragShader = CompileGLSLToSDLShader(MainWindow->GPUDevice, fragmentShaderSource, shaderc_glsl_fragment_shader, SDL_GPU_SHADERSTAGE_FRAGMENT, 1);
+
+	// Layout dos Vértices (GPUVertex: vec3 pos + vec3 normal)
+	SDL_GPUVertexBufferDescription vertexBufferDesc = {};
+	vertexBufferDesc.slot = 0;
+	vertexBufferDesc.pitch = sizeof(GPUVertex);
+	vertexBufferDesc.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
+
+	SDL_GPUVertexAttribute vertexAttributes[2] = {};
+	// position (offset 0)
+	vertexAttributes[0].location = 0;
+	vertexAttributes[0].buffer_slot = 0;
+	vertexAttributes[0].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
+	vertexAttributes[0].offset = offsetof(GPUVertex, position);
+
+	// normal (offset 12)
+	vertexAttributes[1].location = 1;
+	vertexAttributes[1].buffer_slot = 0;
+	vertexAttributes[1].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
+	vertexAttributes[1].offset = offsetof(GPUVertex, normal);
+
+	// Target de Cor e Depth Stencil
+	SDL_GPUColorTargetDescription colorTargetDesc = {};
+	colorTargetDesc.format = SDL_GetGPUSwapchainTextureFormat(MainWindow->GPUDevice, MainWindow->Window);
+
+	SDL_GPUGraphicsPipelineCreateInfo pipelineInfo = {};
+	pipelineInfo.vertex_shader = vertShader;
+	pipelineInfo.fragment_shader = fragShader;
+	pipelineInfo.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+
+	pipelineInfo.vertex_input_state.vertex_buffer_descriptions = &vertexBufferDesc;
+	pipelineInfo.vertex_input_state.num_vertex_buffers = 1;
+	pipelineInfo.vertex_input_state.vertex_attributes = vertexAttributes;
+	pipelineInfo.vertex_input_state.num_vertex_attributes = 2;
+
+	// Backface Culling
+	pipelineInfo.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
+	pipelineInfo.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE; // Podemos ligar BACK/FRONT depois de testar a mão da matriz
+
+	// Z-Buffer
+	pipelineInfo.depth_stencil_state.enable_depth_test = true;
+	pipelineInfo.depth_stencil_state.enable_depth_write = true;
+	pipelineInfo.depth_stencil_state.compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL;
+
+	pipelineInfo.target_info.color_target_descriptions = &colorTargetDesc;
+	pipelineInfo.target_info.num_color_targets = 1;
+	pipelineInfo.target_info.has_depth_stencil_target = true;
+	pipelineInfo.target_info.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+
+	MainWindow->GPUPipeline = SDL_CreateGPUGraphicsPipeline(MainWindow->GPUDevice, &pipelineInfo);
+
+	// Depois de criar o pipeline, o SDL_GPU permite liberar os objetos de shader
+	SDL_ReleaseGPUShader(MainWindow->GPUDevice, vertShader);
+	SDL_ReleaseGPUShader(MainWindow->GPUDevice, fragShader);
+}
+
+void Renderer3D::UploadMeshToGPU(Mesh& mesh)
+{
+	std::vector<GPUVertex> gpuVertices;
+
+	auto& localVertices = mesh.GetLocalVertices();
+	auto& vertexNormals = mesh.GetVertexNormals();
+	auto& faceNormals = mesh.GetNormals();
+
+	if (mesh.GetFaces()[0].vertices.size() > 3) { return; } // Mesh inválida (não triangulada)
+	if (gpuVertices.empty()) { return; }
+
+	mesh.GetVertexCount() = static_cast<uint32_t>(gpuVertices.size());
+	uint32_t byteSize = mesh.GetVertexCount() * sizeof(GPUVertex);
+
+	// criar vertex buffer
+	SDL_GPUBufferCreateInfo bufInfo = {};
+	bufInfo.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
+	bufInfo.size = byteSize;
+	mesh.SetGPUBuffer(SDL_CreateGPUBuffer(MainWindow->GPUDevice, &bufInfo));
+
+	// cria transfer buffer
+	SDL_GPUTransferBufferCreateInfo transInfo;
+}
 
 void Renderer3D::Init(std::vector<uint32_t>* buffer, std::vector<float>* zbuffer, WindowProperties* window, std::vector<MeshLight*>* lights)
 {
@@ -113,6 +284,8 @@ void Renderer3D::Draw3DLinesWithVertices(const std::vector<std::pair<glm::vec3, 
 
 void Renderer3D::DrawMesh(Mesh& meshTeste)
 {
+	if (Renderer3D::RendererMode != RendererModes::Software) { return; }
+
 	std::vector<glm::vec3>& allVertices = meshTeste.GetVertices();
 	std::vector<glm::vec3>& allLocalVertices = meshTeste.GetLocalVertices();
 	std::vector<glm::vec3>& meshNormals = meshTeste.GetNormals();
@@ -147,7 +320,7 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 				float zc = glm::max(vertMundo.z, 100.0f);
 
 				verticeTela.x = ((vertMundo.x - MainWindow->Width * 0.5f) / zc) * 800.0f + (MainWindow->Width * 0.5f);
-				verticeTela.y = ((vertMundo.y - MainWindow->Width * 0.5f) / zc) * 800.0f + (MainWindow->Height * 0.5f);
+				verticeTela.y = ((vertMundo.y - MainWindow->Height * 0.5f) / zc) * 800.0f + (MainWindow->Height * 0.5f);
 				verticeTela.z = -(1.0f / zc);
 			}
 

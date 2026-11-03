@@ -65,13 +65,26 @@ bool EditorApp::Init()
 	}
 
 	LE_CORE_TRACE("Creating SDL Renderer...");
-	m_WindowProperties.Renderer = SDL_CreateRenderer(m_WindowProperties.Window, nullptr);
-	SDL_SetRenderVSync(m_WindowProperties.Renderer, 0);
-	if (m_WindowProperties.Renderer == nullptr)
-	{
-		SDL_Log("Error: SDL_CreateRenderer(): %s\n", SDL_GetError());
+	m_WindowProperties.GPUDevice = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL, false, "vulkan");
+	if (!m_WindowProperties.GPUDevice) {
+		SDL_Log("Error: SDL_CreateGPUDevice(): %s\n", SDL_GetError());
 		return SDL_APP_FAILURE;
 	}
+	
+	if (!SDL_ClaimWindowForGPUDevice(m_WindowProperties.GPUDevice, m_WindowProperties.Window)) {
+		SDL_Log("Error: SDL_ClaimWindowForGPUDevice(): %s\n", SDL_GetError());
+		return SDL_APP_FAILURE;
+	}
+	
+	//m_WindowProperties.Renderer = SDL_CreateRenderer(m_WindowProperties.Window, nullptr);
+	//SDL_SetRenderVSync(m_WindowProperties.Renderer, 0);
+	//if (m_WindowProperties.Renderer == nullptr)
+	//{
+	//	SDL_Log("Error: SDL_CreateRenderer(): %s\n", SDL_GetError());
+	//	return SDL_APP_FAILURE;
+	//}
+
+	SDL_SetGPUSwapchainParameters(m_WindowProperties.GPUDevice, m_WindowProperties.Window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_IMMEDIATE);
 
 	SDL_SetWindowPosition(m_WindowProperties.Window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 	SDL_ShowWindow(m_WindowProperties.Window);
@@ -93,18 +106,52 @@ bool EditorApp::Init()
 	style.FontScaleDpi = main_scale;        // Set initial font scale. (in docking branch: using io.ConfigDpiScaleFonts=true automatically overrides this for every window depending on the current monitor)
 
 	// Setup Platform/Renderer backends
-	ImGui_ImplSDL3_InitForSDLRenderer(m_WindowProperties.Window, m_WindowProperties.Renderer);
-	ImGui_ImplSDLRenderer3_Init(m_WindowProperties.Renderer);
+	ImGui_ImplSDL3_InitForSDLGPU(m_WindowProperties.Window);
+	ImGui_ImplSDLGPU3_InitInfo init_info = {};
+	init_info.Device = m_WindowProperties.GPUDevice;
+	init_info.ColorTargetFormat = SDL_GetGPUSwapchainTextureFormat(m_WindowProperties.GPUDevice, m_WindowProperties.Window);
+	init_info.MSAASamples = SDL_GPU_SAMPLECOUNT_1;                      // Only used in multi-viewports mode.
+	init_info.SwapchainComposition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;  // Only used in multi-viewports mode.
+	init_info.PresentMode = SDL_GPU_PRESENTMODE_VSYNC;
+	ImGui_ImplSDLGPU3_Init(&init_info);
+
+	// Setup Platform/Renderer backends
+	//ImGui_ImplSDL3_InitForSDLRenderer(m_WindowProperties.Window, m_WindowProperties.Renderer);
+	//ImGui_ImplSDLRenderer3_Init(m_WindowProperties.Renderer);
 
 	LE_CORE_TRACE("Updating Window size...");
 	//Update Width/Height values
 	SDL_GetWindowSize(m_WindowProperties.Window, &m_WindowProperties.Width, &m_WindowProperties.Height);
 
 	// Inicializa o buffer
-	m_Buffer = SDL_CreateTexture(m_WindowProperties.Renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, m_WindowProperties.Width, m_WindowProperties.Height);
+	SDL_GPUTextureCreateInfo textInfo = {};
+	textInfo.height = m_WindowProperties.Height;
+	textInfo.width = m_WindowProperties.Width;
+	textInfo.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+	textInfo.type = SDL_GPU_TEXTURETYPE_2D;
+	textInfo.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
+	textInfo.layer_count_or_depth = 1;
+	textInfo.num_levels = 1;
+	m_Buffer = SDL_CreateGPUTexture(m_WindowProperties.GPUDevice, &textInfo);
+	//m_Buffer = SDL_CreateTexture(m_WindowProperties.Renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, m_WindowProperties.Width, m_WindowProperties.Height);
+	
+	SDL_GPUTransferBufferCreateInfo transferInfo = {};
+	transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+	transferInfo.size = m_WindowProperties.Width * m_WindowProperties.Height * sizeof(uint32_t);
+	m_TransferBuffer = SDL_CreateGPUTransferBuffer(m_WindowProperties.GPUDevice, &transferInfo);
+
+	// cria o bglh de shader da gpu
+	// tem q salvar esse GpuPipeline???
+	// TODO TODO TODO TODO
+	//m_WindowProperties.GPUPipeline = SDL_CreateGPUGraphicsPipeline();
 
 	// Seta as variáveis do renderer
-	Renderer3D::Init(m_VertexBuffer, m_ZBuffer, &m_WindowProperties, &m_GlobalMeshLights);
+	if (Renderer3D::RendererMode == RendererModes::Software) {
+		Renderer3D::Init(m_VertexBuffer, m_ZBuffer, &m_WindowProperties, &m_GlobalMeshLights);
+	}
+	else if (Renderer3D::RendererMode == RendererModes::Hardware) {
+		Renderer3D::InitGPU(&m_WindowProperties);
+	}
 
 	m_BgColor = {0.2f, 0.2f, 0.2f};
 
@@ -144,7 +191,8 @@ bool EditorApp::Init()
 void EditorApp::Shutdown()
 {
 	// [If using SDL_MAIN_USE_CALLBACKS: all code below would likely be your SDL_AppQuit() function]
-	ImGui_ImplSDLRenderer3_Shutdown();
+	ImGui_ImplSDLGPU3_Shutdown();
+	//ImGui_ImplSDLRenderer3_Shutdown();
 	ImGui_ImplSDL3_Shutdown();
 	ImGui::DestroyContext();
 
@@ -154,9 +202,16 @@ void EditorApp::Shutdown()
 	if (m_WavBuffer) {
 		SDL_free(m_WavBuffer);
 	}
+	if (m_Buffer) {
+		SDL_ReleaseGPUTexture(m_WindowProperties.GPUDevice, m_Buffer);
+	}
+	if (m_TransferBuffer) {
+		SDL_ReleaseGPUTransferBuffer(m_WindowProperties.GPUDevice, m_TransferBuffer);
+	}
 
-	SDL_DestroyRenderer(m_WindowProperties.Renderer);
-	SDL_DestroyWindow(m_WindowProperties.Window);
+	//SDL_DestroyRenderer(m_WindowProperties.Renderer);
+	SDL_ReleaseWindowFromGPUDevice(m_WindowProperties.GPUDevice, m_WindowProperties.Window);
+	SDL_DestroyGPUDevice(m_WindowProperties.GPUDevice);
 	SDL_Quit();
 }
 ///////////////////////////////////////////////////////////
@@ -259,10 +314,30 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		SDL_GetWindowSize(m_WindowProperties.Window, &m_WindowProperties.Width, &m_WindowProperties.Height);
 		m_VertexBuffer->resize(m_WindowProperties.Width * m_WindowProperties.Height);
 		m_ZBuffer->resize(m_WindowProperties.Width * m_WindowProperties.Height);
-		SDL_Texture* markForDelete = m_Buffer;
-		m_Buffer = SDL_CreateTexture(m_WindowProperties.Renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, m_WindowProperties.Width, m_WindowProperties.Height);
+		//SDL_GPUTexture* markForDelete = m_Buffer;
+		//m_Buffer = SDL_CreateTexture(m_WindowProperties.Renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, m_WindowProperties.Width, m_WindowProperties.Height);
+		
+		SDL_ReleaseGPUTexture(m_WindowProperties.GPUDevice, m_Buffer);
+		SDL_ReleaseGPUTransferBuffer(m_WindowProperties.GPUDevice, m_TransferBuffer);
+		
+		// Inicializa o buffer
+		SDL_GPUTextureCreateInfo textInfo = {};
+		textInfo.height = m_WindowProperties.Height;
+		textInfo.width = m_WindowProperties.Width;
+		textInfo.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+		textInfo.type = SDL_GPU_TEXTURETYPE_2D;
+		textInfo.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
+		textInfo.layer_count_or_depth = 1;
+		textInfo.num_levels = 1;
+		m_Buffer = SDL_CreateGPUTexture(m_WindowProperties.GPUDevice, &textInfo);
+
+		SDL_GPUTransferBufferCreateInfo transferInfo = {};
+		transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+		transferInfo.size = m_WindowProperties.Width * m_WindowProperties.Height * sizeof(uint32_t);
+		m_TransferBuffer = SDL_CreateGPUTransferBuffer(m_WindowProperties.GPUDevice, &transferInfo);
+		
 		Renderer3D::UpdateResize();
-		SDL_DestroyTexture(markForDelete);
+		//SDL_DestroyGPUTexture(markForDelete);
 	}
 
 	// Se o comando for absorvido pela UI, ignora os outros comandos
@@ -440,7 +515,7 @@ void EditorApp::ProcessMouseMotion(SDL_Event* event)
 //////////////////////MOUSE MOTION/////////////////////////
 ///////////////////////////////////////////////////////////
 
-
+// TESTE!!!! APAGAR DEPOIS
 
 ///////////////////////////////////////////////////////////
 ///////////////////UPDATE AND RENDER///////////////////////
@@ -472,7 +547,8 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 	// Start the Dear ImGui frame
 	ImGuiIO& io = ImGui::GetIO();
-	ImGui_ImplSDLRenderer3_NewFrame();
+	//ImGui_ImplSDLRenderer3_NewFrame();
+	ImGui_ImplSDLGPU3_NewFrame();
 	ImGui_ImplSDL3_NewFrame();
 	ImGui::NewFrame();
 
@@ -482,12 +558,17 @@ SDL_AppResult EditorApp::UpdateAndRender()
 		RenderUI();
 	}
 
-	SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, 0.2f, 0.2f, 0.2f, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
-	SDL_RenderClear(m_WindowProperties.Renderer); // antigo, usar o buffer
+	//SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, 0.2f, 0.2f, 0.2f, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
+	//SDL_RenderClear(m_WindowProperties.Renderer); // antigo, usar o buffer
 
 	// Preenche o buffer com a cor neutra do fundo
-	std::fill(m_VertexBuffer->begin(), m_VertexBuffer->end(), LeandroColor(m_BgColor.x, m_BgColor.y, m_BgColor.z, 1.0f)); // Limpa a tela na cor que queremos
-	std::fill(m_ZBuffer->begin(), m_ZBuffer->end(), 9999999.0f); // preenche o zbuffer
+	if (Renderer3D::RendererMode == RendererModes::Software) {
+		std::fill(m_VertexBuffer->begin(), m_VertexBuffer->end(), LeandroColor(m_BgColor.x, m_BgColor.y, m_BgColor.z, 1.0f)); // Limpa a tela na cor que queremos
+		std::fill(m_ZBuffer->begin(), m_ZBuffer->end(), 9999999.0f); // preenche o zbuffer
+	}
+	else if (Renderer3D::RendererMode == RendererModes::Hardware) {
+
+	}
 
 	// Draw polygons
 	for (BaseMesh* m : m_GlobalMeshes) {
@@ -510,7 +591,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			const float red = (float)(0.5 + 0.5 * SDL_sin(now));
 			const float green = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 2 / 3));
 			const float blue = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 4 / 3));
-			SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
+			//SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
 			Renderer3D::DrawColor = LeandroColor(red, green, blue, 1.0f);
 		}
 
@@ -525,21 +606,21 @@ SDL_AppResult EditorApp::UpdateAndRender()
 		// Fill poly
 		if (m->GetFill()) {
 			// BUG TODO
-			Renderer2D::FillPoly(m_WindowProperties.Renderer, m, GetHeight());
+			//Renderer2D::FillPoly(m_WindowProperties.Renderer, m, GetHeight());
 		}
 		
 		// Pega a cor do outline e desenha ela
 		if (m->GetOutline()) {
 			ImVec4 color = m->GetOutlineColor();
-			SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
+			//SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
 
 			// Se tiver filhos, desenha o outline de cada filho
 			for (BaseMesh* subMesh : m->GetSubMeshes()) {
-				Renderer2D::DrawLinesWithVertices(m_WindowProperties.Renderer, subMesh->GetVertices(), true);
+				//Renderer2D::DrawLinesWithVertices(m_WindowProperties.Renderer, subMesh->GetVertices(), true);
 			}
 		}
 
-		Renderer2D::DrawLinesWithVertices(m_WindowProperties.Renderer, vertices, m->IsClosed());
+		//Renderer2D::DrawLinesWithVertices(m_WindowProperties.Renderer, vertices, m->IsClosed());
 
 		// Talvez verificar a colisão aqui?
 		//if (m->GetTransform().Position.y >= GetHeight()) {
@@ -547,19 +628,88 @@ SDL_AppResult EditorApp::UpdateAndRender()
 		//}
 	}
 
-	SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, 1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT);
+	//SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, 1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT);
 	//// Draw Test Mesh
 	//Renderer3D::DrawMesh(m_Renderer, *(cubinho));
 	//Renderer3D::DrawMesh(m_Renderer, *(macaquinho));
 
-	SDL_UpdateTexture(m_Buffer, nullptr, m_VertexBuffer->data(), m_WindowProperties.Width * sizeof(uint32_t));
-	SDL_RenderTexture(m_WindowProperties.Renderer, m_Buffer, nullptr, nullptr);
+	//SDL_UpdateTexture(m_Buffer, nullptr, m_VertexBuffer->data(), m_WindowProperties.Width * sizeof(uint32_t));
+	//SDL_RenderTexture(m_WindowProperties.Renderer, m_Buffer, nullptr, nullptr);
+
 
 	// Rendering
 	ImGui::Render();
-	SDL_SetRenderScale(m_WindowProperties.Renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
-	ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), m_WindowProperties.Renderer);
-	SDL_RenderPresent(m_WindowProperties.Renderer);
+	
+	SDL_GPUCommandBuffer* commandBuffer = SDL_AcquireGPUCommandBuffer(m_WindowProperties.GPUDevice);
+	SDL_GPUTexture* swapChainTexture = nullptr;
+	SDL_WaitAndAcquireGPUSwapchainTexture(commandBuffer, m_WindowProperties.Window, &swapChainTexture, nullptr, nullptr);
+
+	// se tiver minimizada (ou só dar erro aklsdhjksdfjgh)
+	if (swapChainTexture == nullptr) {
+		SDL_SubmitGPUCommandBuffer(commandBuffer);
+		return SDL_APP_CONTINUE;
+	}
+
+	if (Renderer3D::RendererMode == RendererModes::Software) {
+		void* mapeamento = SDL_MapGPUTransferBuffer(m_WindowProperties.GPUDevice, m_TransferBuffer, true);
+		memcpy(mapeamento, m_VertexBuffer->data(), m_WindowProperties.Width * m_WindowProperties.Height * sizeof(uint32_t));
+		SDL_UnmapGPUTransferBuffer(m_WindowProperties.GPUDevice, m_TransferBuffer);
+
+		SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(commandBuffer);
+		SDL_GPUTextureTransferInfo transferInfo = {};
+		transferInfo.transfer_buffer = m_TransferBuffer;
+		transferInfo.offset = 0;
+
+		SDL_GPUTextureRegion textRegion = {};
+		textRegion.texture = m_Buffer;
+		textRegion.w = m_WindowProperties.Width;
+		textRegion.h = m_WindowProperties.Height;
+		textRegion.d = 1;
+
+		SDL_UploadToGPUTexture(copyPass, &transferInfo, &textRegion, false);
+		SDL_EndGPUCopyPass(copyPass);
+
+		SDL_GPUBlitInfo blitInfo = {};
+		blitInfo.source.texture = m_Buffer;
+		blitInfo.source.w = m_WindowProperties.Width;
+		blitInfo.source.h = m_WindowProperties.Height;
+	
+		blitInfo.destination.texture = swapChainTexture;
+		blitInfo.destination.w = m_WindowProperties.Width;
+		blitInfo.destination.h = m_WindowProperties.Height;
+
+		blitInfo.load_op = SDL_GPU_LOADOP_DONT_CARE;
+
+		SDL_BlitGPUTexture(commandBuffer, &blitInfo);
+	}
+
+	ImGui_ImplSDLGPU3_PrepareDrawData(ImGui::GetDrawData(), commandBuffer);
+	SDL_GPUColorTargetInfo colorTargInfo = {};
+	colorTargInfo.texture = swapChainTexture;
+
+	if (Renderer3D::RendererMode == RendererModes::Software) {
+		colorTargInfo.load_op = SDL_GPU_LOADOP_LOAD;
+	}
+	else if (Renderer3D::RendererMode == RendererModes::Hardware) {
+		colorTargInfo.load_op = SDL_GPU_LOADOP_CLEAR;
+	}
+	
+	colorTargInfo.store_op = SDL_GPU_STOREOP_STORE;
+
+	SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(commandBuffer, &colorTargInfo, 1, nullptr);
+	
+	if (Renderer3D::RendererMode == RendererModes::Hardware) {
+		SDL_BindGPUGraphicsPipeline(renderPass, m_WindowProperties.GPUPipeline);
+		SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
+	}
+
+	ImGui_ImplSDLGPU3_RenderDrawData(ImGui::GetDrawData(), commandBuffer, renderPass);
+	SDL_EndGPURenderPass(renderPass);
+
+	SDL_SubmitGPUCommandBuffer(commandBuffer);
+	//SDL_SetRenderScale(m_WindowProperties.Renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
+	//ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), m_WindowProperties.Renderer);
+	//SDL_RenderPresent(m_WindowProperties.Renderer);
 
 
 	return SDL_APP_CONTINUE;
@@ -867,6 +1017,23 @@ void EditorApp::RenderUI()
 			if (ImGui::Combo("Light Algorithm", &currentAlgo, algorithms, IM_ARRAYSIZE(algorithms))) {
 				Renderer3D::LightAlgorithm = static_cast<LightAlgorithms>(currentAlgo);
 			}
+
+			ImGui::SeparatorText("Rendering");
+			const char* rendererModes[] = { "Software", "Hardware"};
+			int currentRenderer = static_cast<int>(Renderer3D::RendererMode);
+
+			#ifdef USE_HARDWARE_RENDERER
+			if (ImGui::Combo("Renderer Mode", &currentRenderer, rendererModes, IM_ARRAYSIZE(rendererModes))) {
+				Renderer3D::RendererMode = static_cast<RendererModes>(currentRenderer);
+				if (Renderer3D::RendererMode == RendererModes::Software) {
+					SDL_ReleaseGPUGraphicsPipeline(m_WindowProperties.GPUDevice, m_WindowProperties.GPUPipeline);
+					Renderer3D::Init(m_VertexBuffer, m_ZBuffer, &m_WindowProperties, &m_GlobalMeshLights);
+				}
+				else {
+					Renderer3D::InitGPU(&m_WindowProperties);
+				}
+			}
+			#endif
 
 			if (GetActiveMesh()->GetType() == MeshTypes::TypeLight) {
 				MeshLight* selectedLight = static_cast<MeshLight*>(GetActiveMesh());

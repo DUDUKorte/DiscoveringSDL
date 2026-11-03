@@ -9,14 +9,16 @@
 #include "EditorCore/Pipe.h"
 
 #include "imgui_impl_sdl3.h"
+
+#include "imgui_impl_sdlgpu3.h"
 #include "imgui_impl_sdlrenderer3.h"
 
 #ifndef LeandroColor
 #define LeandroColor(r, g, b, a) \
-	( ((uint32_t) ((r) * 255.0f + 0.5f) << 24) | \
-	((uint32_t) ((g) * 255.0f + 0.5f) << 16) | \
-	((uint32_t) ((b) * 255.0f + 0.5f) << 8) | \
-	((uint32_t) ((a) * 255.0f + 0.5f)))
+	( ((uint32_t) ((a) * 255.0f + 0.5f) << 24) | \
+	((uint32_t) ((b) * 255.0f + 0.5f) << 16) | \
+	((uint32_t) ((g) * 255.0f + 0.5f) << 8) | \
+	((uint32_t) ((r) * 255.0f + 0.5f)))
 #endif
 
 enum EEditMode {Selection = 0, CreatePoly, MovePoly, ScalePoly, RotatePoly};
@@ -27,6 +29,8 @@ typedef struct WindowProperties {
 	int Height = 720;
 	SDL_Window* Window = nullptr;
 	SDL_Renderer* Renderer = nullptr;
+	SDL_GPUDevice* GPUDevice = nullptr;
+	SDL_GPUGraphicsPipeline* GPUPipeline = nullptr;
 } WindowProperties;
 
 class EditorApp {
@@ -83,7 +87,8 @@ private:
 
 	WindowProperties m_WindowProperties;
 	
-	SDL_Texture* m_Buffer = nullptr;
+	SDL_GPUTransferBuffer* m_TransferBuffer = nullptr;
+	SDL_GPUTexture* m_Buffer = nullptr;
 	std::vector<uint32_t>* m_VertexBuffer = new std::vector<uint32_t>(m_WindowProperties.Width * m_WindowProperties.Height);
 	std::vector<float>* m_ZBuffer = new std::vector<float>(m_WindowProperties.Width * m_WindowProperties.Height);
 

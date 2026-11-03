@@ -29,12 +29,21 @@ public:
 	inline bool& GetUsePerspective() { return m_UsePerspective; }
 	inline std::vector<glm::vec3>& GetVertexNormals() { return m_VertexNormals; }
 
+	// do outro renderer
+	inline SDL_GPUBuffer* GetGPUBuffer() { return m_VertexBufferGPU; }
+	inline void SetGPUBuffer(SDL_GPUBuffer* new_buffer) { m_VertexBufferGPU = new_buffer; }
+	inline uint32_t& GetVertexCount() { return m_GpuVertexCount; }
+
 private:
 	std::vector<face> m_Faces = {}; // Faces da mesh
 	std::vector<glm::vec3> m_Normals = {}; // os vetores normais das faces
 	std::vector<glm::vec3> m_VertexNormals = {}; // os vetores normais dos vértices (pra usar no gouraud)
 
 protected:
+	// do outro renderer
+	SDL_GPUBuffer* m_VertexBufferGPU = nullptr;
+	uint32_t m_GpuVertexCount = 0;
+
 	// Atributos personalizáveis
 	bool m_AfectedByLights = true;
 	bool m_UseZBuffer = true;
