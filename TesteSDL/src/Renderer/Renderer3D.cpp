@@ -160,8 +160,8 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 				vertexNormal = matrizTrans * vertexNormal;
 				vertexNormal = glm::normalize(vertexNormal);
 
-				glm::vec3 resultColor = CalculateConstantLightning(vertexNormal, allVertices[i], meshTeste.GetMaterial());
-				currentVertices.push_back({ allVertices[i], resultColor});
+				glm::vec3 resultColor = CalculateConstantLightning(vertexNormal, verticeTela, meshTeste.GetMaterial());
+				currentVertices.push_back({ verticeTela, resultColor});
 
 				interpolateVertices = true;
 			}
@@ -175,15 +175,15 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 				verticesNormals.push_back(vertexNormal);
 
 				//glm::vec3 resultColor = CalculateConstantLightning(vertexNormal, allVertices[i], meshTeste.GetMaterial());
-				currentVertices.push_back({ allVertices[i], vertexNormal });
+				currentVertices.push_back({ verticeTela, vertexNormal });
 
 				interpolateVertices = true;
 			}
 			else {
-				currentVertices.push_back({ allVertices[i],{meshTeste.GetColor().x, meshTeste.GetColor().y, meshTeste.GetColor().z}});
+				currentVertices.push_back({ verticeTela,{meshTeste.GetColor().x, meshTeste.GetColor().y, meshTeste.GetColor().z}});
 			}
 
-			verticesSum += allVertices[i];
+			verticesSum += verticeTela;
 
 			if (verticeTela.y > minMaxFace.y) {
 				minMaxFace.y = verticeTela.y;
@@ -248,7 +248,7 @@ glm::vec3 Renderer3D::CalculateConstantLightning(glm::vec3 normal, glm::vec3 cen
 		float lightDistance = glm::distance(centroide, light->GetTransform().Position);
 
 		if (light->GetLightType() != LightType::DirectionalLight) {
-			fatAtenuacao = glm::min(1.0f / (0.2f + (0.2f * lightDistance) + (0.2f * glm::pow(lightDistance, 2.0f))), 1.0f);
+			//fatAtenuacao = glm::min(1.0f / (0.2f + (0.2f * lightDistance) + (0.2f * glm::pow(lightDistance, 2.0f))), 1.0f);
 			fatAtenuacao = glm::pow(1.0f - glm::clamp(lightDistance / light->GetMaxDistance(), 0.0f, 1.0f), 2.0f);
 			//if (lightDistance > light->GetMaxDistance()) { continue; }
 		}
