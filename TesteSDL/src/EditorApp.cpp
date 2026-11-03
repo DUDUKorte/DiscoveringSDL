@@ -1244,6 +1244,9 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 		vn = glm::normalize(vn);
 	}
 
+	// Para poder utilizar a mesh no renderer de hardware
+	Renderer3D::UploadMeshToGPU(*mesh);
+
 	file.close();
 }
 

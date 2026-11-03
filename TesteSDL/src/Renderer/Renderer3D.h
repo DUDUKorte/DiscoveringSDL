@@ -52,6 +52,8 @@ public:
 	static void InitGPU(WindowProperties* window);
 
 	static void UploadMeshToGPU(Mesh& mesh);
+
+	static void DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SDL_GPURenderPass* renderPass);
 	
 	static void Init(std::vector<uint32_t>* buffer, std::vector<float>* zbuffer, WindowProperties* window, std::vector<MeshLight*>* lights);
 

@@ -183,7 +183,94 @@ void Renderer3D::UploadMeshToGPU(Mesh& mesh)
 	mesh.SetGPUBuffer(SDL_CreateGPUBuffer(MainWindow->GPUDevice, &bufInfo));
 
 	// cria transfer buffer
-	//SDL_GPUTransferBufferCreateInfo transInfo;
+	SDL_GPUTransferBufferCreateInfo transInfo = {};
+	transInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+	transInfo.size = byteSize;
+	SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(MainWindow->GPUDevice, &transInfo);
+
+	void* mapPtr = SDL_MapGPUTransferBuffer(MainWindow->GPUDevice, transferBuffer, false);
+	memcpy(mapPtr, gpuVertices.data(), byteSize);
+	SDL_UnmapGPUTransferBuffer(MainWindow->GPUDevice, transferBuffer);
+
+	// copy pass pra gpu
+	SDL_GPUCommandBuffer* commandBuffer = SDL_AcquireGPUCommandBuffer(MainWindow->GPUDevice);
+	SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(commandBuffer);
+
+	SDL_GPUTransferBufferLocation srcLoc = {};
+	srcLoc.transfer_buffer = transferBuffer;
+	srcLoc.offset = 0;
+
+	SDL_GPUBufferRegion dstReg = {};
+	dstReg.buffer = mesh.GetGPUBuffer();
+	dstReg.offset = 0;
+	dstReg.size = byteSize;
+
+	SDL_UploadToGPUBuffer(copyPass, &srcLoc, &dstReg, false);
+	SDL_EndGPUCopyPass(copyPass);
+	SDL_SubmitGPUCommandBuffer(commandBuffer);
+
+	SDL_ReleaseGPUTransferBuffer(MainWindow->GPUDevice, transferBuffer);
+}
+
+void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SDL_GPURenderPass* renderPass)
+{
+	// só em via das dúvidas
+	if (!mesh.GetGPUBuffer())
+	{
+		UploadMeshToGPU(mesh);
+		if (!mesh.GetGPUBuffer())
+		{
+			LE_CORE_CRITICAL("ERRO: Mesh incompatível com Hardware Renderer!!! Verifique se seu modelo 3D está triangularizado!!!!");
+			return;
+		}
+	}
+
+	// apeando coordenadas de tela
+	VertexUniformData vertUbo = {};
+	vertUbo.modelMatrix = mesh.GetTransformMatrix();
+	vertUbo.normalMatrix = glm::transpose(glm::inverse(vertUbo.modelMatrix));
+
+	// projeção ortográfica
+	vertUbo.viewProjMatrix = glm::ortho(
+		0.0f, (float)MainWindow->Width,
+		(float)MainWindow->Height, 0.0f,
+		-10000.0f, 10000.0f
+	);
+
+	// dados de material
+	MeshMaterial& mat = mesh.GetMaterial();
+	FragmentUniformData fragUbo = {};
+	fragUbo.baseColor = glm::vec4(mat.baseColor, 1.0f);
+	fragUbo.materialProps = glm::vec4(mat.ambientReflection, mat.diffuse, mat.specular, mat.specular_brightness);
+	fragUbo.ambientLight = glm::vec4(AmbientLight, 1.0f);
+
+	if (SceneLights && !SceneLights->empty() && mesh.GetAfectedByLights()) {
+		MeshLight* light = (*SceneLights)[0]; // Pega a primeira luz pra testar, depois tem que fazer no for como tá embaixo:
+		//for (MeshLight* light : SceneLights)
+		//{
+		//	
+		//}
+		float isPoint = (light->GetLightType() != LightType::DirectionalLight) ? 1.0f : 0.0f;
+		fragUbo.lightPosAndType = glm::vec4(light->GetTransform().Position, isPoint);
+		fragUbo.lightColorAndMaxDist = glm::vec4(light->GetLightColor() * light->GetLightIntensity(), light->GetMaxDistance());
+	}
+	else {
+		// caso não for afetado por luz
+		fragUbo.ambientLight = glm::vec4(1.0f);
+		fragUbo.materialProps = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+	}
+
+	SDL_PushGPUVertexUniformData(commandBuffer, 0, &vertUbo, sizeof(VertexUniformData));
+	SDL_PushGPUFragmentUniformData(commandBuffer, 0, &fragUbo, sizeof(FragmentUniformData));
+
+	// faz o Bind do vertex buffer da mesh e desenha
+	SDL_GPUBufferBinding binding = {};
+	binding.buffer = mesh.GetGPUBuffer();
+	binding.offset = 0;
+	SDL_BindGPUVertexBuffers(renderPass, 0, &binding, 1);
+
+	SDL_DrawGPUPrimitives(renderPass, mesh.GetVertexCount(), 1, 0, 0);
+
 }
 
 void Renderer3D::Init(std::vector<uint32_t>* buffer, std::vector<float>* zbuffer, WindowProperties* window, std::vector<MeshLight*>* lights)
