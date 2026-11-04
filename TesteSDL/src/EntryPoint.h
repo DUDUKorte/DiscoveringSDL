@@ -14,11 +14,12 @@ inline SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 	LeandroEditor::Log::Init();
 	LE_CORE_TRACE("INITIALIZING EDITOR...");
 
+	SDL_AppResult success = app->GetEditor()->Init();
 	*appstate = app;
 	app->OnStart();
 
 	LE_CORE_INFO("EDITOR INITIALIZED!");
-	return app->GetEditor()->Init();
+	return success;
 }
 
 // Event callbacks

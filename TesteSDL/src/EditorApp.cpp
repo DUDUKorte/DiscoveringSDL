@@ -146,10 +146,8 @@ SDL_AppResult EditorApp::Init()
 	m_TransferBuffer = SDL_CreateGPUTransferBuffer(m_WindowProperties.GPUDevice, &transferInfo);
 
 	// Seta as variáveis do renderer
-	if (Renderer3D::RendererMode == RendererModes::Software) {
-		Renderer3D::Init(m_VertexBuffer, m_ZBuffer, &m_WindowProperties, &m_GlobalMeshLights);
-	}
-	else if (Renderer3D::RendererMode == RendererModes::Hardware) {
+	Renderer3D::Init(m_VertexBuffer, m_ZBuffer, &m_WindowProperties, &m_GlobalMeshLights);
+	if (Renderer3D::RendererMode == RendererModes::Hardware) {
 		Renderer3D::InitGPU(&m_WindowProperties);
 	}
 
@@ -527,17 +525,6 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	new_deltaTime = SDL_GetPerformanceCounter();
 	deltaTime = (double)((new_deltaTime - old_deltaTime) * 1000 / (double)SDL_GetPerformanceFrequency());
 
-	// Cria novos pipes após X tempo
-	//if (m_GameStarted) {
-	//	if(timeAcc > 5000.0){
-	//		CreatePipes();
-	//		timeAcc = 0;
-	//	}
-	//	else {
-	//		timeAcc += deltaTime;
-	//	}
-	//}
-
 	/* IMGUI */
 	if (SDL_GetWindowFlags(m_WindowProperties.Window) & SDL_WINDOW_MINIMIZED)
 	{
@@ -558,8 +545,20 @@ SDL_AppResult EditorApp::UpdateAndRender()
 		RenderUI();
 	}
 
-	//SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, 0.2f, 0.2f, 0.2f, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
-	//SDL_RenderClear(m_WindowProperties.Renderer); // antigo, usar o buffer
+	ImGui::Render();
+
+	// isso aqui é bascimanete como se fosse o ImGui NewFrame, mas aseria tipo o Renderer3D::NewFrame()
+	// mas sme fazer essa função NewFrame()
+	SDL_GPUCommandBuffer* commandBuffer = SDL_AcquireGPUCommandBuffer(m_WindowProperties.GPUDevice);
+	SDL_GPUTexture* swapChainTexture = nullptr;
+	SDL_GPURenderPass* renderPass3D = nullptr; // tem que ser atribuido se for hardware renderer!!!
+	SDL_WaitAndAcquireGPUSwapchainTexture(commandBuffer, m_WindowProperties.Window, &swapChainTexture, nullptr, nullptr);
+
+	// se tiver minimizada (ou só dar erro aklsdhjksdfjgh)
+	if (swapChainTexture == nullptr) {
+		SDL_SubmitGPUCommandBuffer(commandBuffer);
+		return SDL_APP_CONTINUE;
+	}
 
 	// Preenche o buffer com a cor neutra do fundo
 	if (Renderer3D::RendererMode == RendererModes::Software) {
@@ -567,7 +566,23 @@ SDL_AppResult EditorApp::UpdateAndRender()
 		std::fill(m_ZBuffer->begin(), m_ZBuffer->end(), 9999999.0f); // preenche o zbuffer
 	}
 	else if (Renderer3D::RendererMode == RendererModes::Hardware) {
+		// limpa a tela com bgColor
+		SDL_GPUColorTargetInfo colorTarget = {};
+		colorTarget.texture = swapChainTexture;
+		colorTarget.clear_color = { m_BgColor.x, m_BgColor.y, m_BgColor.z, 1.0f };
+		colorTarget.load_op = SDL_GPU_LOADOP_CLEAR;
+		colorTarget.store_op = SDL_GPU_STOREOP_STORE;
 
+		// limpa o zbuffer
+		SDL_GPUDepthStencilTargetInfo depthTarget = {};
+		depthTarget.texture = Renderer3D::DepthTexture;
+		depthTarget.clear_depth = 1.0f;
+		depthTarget.load_op = SDL_GPU_LOADOP_CLEAR;
+		depthTarget.store_op = SDL_GPU_STOREOP_DONT_CARE;
+
+		// abre o renderPass, vincula o pipelline e aí desenha oq quiser (no caso, as meshes)
+		renderPass3D = SDL_BeginGPURenderPass(commandBuffer, &colorTarget, 1, &depthTarget);
+		SDL_BindGPUGraphicsPipeline(renderPass3D, m_WindowProperties.GPUPipeline);
 	}
 
 	// Draw polygons
@@ -577,28 +592,14 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			m->EventTick((float)deltaTime);
 		}
 
-		std::vector<glm::vec3>& vertices = m->GetVertices();
-		if (vertices.empty()) { continue; }
-		
-		// Verifica se tusa fill color e seta a cor
-		if (m->IsActive()) {
-			//ImVec4 color = m->GetColor();
-			//SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
-		}
-		else{
-			const double now = ((double)SDL_GetTicks() * 0.001);  /* convert from milliseconds to seconds. */
-			/* choose the color for the frame we will draw. The sine wave trick makes it fade between colors smoothly. */
-			const float red = (float)(0.5 + 0.5 * SDL_sin(now));
-			const float green = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 2 / 3));
-			const float blue = (float)(0.5 + 0.5 * SDL_sin(now + SDL_PI_D * 4 / 3));
-			//SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, red, green, blue, SDL_ALPHA_OPAQUE_FLOAT);  /* new color, full alpha. */
-			Renderer3D::DrawColor = LeandroColor(red, green, blue, 1.0f);
-		}
-
-
 		// Desnha 3D!!!!
 		if (m->GetType() != MeshTypes::Type2D) {
-			Renderer3D::DrawMesh(static_cast<Mesh&>(*(m)));
+			if (Renderer3D::RendererMode == RendererModes::Hardware) {
+				Renderer3D::DrawMeshGPU(static_cast<Mesh&>(*(m)), commandBuffer, renderPass3D);
+			}
+			else if (Renderer3D::RendererMode == RendererModes::Software) {
+				Renderer3D::DrawMesh(static_cast<Mesh&>(*(m)));
+			}
 			continue;
 		}
 
@@ -619,37 +620,15 @@ SDL_AppResult EditorApp::UpdateAndRender()
 				//Renderer2D::DrawLinesWithVertices(m_WindowProperties.Renderer, subMesh->GetVertices(), true);
 			}
 		}
-
 		//Renderer2D::DrawLinesWithVertices(m_WindowProperties.Renderer, vertices, m->IsClosed());
-
-		// Talvez verificar a colisão aqui?
-		//if (m->GetTransform().Position.y >= GetHeight()) {
-		//	m->SetVelocity({ 0.0f, 0.0f, 0.0f });
-		//}
 	}
 
-	//SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, 1.0f, 1.0f, 1.0f, SDL_ALPHA_OPAQUE_FLOAT);
-	//// Draw Test Mesh
-	//Renderer3D::DrawMesh(m_Renderer, *(cubinho));
-	//Renderer3D::DrawMesh(m_Renderer, *(macaquinho));
-
-	//SDL_UpdateTexture(m_Buffer, nullptr, m_VertexBuffer->data(), m_WindowProperties.Width * sizeof(uint32_t));
-	//SDL_RenderTexture(m_WindowProperties.Renderer, m_Buffer, nullptr, nullptr);
-
-
-	// Rendering
-	ImGui::Render();
-	
-	SDL_GPUCommandBuffer* commandBuffer = SDL_AcquireGPUCommandBuffer(m_WindowProperties.GPUDevice);
-	SDL_GPUTexture* swapChainTexture = nullptr;
-	SDL_WaitAndAcquireGPUSwapchainTexture(commandBuffer, m_WindowProperties.Window, &swapChainTexture, nullptr, nullptr);
-
-	// se tiver minimizada (ou só dar erro aklsdhjksdfjgh)
-	if (swapChainTexture == nullptr) {
-		SDL_SubmitGPUCommandBuffer(commandBuffer);
-		return SDL_APP_CONTINUE;
+	// SEMPRE Fechar o render pass 3D aqui
+	if (Renderer3D::RendererMode == RendererModes::Hardware) {
+		SDL_EndGPURenderPass(renderPass3D);
 	}
 
+	// Software Rendering usando a SDLGPUtexture lá
 	if (Renderer3D::RendererMode == RendererModes::Software) {
 		void* mapeamento = SDL_MapGPUTransferBuffer(m_WindowProperties.GPUDevice, m_TransferBuffer, true);
 		memcpy(mapeamento, m_VertexBuffer->data(), m_WindowProperties.Width * m_WindowProperties.Height * sizeof(uint32_t));
@@ -686,23 +665,11 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	ImGui_ImplSDLGPU3_PrepareDrawData(ImGui::GetDrawData(), commandBuffer);
 	SDL_GPUColorTargetInfo colorTargInfo = {};
 	colorTargInfo.texture = swapChainTexture;
-
-	if (Renderer3D::RendererMode == RendererModes::Software) {
-		colorTargInfo.load_op = SDL_GPU_LOADOP_LOAD;
-	}
-	else if (Renderer3D::RendererMode == RendererModes::Hardware) {
-		colorTargInfo.load_op = SDL_GPU_LOADOP_CLEAR;
-	}
-	
+	colorTargInfo.load_op = SDL_GPU_LOADOP_LOAD; // deixa esse como LAOD, se colcoar CLEAR ele vai apagar o fundo pra desenhar o ImGui
 	colorTargInfo.store_op = SDL_GPU_STOREOP_STORE;
 
+	// renderiza o imgui por cima de tudo
 	SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(commandBuffer, &colorTargInfo, 1, nullptr);
-	
-	if (Renderer3D::RendererMode == RendererModes::Hardware) {
-		SDL_BindGPUGraphicsPipeline(renderPass, m_WindowProperties.GPUPipeline);
-		SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
-	}
-
 	ImGui_ImplSDLGPU3_RenderDrawData(ImGui::GetDrawData(), commandBuffer, renderPass);
 	SDL_EndGPURenderPass(renderPass);
 

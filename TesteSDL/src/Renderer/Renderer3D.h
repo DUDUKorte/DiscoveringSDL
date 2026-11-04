@@ -7,7 +7,9 @@
 
 // descomente essa linha apenas se for usar o novo renderer por hardware
 // (precisa ter o SDK do vulkan devidamente instalado)
-//#define USE_HARDWARE_RENDERER
+#define USE_HARDWARE_RENDERER
+
+#define MAX_LIGHTS 16
 
 #ifdef USE_HARDWARE_RENDERER
 #include <shaderc/shaderc.hpp>
@@ -26,6 +28,11 @@ struct GPUVertex {
 	glm::vec3 normal;
 };
 
+struct GPULight {
+	glm::vec4 posAndType;
+	glm::vec4 colorAndMaxDist;
+};
+
 struct VertexUniformData {
 	glm::mat4 modelMatrix;
 	glm::mat4 viewProjMatrix;
@@ -37,8 +44,10 @@ struct FragmentUniformData {
 	glm::vec4 baseColor;
 	glm::vec4 materialProps; // x = ambient, y = diffuse, z = specular, w = n
 	glm::vec4 ambientLight;
-	glm::vec4 lightPosAndType;     // xyz = pos, w = tipo ==> 0-Directional, 1-Point
-	glm::vec4 lightColorAndMaxDist;// rgb = cor * intensidade, w = maxDistance
+	int lightAlgorithm;
+	int numLights;
+	int perspective, pad1;
+	GPULight lights[MAX_LIGHTS];
 };
 
 // @Mattsu TODO: Depois de fazer a triangulação das meshes tenta implementar um FastPhong (precisa ser com mesh triangulada)

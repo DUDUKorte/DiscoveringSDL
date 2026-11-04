@@ -30,6 +30,12 @@ layout(location = 1) in vec3 inNormal;
 
 layout(location = 0) out vec3 fragWorldPos;
 layout(location = 1) out vec3 fragNormal;
+layout(location = 2) out vec3 fragGouraudColor;
+
+struct GPULight {
+    vec4 posAndType;
+    vec4 colorAndMaxDist;
+};
 
 layout(set = 1, binding = 0) uniform VertexUniforms {
     mat4 modelMatrix;
@@ -37,11 +43,73 @@ layout(set = 1, binding = 0) uniform VertexUniforms {
     mat4 normalMatrix;
 } ubo;
 
+layout(set = 1, binding = 1) uniform LightingUniforms {
+    vec4 baseColor;
+    vec4 materialProps;
+    vec4 ambientLight;
+    int lightAlgorithm;
+    int numLights;
+    int perspective, pad1;
+    GPULight lights[16];
+} lightUbo;
+
+vec3 EvaluateLighting(vec3 normal, vec3 worldPos) {
+    vec3 N = normalize(normal);
+    vec3 baseCol = lightUbo.baseColor.rgb;
+    vec3 ambient = lightUbo.ambientLight.rgb * lightUbo.materialProps.x * baseCol;
+    vec3 diffuse = vec3(0.0);
+    vec3 specular = vec3(0.0);
+    vec3 V = vec3(0.0, 0.0, -1.0);
+
+    for (int i = 0; i < lightUbo.numLights; i++) {
+        vec3 lightPos = lightUbo.lights[i].posAndType.xyz;
+        float isPoint = lightUbo.lights[i].posAndType.w;
+        vec3 lightIntensity = lightUbo.lights[i].colorAndMaxDist.rgb;
+        float maxDist = lightUbo.lights[i].colorAndMaxDist.w;
+
+        float dist = distance(worldPos, lightPos);
+        float attenuation = 1.0;
+
+        if (isPoint > 0.5) {
+            if (dist > maxDist) continue;
+            attenuation = min(1.0 / (dist * dist), 1.0);
+        }
+
+        vec3 L = normalize(lightPos - worldPos);
+        float diff = max(dot(N, L), 0.0);
+        diffuse += diff * lightIntensity * lightUbo.materialProps.y * baseCol * attenuation;
+
+        if (diff > 0.0) {
+            vec3 R = reflect(-L, N);
+            float spec = pow(max(dot(R, V), 0.0), lightUbo.materialProps.w);
+            specular += spec * lightIntensity * lightUbo.materialProps.z * attenuation;
+        }
+    }
+    return clamp(ambient + diffuse + specular, 0.0, 1.0);
+}
+
 void main() {
     vec4 worldPos = ubo.modelMatrix * vec4(inPosition, 1.0);
+	vec4 telaPos = worldPos;
+
+	if(lightUbo.perspective == 1){
+		float zc = worldPos.z;
+		telaPos.x = ((worldPos.x - 1280 * 0.5) / zc) * 800.0 + (1280 * 0.5);
+		telaPos.y = ((worldPos.y - 720 * 0.5) / zc) * 800.0 + (720 * 0.5);
+		telaPos.z = zc;
+	}
+
     fragWorldPos = worldPos.xyz;
     fragNormal = normalize(mat3(ubo.normalMatrix) * inNormal);
-    gl_Position = ubo.viewProjMatrix * worldPos;
+
+    // Se for Gouraud (1), já calcula a cor no vértice para a GPU interpolar
+    if (lightUbo.lightAlgorithm == 1) {
+        fragGouraudColor = EvaluateLighting(fragNormal, fragWorldPos);
+    } else {
+        fragGouraudColor = vec3(0.0);
+    }
+
+    gl_Position = ubo.viewProjMatrix * telaPos;
 }
 )";
 
@@ -50,43 +118,75 @@ const char* fragmentShaderSource = R"(
 
 layout(location = 0) in vec3 fragWorldPos;
 layout(location = 1) in vec3 fragNormal;
+layout(location = 2) in vec3 fragGouraudColor;
 
 layout(location = 0) out vec4 outColor;
 
-layout(set = 3, binding = 0) uniform FragmentUniforms {
+struct GPULight {
+    vec4 posAndType;
+    vec4 colorAndMaxDist;
+};
+
+layout(set = 3, binding = 0) uniform LightingUniforms {
     vec4 baseColor;
-    vec4 materialProps;        // x: ambient, y: diffuse, z: specular, w: shininess
+    vec4 materialProps;
     vec4 ambientLight;
-    vec4 lightPosAndType;      // xyz: pos, w: isPointLight
-    vec4 lightColorAndMaxDist; // xyz: color*intensity, w: maxDist
-} fragUbo;
+    int lightAlgorithm;
+    int numLights;
+    int perspective, pad1;
+    GPULight lights[16];
+} lightUbo;
+
+vec3 EvaluateLighting(vec3 normal, vec3 worldPos) {
+    vec3 N = normalize(normal);
+    vec3 baseCol = lightUbo.baseColor.rgb;
+    vec3 ambient = lightUbo.ambientLight.rgb * lightUbo.materialProps.x * baseCol;
+    vec3 diffuse = vec3(0.0);
+    vec3 specular = vec3(0.0);
+    vec3 V = vec3(0.0, 0.0, -1.0);
+
+    for (int i = 0; i < lightUbo.numLights; i++) {
+        vec3 lightPos = lightUbo.lights[i].posAndType.xyz;
+        float isPoint = lightUbo.lights[i].posAndType.w;
+        vec3 lightIntensity = lightUbo.lights[i].colorAndMaxDist.rgb;
+        float maxDist = lightUbo.lights[i].colorAndMaxDist.w;
+
+        float dist = distance(worldPos, lightPos);
+        float attenuation = 1.0;
+
+        if (isPoint > 0.5) {
+            if (dist > maxDist) continue;
+            attenuation = min(1.0 / (dist * dist), 1.0);
+        }
+
+        vec3 L = normalize(lightPos - worldPos);
+        float diff = max(dot(N, L), 0.0);
+        diffuse += diff * lightIntensity * lightUbo.materialProps.y * baseCol * attenuation;
+
+        if (diff > 0.0) {
+            vec3 R = reflect(-L, N);
+            float spec = pow(max(dot(R, V), 0.0), lightUbo.materialProps.w);
+            specular += spec * lightIntensity * lightUbo.materialProps.z * attenuation;
+        }
+    }
+    return clamp(ambient + diffuse + specular, 0.0, 1.0);
+}
 
 void main() {
-    vec3 N = normalize(fragNormal);
-    vec3 baseCol = fragUbo.baseColor.rgb;
-
-    vec3 ambient = fragUbo.ambientLight.rgb * fragUbo.materialProps.x * baseCol;
-    vec3 L = normalize(fragUbo.lightPosAndType.xyz - fragWorldPos);
-    float dist = length(fragUbo.lightPosAndType.xyz - fragWorldPos);
-
-    float attenuation = 1.0;
-    if (fragUbo.lightPosAndType.w > 0.5) { // Point Light
-        float ratio = clamp(dist / fragUbo.lightColorAndMaxDist.w, 0.0, 1.0);
-        attenuation = (1.0 - ratio) * (1.0 - ratio);
+    if (lightUbo.lightAlgorithm == 1) {
+        // Gouraud: usa direto a cor interpolada vinda do Vertex Shader
+        outColor = vec4(fragGouraudColor, 1.0);
+    } 
+    else if (lightUbo.lightAlgorithm == 0) {
+        // Constant: reconstrói a normal chapada da face usando derivadas de tela
+        vec3 flatNormal = normalize(cross(dFdx(fragWorldPos), dFdy(fragWorldPos)));
+        if (dot(flatNormal, fragNormal) < 0.0) flatNormal = -flatNormal;
+        outColor = vec4(EvaluateLighting(flatNormal, fragWorldPos), 1.0);
+    } 
+    else {
+        // Phong (2): usa a normal interpolada por pixel
+        outColor = vec4(EvaluateLighting(fragNormal, fragWorldPos), 1.0);
     }
-
-    float diff = max(dot(N, L), 0.0);
-    vec3 diffuse = diff * fragUbo.lightColorAndMaxDist.rgb * fragUbo.materialProps.y * baseCol * attenuation;
-
-    vec3 specular = vec3(0.0);
-    if (diff > 0.0) {
-        vec3 V = vec3(0.0, 0.0, -1.0);
-        vec3 R = reflect(-L, N);
-        float spec = pow(max(dot(R, V), 0.0), fragUbo.materialProps.w);
-        specular = spec * fragUbo.lightColorAndMaxDist.rgb * fragUbo.materialProps.z * attenuation;
-    }
-
-    outColor = vec4(clamp(ambient + diffuse + specular, 0.0, 1.0), 1.0);
 }
 )";
 
@@ -105,7 +205,7 @@ void Renderer3D::InitGPU(WindowProperties* window)
 	DepthTexture = SDL_CreateGPUTexture(MainWindow->GPUDevice, &depthInfo);
 
 	// SHader compilation
-	SDL_GPUShader* vertShader = CompileGLSLToSDLShader(MainWindow->GPUDevice, vertexShaderSource, shaderc_glsl_vertex_shader, SDL_GPU_SHADERSTAGE_VERTEX, 1);
+	SDL_GPUShader* vertShader = CompileGLSLToSDLShader(MainWindow->GPUDevice, vertexShaderSource, shaderc_glsl_vertex_shader, SDL_GPU_SHADERSTAGE_VERTEX, 2);
 	SDL_GPUShader* fragShader = CompileGLSLToSDLShader(MainWindow->GPUDevice, fragmentShaderSource, shaderc_glsl_fragment_shader, SDL_GPU_SHADERSTAGE_FRAGMENT, 1);
 
 	// Layout dos Vértices (GPUVertex: vec3 pos + vec3 normal)
@@ -164,6 +264,9 @@ void Renderer3D::InitGPU(WindowProperties* window)
 
 void Renderer3D::UploadMeshToGPU(Mesh& mesh)
 {
+	// Não tem mesh, pode ser só um objeto de lógica
+	if (mesh.GetObj() == "None") { return; }
+
 	std::vector<GPUVertex> gpuVertices;
 
 	auto& localVertices = mesh.GetLocalVertices();
@@ -171,8 +274,20 @@ void Renderer3D::UploadMeshToGPU(Mesh& mesh)
 	auto& faceNormals = mesh.GetNormals();
 
 	if (mesh.GetFaces()[0].vertices.size() > 3) { return; } // Mesh inválida (não triangulada)
-	if (gpuVertices.empty()) { return; }
 
+	// tem que popular o gpu vertices com o vertice e normal da mehs
+	for (const face& f : mesh.GetFaces()) {
+		if (f.vertices.size() < 3) continue;
+
+		for (size_t i = 0; i < 3; i++) {
+			int vIdx = f.vertices[i];
+			glm::vec3 pos = localVertices[vIdx];
+			glm::vec3 norm = (vIdx < localVertices.size()) ? vertexNormals[vIdx] : faceNormals[f.normal];
+			gpuVertices.push_back({ pos, norm });
+		}
+	}
+
+	if (gpuVertices.empty()) { return; }
 	mesh.GetVertexCount() = static_cast<uint32_t>(gpuVertices.size());
 	uint32_t byteSize = mesh.GetVertexCount() * sizeof(GPUVertex);
 
@@ -234,7 +349,7 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 	vertUbo.viewProjMatrix = glm::ortho(
 		0.0f, (float)MainWindow->Width,
 		(float)MainWindow->Height, 0.0f,
-		-10000.0f, 10000.0f
+		10000.0f, -10000.0f
 	);
 
 	// dados de material
@@ -243,24 +358,35 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 	fragUbo.baseColor = glm::vec4(mat.baseColor, 1.0f);
 	fragUbo.materialProps = glm::vec4(mat.ambientReflection, mat.diffuse, mat.specular, mat.specular_brightness);
 	fragUbo.ambientLight = glm::vec4(AmbientLight, 1.0f);
+	fragUbo.lightAlgorithm = static_cast<int>(Renderer3D::LightAlgorithm);
 
-	if (SceneLights && !SceneLights->empty() && mesh.GetAfectedByLights()) {
-		MeshLight* light = (*SceneLights)[0]; // Pega a primeira luz pra testar, depois tem que fazer no for como tá embaixo:
-		//for (MeshLight* light : SceneLights)
-		//{
-		//	
-		//}
-		float isPoint = (light->GetLightType() != LightType::DirectionalLight) ? 1.0f : 0.0f;
-		fragUbo.lightPosAndType = glm::vec4(light->GetTransform().Position, isPoint);
-		fragUbo.lightColorAndMaxDist = glm::vec4(light->GetLightColor() * light->GetLightIntensity(), light->GetMaxDistance());
-	}
-	else {
+	if (SceneLights && mesh.GetAfectedByLights()) {
+		int count = std::min((int)SceneLights->size(), MAX_LIGHTS);
+		fragUbo.numLights = count;
+
+		for (int i = 0; i < count; i++) {
+			MeshLight* light = (*SceneLights)[i];
+			float isPoint = (light->GetLightType() != LightType::DirectionalLight) ? 1.0f : 0.0f;
+			fragUbo.lights[i].posAndType = glm::vec4(light->GetTransform().Position, isPoint);
+			fragUbo.lights[i].colorAndMaxDist= glm::vec4(light->GetLightColor() * light->GetLightIntensity(), light->GetMaxDistance());
+		}
+	}else {
 		// caso não for afetado por luz
+		fragUbo.numLights = 0;
 		fragUbo.ambientLight = glm::vec4(1.0f);
 		fragUbo.materialProps = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+		fragUbo.lightAlgorithm = 2;
+	}
+
+	if (mesh.GetUsePerspective()) {
+		fragUbo.perspective = 1;
+	}
+	else {
+		fragUbo.perspective = 0;
 	}
 
 	SDL_PushGPUVertexUniformData(commandBuffer, 0, &vertUbo, sizeof(VertexUniformData));
+	SDL_PushGPUVertexUniformData(commandBuffer, 1, &fragUbo, sizeof(VertexUniformData));
 	SDL_PushGPUFragmentUniformData(commandBuffer, 0, &fragUbo, sizeof(FragmentUniformData));
 
 	// faz o Bind do vertex buffer da mesh e desenha
@@ -371,7 +497,7 @@ void Renderer3D::Draw3DLinesWithVertices(const std::vector<std::pair<glm::vec3, 
 
 void Renderer3D::DrawMesh(Mesh& meshTeste)
 {
-	if (Renderer3D::RendererMode != RendererModes::Software) { return; }
+	if (Renderer3D::RendererMode == RendererModes::Hardware) { return; }
 
 	std::vector<glm::vec3>& allVertices = meshTeste.GetVertices();
 	std::vector<glm::vec3>& allLocalVertices = meshTeste.GetLocalVertices();
