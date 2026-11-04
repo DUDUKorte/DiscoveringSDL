@@ -361,12 +361,19 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		case SDLK_Q: // Selection polygons mode
 			OnChangeMode(Selection);
 			break;
-		case SDLK_BACKSPACE:
 		case SDLK_DELETE:
 			OnDestroySelectedMesh();
 			break;
 		case SDLK_ESCAPE:
 			m_GameStarted = false;
+			break;
+		case SDLK_P:
+			m_WindowProperties.cameraPos.x += 1.0f;
+			LE_CORE_INFO("CAMERAPOSX: " + std::to_string(m_WindowProperties.cameraPos.x));
+			break;
+		case SDLK_O:
+			m_WindowProperties.cameraPos.x -= 1.0f;
+			LE_CORE_INFO("CAMERAPOSX: " + std::to_string(m_WindowProperties.cameraPos.x));
 			break;
 		}
 		// Atalho pra alternar o fillpoly 

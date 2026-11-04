@@ -7,7 +7,7 @@
 
 // descomente essa linha apenas se for usar o novo renderer por hardware
 // (precisa ter o SDK do vulkan devidamente instalado)
-#define USE_HARDWARE_RENDERER
+//#define USE_HARDWARE_RENDERER
 
 #define MAX_LIGHTS 16
 
@@ -37,6 +37,7 @@ struct VertexUniformData {
 	glm::mat4 modelMatrix;
 	glm::mat4 viewProjMatrix;
 	glm::mat4 normalMatrix;
+	glm::vec3 cameraPos;
 };
 
 // Uniform do Fragment Shader (Material + Luzes)
