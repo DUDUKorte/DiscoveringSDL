@@ -31,7 +31,6 @@ typedef struct WindowProperties {
 	SDL_Renderer* Renderer = nullptr;
 	SDL_GPUDevice* GPUDevice = nullptr;
 	SDL_GPUGraphicsPipeline* GPUPipeline = nullptr;
-	glm::vec3 cameraPos = {1.0f, 1.0f, 1.0f};
 } WindowProperties;
 
 class EditorApp {

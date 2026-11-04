@@ -41,7 +41,6 @@ layout(set = 1, binding = 0) uniform VertexUniforms {
     mat4 modelMatrix;
     mat4 viewProjMatrix;
     mat4 normalMatrix;
-	vec3 cameraPos;
 } ubo;
 
 layout(set = 1, binding = 1) uniform LightingUniforms {
@@ -110,7 +109,7 @@ void main() {
         fragGouraudColor = vec3(0.0);
     }
 
-    gl_Position = ubo.viewProjMatrix * telaPos * ubo.cameraPos;
+    gl_Position = ubo.viewProjMatrix * telaPos;
 }
 )";
 
@@ -347,16 +346,12 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 	vertUbo.normalMatrix = glm::transpose(glm::inverse(vertUbo.modelMatrix));
 
 	// projeção ortográfica
-	// aqui ele cria essa matriz a cada mes, o ideal seria criar uma vez pra câmera
-	// e só multiplicar tudo no final pela matriz da câmera (View * Projection * Transform)
-	glm::mat4 viewProj = glm::ortho(
+	vertUbo.viewProjMatrix = glm::ortho(
 		0.0f, (float)MainWindow->Width,
 		(float)MainWindow->Height, 0.0f,
 		10000.0f, -10000.0f
 	);
 
-	vertUbo.cameraPos = MainWindow->cameraPos;
-		
 	// dados de material
 	MeshMaterial& mat = mesh.GetMaterial();
 	FragmentUniformData fragUbo = {};
@@ -401,6 +396,7 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 	SDL_BindGPUVertexBuffers(renderPass, 0, &binding, 1);
 
 	SDL_DrawGPUPrimitives(renderPass, mesh.GetVertexCount(), 1, 0, 0);
+
 }
 
 void Renderer3D::Init(std::vector<uint32_t>* buffer, std::vector<float>* zbuffer, WindowProperties* window, std::vector<MeshLight*>* lights)
