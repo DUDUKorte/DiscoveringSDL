@@ -27,6 +27,7 @@ const char* vertexShaderSource = R"(
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
+layout(location = 2) in vec3 cameraPos;
 
 layout(location = 0) out vec3 fragWorldPos;
 layout(location = 1) out vec3 fragNormal;
@@ -41,6 +42,7 @@ layout(set = 1, binding = 0) uniform VertexUniforms {
     mat4 modelMatrix;
     mat4 viewProjMatrix;
     mat4 normalMatrix;
+	mat4 cameraMatrix;
 } ubo;
 
 layout(set = 1, binding = 1) uniform LightingUniforms {
@@ -91,13 +93,6 @@ vec3 EvaluateLighting(vec3 normal, vec3 worldPos) {
 void main() {
     vec4 worldPos = ubo.modelMatrix * vec4(inPosition, 1.0);
 	vec4 telaPos = worldPos;
-
-	if(lightUbo.perspective == 1){
-		float zc = worldPos.z;
-		telaPos.x = ((worldPos.x - 1280 * 0.5) / zc) * 800.0 + (1280 * 0.5);
-		telaPos.y = ((worldPos.y - 720 * 0.5) / zc) * 800.0 + (720 * 0.5);
-		telaPos.z = zc;
-	}
 
     fragWorldPos = worldPos.xyz;
     fragNormal = normalize(mat3(ubo.normalMatrix) * inNormal);
@@ -346,11 +341,31 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 	vertUbo.normalMatrix = glm::transpose(glm::inverse(vertUbo.modelMatrix));
 
 	// projeção ortográfica
-	vertUbo.viewProjMatrix = glm::ortho(
-		0.0f, (float)MainWindow->Width,
-		(float)MainWindow->Height, 0.0f,
-		10000.0f, -10000.0f
-	);
+	glm::mat4 projMatrix;
+	glm::mat4 viewMatrix(1.0f);
+	glm::mat4 transform = glm::translate(glm::mat4(1.0f), MainWindow->CameraPos);
+	transform = glm::rotate(transform, glm::radians(MainWindow->CameraRot.y), { 0.0f, 1.0f, 0.0f });
+	transform = glm::rotate(transform, glm::radians(MainWindow->CameraRot.x), { 1.0f, 0.0f, 0.0f });
+
+	if (mesh.GetUsePerspective()) {
+		projMatrix = glm::perspectiveLH_ZO(glm::radians(60.0f), (float)MainWindow->Width/MainWindow->Height, 0.1f, 100000.0f);
+		projMatrix[1][1] *= -1.0f; // arruma o y
+	}
+	else {
+		projMatrix = glm::ortho(
+			0.0f, (float)MainWindow->Width,
+			(float)MainWindow->Height, 0.0f,
+			10000.0f, -10000.0f
+		);
+	}
+
+	viewMatrix = glm::inverse(transform);
+	
+	//viewProj = glm::translate(viewProj, MainWindow->CameraPos); // só funciona pra câmera 2D
+	vertUbo.cameraMatrix = glm::mat4(1.0f);
+	//vertUbo.cameraMatrix = glm::translate(vertUbo.cameraMatrix, MainWindow->CameraPos);
+
+	vertUbo.viewProjMatrix = projMatrix * viewMatrix;
 
 	// dados de material
 	MeshMaterial& mat = mesh.GetMaterial();
@@ -386,7 +401,7 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 	}
 
 	SDL_PushGPUVertexUniformData(commandBuffer, 0, &vertUbo, sizeof(VertexUniformData));
-	SDL_PushGPUVertexUniformData(commandBuffer, 1, &fragUbo, sizeof(VertexUniformData));
+	SDL_PushGPUVertexUniformData(commandBuffer, 1, &fragUbo, sizeof(FragmentUniformData));
 	SDL_PushGPUFragmentUniformData(commandBuffer, 0, &fragUbo, sizeof(FragmentUniformData));
 
 	// faz o Bind do vertex buffer da mesh e desenha

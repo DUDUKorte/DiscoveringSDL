@@ -361,7 +361,6 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		case SDLK_Q: // Selection polygons mode
 			OnChangeMode(Selection);
 			break;
-		case SDLK_BACKSPACE:
 		case SDLK_DELETE:
 			OnDestroySelectedMesh();
 			break;
@@ -398,6 +397,7 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		}
 		else if (e.button == 3) { // RMB
 			m_bRMB = true;
+			SDL_HideCursor();
 		}
 	}
 	/// EVENTOS DE MOUSE "DESPRESSIONADO"? ///////////////////////////////////////////////////////
@@ -407,7 +407,7 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 			m_ActiveGizmoState = GIZMO_NONE;
 			m_bLMB = false;
 		}
-		else if (e.button == 3) {
+		else if (e.button == 3) { // RMB
 			m_bRMB = false;
 		}
 	}
@@ -423,6 +423,10 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		}
 		else if (m_CurrentMode == ScalePoly) {
 			m_ScaleMeshSpeed += m_ScaleMeshSpeed + 0.0005f * e.y >= 0 && m_ScaleMeshSpeed + 0.0005f * e.y <= 0.05f ? 0.0005f * e.y : 0.0f;
+		}
+		if (m_bRMB) {
+			m_CameraSpeed += 0.1f * e.y;
+			m_CameraSpeed = glm::clamp(m_CameraSpeed, 0.1f, 10.0f);
 		}
 	}
 
@@ -446,6 +450,14 @@ void EditorApp::ProcessMouseMotion(SDL_Event* event)
 
 	if (!m_bLMB) {
 		UpdateGizmoHover(e.x, e.y, GetActiveMesh(), m_CurrentMode);
+	}
+
+	if (m_bRMB) {
+		if (glm::epsilonNotEqual(e.x, m_WindowProperties.Width / 2.0f, 1.0f) && glm::epsilonNotEqual(e.y, m_WindowProperties.Height / 2.0f, 1.0f)) {
+			SDL_WarpMouseInWindow(m_WindowProperties.Window, m_WindowProperties.Width / 2.0f, m_WindowProperties.Height / 2.0f);
+		}
+		m_WindowProperties.CameraRot += glm::vec2({-event->motion.yrel * 0.1f, event->motion.xrel * 0.1f});
+		m_WindowProperties.CameraRot.x = glm::clamp(m_WindowProperties.CameraRot.x, -90.0f, 90.0f);
 	}
 
 	// Aqui é quando tá segurando o botão esquerdo do mouse
@@ -513,7 +525,7 @@ void EditorApp::ProcessMouseMotion(SDL_Event* event)
 //////////////////////MOUSE MOTION/////////////////////////
 ///////////////////////////////////////////////////////////
 
-// TESTE!!!! APAGAR DEPOIS
+
 
 ///////////////////////////////////////////////////////////
 ///////////////////UPDATE AND RENDER///////////////////////
@@ -524,6 +536,20 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	old_deltaTime = new_deltaTime;
 	new_deltaTime = SDL_GetPerformanceCounter();
 	deltaTime = (double)((new_deltaTime - old_deltaTime) * 1000 / (double)SDL_GetPerformanceFrequency());
+
+	if (m_bRMB) {
+		glm::vec3 addMovement = {0.0f, 0.0f, 0.0f};
+		addMovement.x += m_CameraSpeed * deltaTime * (GetIsKeyPressed(SDL_SCANCODE_D) - GetIsKeyPressed(SDL_SCANCODE_A));
+		addMovement.z += m_CameraSpeed * deltaTime * (GetIsKeyPressed(SDL_SCANCODE_W) - GetIsKeyPressed(SDL_SCANCODE_S));
+		addMovement.y += m_CameraSpeed * deltaTime * (GetIsKeyPressed(SDL_SCANCODE_Q) - GetIsKeyPressed(SDL_SCANCODE_E));
+
+		glm::vec3 moveDir = { addMovement.x, 0.0f, addMovement.z };
+		moveDir = glm::rotateX(moveDir, glm::radians(m_WindowProperties.CameraRot.x));
+		moveDir = glm::rotateY(moveDir, glm::radians(m_WindowProperties.CameraRot.y));
+
+		m_WindowProperties.CameraPos += moveDir;
+		m_WindowProperties.CameraPos.y += addMovement.y;
+	}
 
 	/* IMGUI */
 	if (SDL_GetWindowFlags(m_WindowProperties.Window) & SDL_WINDOW_MINIMIZED)

@@ -7,6 +7,7 @@
 #include "EditorCore/Mesh.h"
 #include "EditorCore/MeshLight.h"
 #include "EditorCore/Pipe.h"
+#include "Utils/LeandroMath.h"
 
 #include "imgui_impl_sdl3.h"
 
@@ -31,6 +32,8 @@ typedef struct WindowProperties {
 	SDL_Renderer* Renderer = nullptr;
 	SDL_GPUDevice* GPUDevice = nullptr;
 	SDL_GPUGraphicsPipeline* GPUPipeline = nullptr;
+	glm::vec3 CameraPos = { 0.0f, 0.0f, 0.0f };
+	glm::vec2 CameraRot = { 0.0f, 0.0f };
 } WindowProperties;
 
 class EditorApp {
@@ -103,6 +106,7 @@ private:
 
 	ImVec4 m_ClearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+	float m_CameraSpeed = 4.0f;
 	bool m_bLMB = false;
 	bool m_bRMB = false;
 	bool m_GameStarted = false;

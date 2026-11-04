@@ -37,6 +37,7 @@ struct VertexUniformData {
 	glm::mat4 modelMatrix;
 	glm::mat4 viewProjMatrix;
 	glm::mat4 normalMatrix;
+	glm::mat4 cameraMatrix;
 };
 
 // Uniform do Fragment Shader (Material + Luzes)
