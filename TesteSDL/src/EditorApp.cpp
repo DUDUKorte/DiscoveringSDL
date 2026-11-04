@@ -75,16 +75,8 @@ SDL_AppResult EditorApp::Init()
 		SDL_Log("Error: SDL_ClaimWindowForGPUDevice(): %s\n", SDL_GetError());
 		return SDL_APP_FAILURE;
 	}
-	
-	//m_WindowProperties.Renderer = SDL_CreateRenderer(m_WindowProperties.Window, nullptr);
-	//SDL_SetRenderVSync(m_WindowProperties.Renderer, 0);
-	//if (m_WindowProperties.Renderer == nullptr)
-	//{
-	//	SDL_Log("Error: SDL_CreateRenderer(): %s\n", SDL_GetError());
-	//	return SDL_APP_FAILURE;
-	//}
 
-	SDL_SetGPUSwapchainParameters(m_WindowProperties.GPUDevice, m_WindowProperties.Window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_IMMEDIATE);
+	SDL_SetGPUSwapchainParameters(m_WindowProperties.GPUDevice, m_WindowProperties.Window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_VSYNC);
 
 	SDL_SetWindowPosition(m_WindowProperties.Window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 	SDL_ShowWindow(m_WindowProperties.Window);
@@ -152,28 +144,6 @@ SDL_AppResult EditorApp::Init()
 	}
 
 	m_BgColor = {0.2f, 0.2f, 0.2f};
-
-	//LoadObjFile("./cubo.obj", cubinho);
-	//LoadObjFile("./zelda.obj", macaquinho);
-	//LoadObjFile("./sphere.obj", sun);
-
-	//cubinho->GetTransform().Scale = { 100.0f, 100.0f, 100.0f };
-	//cubinho->GetTransform().Position = { 740.0f, 480.0f, 0.0f };
-	//cubinho->GetTransform().Rotation = { 40.0f, 30.0f, 10.0f };
-
-	//macaquinho->GetTransform().Scale = { 100.0f, 100.0f, 100.0f };
-	//macaquinho->GetTransform().Position = { 340.0f, 280.0f, 0.0f };
-	//macaquinho->GetTransform().Rotation = { 0.2f, 0.0f, 2.0f };
-
-	//sun->GetTransform().Position = { 900.0f, 100.0f, -500.0f };
-	//sun->GetLightIntensity() = 1.0f;
-	//sun->GetLightColor() = { 1.0f, 1.0f, 1.0f };
-
-	//m_GlobalMeshLights.push_back(sun);
-
-	//m_GlobalMeshes.push_back(sun);
-	//m_GlobalMeshes.push_back(cubinho);
-	//m_GlobalMeshes.push_back(macaquinho);
 
 	return SDL_APP_CONTINUE;
 }
@@ -366,6 +336,8 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 			break;
 		case SDLK_ESCAPE:
 			m_GameStarted = false;
+			SetHideCursor(false);
+			OnChangeMode(Selection);
 			break;
 		}
 		// Atalho pra alternar o fillpoly 
@@ -397,7 +369,11 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		}
 		else if (e.button == 3) { // RMB
 			m_bRMB = true;
-			SDL_HideCursor();
+			//SDL_SetWindowRelativeMouseMode(m_WindowProperties.Window, true);
+			SetHideCursor(true);
+			//SDL_HideCursor();
+			m_LastMode = m_CurrentMode;
+			OnChangeMode(Navigation);
 		}
 	}
 	/// EVENTOS DE MOUSE "DESPRESSIONADO"? ///////////////////////////////////////////////////////
@@ -409,6 +385,11 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 		}
 		else if (e.button == 3) { // RMB
 			m_bRMB = false;
+			SetHideCursor(false);
+			//SDL_SetWindowRelativeMouseMode(m_WindowProperties.Window, false);
+			// reseta o mouse pro centro da tela
+			SDL_WarpMouseInWindow(m_WindowProperties.Window, m_WindowProperties.Width / 2.0f, m_WindowProperties.Height / 2.0f);
+			OnChangeMode(m_LastMode);
 		}
 	}
 	/// EVENTOS DO MOUSE SE MEXENDA ///////////////////////////////////////////////////////
@@ -453,9 +434,6 @@ void EditorApp::ProcessMouseMotion(SDL_Event* event)
 	}
 
 	if (m_bRMB) {
-		if (glm::epsilonNotEqual(e.x, m_WindowProperties.Width / 2.0f, 1.0f) && glm::epsilonNotEqual(e.y, m_WindowProperties.Height / 2.0f, 1.0f)) {
-			SDL_WarpMouseInWindow(m_WindowProperties.Window, m_WindowProperties.Width / 2.0f, m_WindowProperties.Height / 2.0f);
-		}
 		m_WindowProperties.CameraRot += glm::vec2({-event->motion.yrel * 0.1f, event->motion.xrel * 0.1f});
 		m_WindowProperties.CameraRot.x = glm::clamp(m_WindowProperties.CameraRot.x, -90.0f, 90.0f);
 	}
@@ -824,36 +802,36 @@ void EditorApp::RenderUI()
 		}
 	}
 
-	ImGui::SeparatorText("Custom Mesh");
+	//ImGui::SeparatorText("Custom Mesh");
 
-	// Criar polígono personalizado
-	ImGui::SliderInt("Num. Faces", &m_CustomPolyFaces, 3, 100);
-	ImGui::SliderInt("Size", &m_CustomPolySize, 10, 100);
-	if (ImGui::Button("Create Cusotm Poly")) {
-		m_CurrentMesh = (int)m_GlobalMeshes.size();
-		m_CurrentSubMesh = -1;
+	//// Criar polígono personalizado
+	//ImGui::SliderInt("Num. Faces", &m_CustomPolyFaces, 3, 100);
+	//ImGui::SliderInt("Size", &m_CustomPolySize, 10, 100);
+	//if (ImGui::Button("Create Cusotm Poly")) {
+	//	m_CurrentMesh = (int)m_GlobalMeshes.size();
+	//	m_CurrentSubMesh = -1;
 
-		std::string mesh_name = "Mesh_Poly" + std::to_string(m_CurrentMesh);
-		std::vector<glm::vec3> custom_poly;
+	//	std::string mesh_name = "Mesh_Poly" + std::to_string(m_CurrentMesh);
+	//	std::vector<glm::vec3> custom_poly;
 
-		glm::vec3 start_vertex = {-10 * m_CustomPolySize, -10 * m_CustomPolySize, 1.0f }; // Ponto inicial
-		float angle = (360.0f / (float)m_CustomPolyFaces) * float(std::numbers::pi) / 180.0f;
+	//	glm::vec3 start_vertex = {-10 * m_CustomPolySize, -10 * m_CustomPolySize, 1.0f }; // Ponto inicial
+	//	float angle = (360.0f / (float)m_CustomPolyFaces) * float(std::numbers::pi) / 180.0f;
 
-		// Rotaciona o ponto
-		for (int i = 0; i < m_CustomPolyFaces; i++) {
-			custom_poly.push_back(start_vertex);
-			float tx = start_vertex.x * std::cos(angle) - start_vertex.y * std::sin(angle);
-			float ty = start_vertex.x * std::sin(angle) + start_vertex.y * std::cos(angle);
-			start_vertex.x = tx;
-			start_vertex.y = ty;
-		}
+	//	// Rotaciona o ponto
+	//	for (int i = 0; i < m_CustomPolyFaces; i++) {
+	//		custom_poly.push_back(start_vertex);
+	//		float tx = start_vertex.x * std::cos(angle) - start_vertex.y * std::sin(angle);
+	//		float ty = start_vertex.x * std::sin(angle) + start_vertex.y * std::cos(angle);
+	//		start_vertex.x = tx;
+	//		start_vertex.y = ty;
+	//	}
 
-		m_GlobalMeshes.push_back(new Mesh2D(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f, 1.0f }, custom_poly));
-		m_GlobalMeshes[m_CurrentMesh]->SetClosed(true);
+	//	m_GlobalMeshes.push_back(new Mesh2D(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f, 1.0f }, custom_poly));
+	//	m_GlobalMeshes[m_CurrentMesh]->SetClosed(true);
 
-		LE_TRACE("Custom Mesh: " + mesh_name + " Created!");
-		OnChangeMode(CreatePoly);
-	}
+	//	LE_TRACE("Custom Mesh: " + mesh_name + " Created!");
+	//	OnChangeMode(CreatePoly);
+	//}
 
 	ImGui::SeparatorText("Editor Modes");
 
@@ -905,6 +883,32 @@ void EditorApp::RenderUI()
 	ImGui::Checkbox("Simulate", &m_GameSimulate);
 
 	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+
+	ImGui::SeparatorText("Renderer Options");
+	const char* algorithms[] = { "Constant", "Gouraud", "Phong" };
+	int currentAlgo = static_cast<int>(Renderer3D::LightAlgorithm);
+
+	if (ImGui::Combo("Light Algorithm", &currentAlgo, algorithms, IM_ARRAYSIZE(algorithms))) {
+		Renderer3D::LightAlgorithm = static_cast<LightAlgorithms>(currentAlgo);
+	}
+
+	const char* rendererModes[] = { "Software", "Hardware" };
+	int currentRenderer = static_cast<int>(Renderer3D::RendererMode);
+
+	ImGui::Checkbox("Perspective", &Renderer3D::UsePerspective);
+
+#ifdef USE_HARDWARE_RENDERER
+	if (ImGui::Combo("Renderer Mode", &currentRenderer, rendererModes, IM_ARRAYSIZE(rendererModes))) {
+		Renderer3D::RendererMode = static_cast<RendererModes>(currentRenderer);
+		if (Renderer3D::RendererMode == RendererModes::Software) {
+			SDL_ReleaseGPUGraphicsPipeline(m_WindowProperties.GPUDevice, m_WindowProperties.GPUPipeline);
+			Renderer3D::Init(m_VertexBuffer, m_ZBuffer, &m_WindowProperties, &m_GlobalMeshLights);
+		}
+		else {
+			Renderer3D::InitGPU(&m_WindowProperties);
+		}
+	}
+#endif
 
 	ImGui::End();
 
@@ -995,38 +999,12 @@ void EditorApp::RenderUI()
 
 			Mesh* selectedMeshConv = static_cast<Mesh*>(GetActiveMesh());
 			ImGui::Checkbox("Affected By Lights", &selectedMeshConv->GetAfectedByLights());
-			ImGui::Checkbox("Perspective", &selectedMeshConv->GetUsePerspective());
 			
 			ImGui::SeparatorText("Materials");
 			ImGui::DragFloat("Ambient Reflection", &selectedMeshConv->GetMaterial().ambientReflection, 0.001f, 0.0f, 1.0f);
 			ImGui::DragFloat("Diffuse", &selectedMeshConv->GetMaterial().diffuse, 0.001f, 0.0f, 1.0f);
 			ImGui::DragFloat("Specular", &selectedMeshConv->GetMaterial().specular, 0.001f, 0.0f, 1.0f);
 			ImGui::DragFloat("Specular Brightness", &selectedMeshConv->GetMaterial().specular_brightness, 0.1f, 0.0f, 128.0f);
-
-			ImGui::SeparatorText("Lightning");
-			const char* algorithms[] = {"Constant", "Gouraud", "Phong"};
-			int currentAlgo = static_cast<int>(Renderer3D::LightAlgorithm);
-
-			if (ImGui::Combo("Light Algorithm", &currentAlgo, algorithms, IM_ARRAYSIZE(algorithms))) {
-				Renderer3D::LightAlgorithm = static_cast<LightAlgorithms>(currentAlgo);
-			}
-
-			ImGui::SeparatorText("Rendering");
-			const char* rendererModes[] = { "Software", "Hardware"};
-			int currentRenderer = static_cast<int>(Renderer3D::RendererMode);
-
-			#ifdef USE_HARDWARE_RENDERER
-			if (ImGui::Combo("Renderer Mode", &currentRenderer, rendererModes, IM_ARRAYSIZE(rendererModes))) {
-				Renderer3D::RendererMode = static_cast<RendererModes>(currentRenderer);
-				if (Renderer3D::RendererMode == RendererModes::Software) {
-					SDL_ReleaseGPUGraphicsPipeline(m_WindowProperties.GPUDevice, m_WindowProperties.GPUPipeline);
-					Renderer3D::Init(m_VertexBuffer, m_ZBuffer, &m_WindowProperties, &m_GlobalMeshLights);
-				}
-				else {
-					Renderer3D::InitGPU(&m_WindowProperties);
-				}
-			}
-			#endif
 
 			if (GetActiveMesh()->GetType() == MeshTypes::TypeLight) {
 				MeshLight* selectedLight = static_cast<MeshLight*>(GetActiveMesh());
@@ -1076,6 +1054,11 @@ void EditorApp::OnChangeMode(EEditMode new_mode)
 		}
 	}
 	
+	if (m_bRMB || m_GameStarted) {
+		m_CurrentMode = Navigation;
+		return;
+	}
+
 	m_CurrentMode = new_mode;
 }
 
@@ -1289,6 +1272,11 @@ void EditorApp::PlaySound(const char* filepath)
 
 	SDL_ResumeAudioStreamDevice(m_MusicStream);
 	SDL_PutAudioStreamData(m_MusicStream, m_WavBuffer, m_WavLength);
+}
+
+void EditorApp::SetHideCursor(bool hide)
+{
+	SDL_SetWindowRelativeMouseMode(m_WindowProperties.Window, hide);
 }
 
 bool EditorApp::GetIsKeyPressed(SDL_Scancode ScanCode)

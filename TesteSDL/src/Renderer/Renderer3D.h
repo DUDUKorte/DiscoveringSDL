@@ -99,6 +99,7 @@ public:
 
 	static RendererModes RendererMode;
 	static SDL_GPUTexture* DepthTexture;
+	static bool UsePerspective;
 
 
 #ifdef USE_HARDWARE_RENDERER

@@ -15,6 +15,7 @@ std::vector<std::vector<std::pair<glm::vec3, glm::vec3>>> Renderer3D::intersecoe
 glm::vec3 Renderer3D::AmbientLight = { 0.2f, 0.2f, 0.2f };
 LightAlgorithms Renderer3D::LightAlgorithm = Constant;
 SDL_GPUTexture* Renderer3D::DepthTexture = nullptr;
+bool Renderer3D::UsePerspective = false;
 
 #ifndef USE_HARDWARE_RENDERER
 RendererModes Renderer3D::RendererMode = RendererModes::Software;
@@ -347,7 +348,7 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 	transform = glm::rotate(transform, glm::radians(MainWindow->CameraRot.y), { 0.0f, 1.0f, 0.0f });
 	transform = glm::rotate(transform, glm::radians(MainWindow->CameraRot.x), { 1.0f, 0.0f, 0.0f });
 
-	if (mesh.GetUsePerspective()) {
+	if (Renderer3D::UsePerspective) {
 		projMatrix = glm::perspectiveLH_ZO(glm::radians(60.0f), (float)MainWindow->Width/MainWindow->Height, 0.1f, 100000.0f);
 		projMatrix[1][1] *= -1.0f; // arruma o y
 	}
@@ -391,13 +392,6 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 		fragUbo.ambientLight = glm::vec4(1.0f);
 		fragUbo.materialProps = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
 		fragUbo.lightAlgorithm = 2;
-	}
-
-	if (mesh.GetUsePerspective()) {
-		fragUbo.perspective = 1;
-	}
-	else {
-		fragUbo.perspective = 0;
 	}
 
 	SDL_PushGPUVertexUniformData(commandBuffer, 0, &vertUbo, sizeof(VertexUniformData));

@@ -22,7 +22,7 @@
 	((uint32_t) ((r) * 255.0f + 0.5f)))
 #endif
 
-enum EEditMode {Selection = 0, CreatePoly, MovePoly, ScalePoly, RotatePoly};
+enum EEditMode { Selection = 0, CreatePoly, MovePoly, ScalePoly, RotatePoly, Navigation };
 enum EGizmoState { GIZMO_NONE, GIZMO_HOVER_X, GIZMO_HOVER_Y, GIZMO_HOVER_CENTER, GIZMO_HOVER_ROT };
 
 typedef struct WindowProperties {
@@ -57,6 +57,7 @@ public:
 	void LoadObjFile(std::string path, Mesh* mesh);
 	void SubmitMesh(BaseMesh* newMesh);
 	void PlaySound(const char* filepath);
+	void SetHideCursor(bool hide);
 
 	bool GetIsKeyPressed(SDL_Scancode ScanCode);
 
@@ -97,6 +98,7 @@ private:
 
 	// Estado do editor
 	EEditMode m_CurrentMode = Selection;
+	EEditMode m_LastMode = Selection;
 	EGizmoState m_CurrentGizmoState = GIZMO_NONE;
 	EGizmoState m_ActiveGizmoState = GIZMO_NONE;
 
