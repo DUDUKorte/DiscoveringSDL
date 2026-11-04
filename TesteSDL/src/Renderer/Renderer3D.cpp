@@ -419,6 +419,18 @@ void Renderer3D::Init(std::vector<uint32_t>* buffer, std::vector<float>* zbuffer
 
 void Renderer3D::UpdateResize() {
 	Renderer3D::intersecoes = std::vector<std::vector<std::pair<glm::vec3, glm::vec3>>>(MainWindow->Height);
+
+	SDL_ReleaseGPUTexture(MainWindow->GPUDevice, DepthTexture);
+
+	SDL_GPUTextureCreateInfo depthInfo = {};
+	depthInfo.type = SDL_GPU_TEXTURETYPE_2D;
+	depthInfo.width = MainWindow->Width;
+	depthInfo.height = MainWindow->Height;
+	depthInfo.layer_count_or_depth = 1;
+	depthInfo.num_levels = 1;
+	depthInfo.format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
+	depthInfo.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET;
+	DepthTexture = SDL_CreateGPUTexture(MainWindow->GPUDevice, &depthInfo);
 }
 
 void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)

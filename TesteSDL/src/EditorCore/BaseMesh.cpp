@@ -120,9 +120,9 @@ void BaseMesh::UpdateWorldVertices()
 	// Move pra postição de volta
 	m_TransformMatrix = glm::translate(m_TransformMatrix, m_LocalCentroide + m_Transform.Position);
 	// rotaciona
-	m_TransformMatrix = glm::rotate(m_TransformMatrix, (float)m_Transform.Rotation.x, { 1.0f, 0.0f, 0.0f });
-	m_TransformMatrix = glm::rotate(m_TransformMatrix, (float)m_Transform.Rotation.y, { 0.0f, 1.0f, 0.0f });
-	m_TransformMatrix = glm::rotate(m_TransformMatrix, (float)m_Transform.Rotation.z, { 0.0f, 0.0f, 1.0f });
+	m_TransformMatrix = glm::rotate(m_TransformMatrix, glm::radians(m_Transform.Rotation.x), { 1.0f, 0.0f, 0.0f });
+	m_TransformMatrix = glm::rotate(m_TransformMatrix, glm::radians(m_Transform.Rotation.y), { 0.0f, 1.0f, 0.0f });
+	m_TransformMatrix = glm::rotate(m_TransformMatrix, glm::radians(m_Transform.Rotation.z), { 0.0f, 0.0f, 1.0f });
 	//escala
 	m_TransformMatrix = glm::scale(m_TransformMatrix, m_Transform.Scale);
 	// Move para o ponto central

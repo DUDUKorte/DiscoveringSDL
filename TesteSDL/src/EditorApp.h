@@ -2,6 +2,7 @@
 #include <SDL3/SDL.h>
 #include <vector>
 #include <imgui.h>
+#include <ImGuizmo.h>
 
 #include "EditorCore/BaseMesh.h"
 #include "EditorCore/Mesh.h"
@@ -49,6 +50,7 @@ public:
 	inline int GetWidth() { return m_WindowProperties.Width; }
 	inline int GetHeight() { return m_WindowProperties.Height; }
 	inline bool GetGameStarted() { return m_GameStarted; }
+	inline WindowProperties& GetWindowProperties() { return m_WindowProperties; }
 	
 	inline static glm::vec3& GetBGColor() { return m_BgColor; }
 	inline static EditorApp* Get() { return m_Instance; }

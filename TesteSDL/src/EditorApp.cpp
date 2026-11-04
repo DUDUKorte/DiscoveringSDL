@@ -88,12 +88,19 @@ SDL_AppResult EditorApp::Init()
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
 	// Setup Dear ImGui style
 	ImGui::StyleColorsDark();
 
 	// Setup scaling
 	ImGuiStyle& style = ImGui::GetStyle();
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+		style.WindowRounding = 25.0f;
+		style.Colors[ImGuiCol_WindowBg].w = 0.7f;
+	}
+
 	style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
 	style.FontScaleDpi = main_scale;        // Set initial font scale. (in docking branch: using io.ConfigDpiScaleFonts=true automatically overrides this for every window depending on the current monitor)
 
@@ -542,8 +549,64 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	ImGui_ImplSDLGPU3_NewFrame();
 	ImGui_ImplSDL3_NewFrame();
 	ImGui::NewFrame();
+	ImGuizmo::BeginFrame();
 
-	Renderer2D::DrawGizmo(GetActiveMesh(), m_CurrentMode, m_CurrentGizmoState, m_ActiveGizmoState);
+	//Renderer2D::DrawGizmo(GetActiveMesh(), m_CurrentMode, m_CurrentGizmoState, m_ActiveGizmoState); // APOSENTADO!!!!!
+
+	// Desenhar o gizmo aqui
+	BaseMesh* activeMesh = GetActiveMesh();
+	if (activeMesh && activeMesh->GetType() != MeshTypes::Type2D) {
+		ImGuizmo::SetOrthographic(!Renderer3D::UsePerspective);
+
+		ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
+
+		ImGuiViewport* mainViewport = ImGui::GetMainViewport();
+		ImGuizmo::SetRect(mainViewport->Pos.x, mainViewport->Pos.y, mainViewport->Size.x, mainViewport->Size.y);
+
+		// NÃO DEVE CALCUALR ISSO TODO FRAME (TEMPORÁRIO) TODO 
+		glm::mat4 cameraTransform = glm::translate(glm::mat4(1.0f), m_WindowProperties.CameraPos);
+		cameraTransform = glm::rotate(cameraTransform, glm::radians(m_WindowProperties.CameraRot.y), { 0.0f, 1.0f, 0.0f });
+		cameraTransform = glm::rotate(cameraTransform, glm::radians(m_WindowProperties.CameraRot.x), { 1.0f, 0.0f, 0.0f });
+		glm::mat4 viewMatrix = glm::inverse(cameraTransform);
+
+		glm::mat4 projMatrix;
+		if (Renderer3D::UsePerspective) {
+			projMatrix = glm::perspectiveLH_ZO(glm::radians(60.0f), (float)m_WindowProperties.Width / m_WindowProperties.Height, 0.1f, 100000.0f);
+			projMatrix[1][1] *= -1.0f;
+		}
+		else {
+			projMatrix = glm::ortho(0.0f, (float)m_WindowProperties.Width, (float)m_WindowProperties.Height, 0.0f, 10000.0f, -10000.0f);
+		}
+
+		ImGuizmo::OPERATION op = ImGuizmo::TRANSLATE;
+		if (m_CurrentMode == EEditMode::RotatePoly) { op = ImGuizmo::ROTATE; }
+		else if (m_CurrentMode == EEditMode::ScalePoly) { op = ImGuizmo::SCALE; }
+
+		glm::mat4 modelMatrix;
+		Transform& t = activeMesh->GetTransform();
+		ImGuizmo::RecomposeMatrixFromComponents(
+			glm::value_ptr(t.Position),
+			glm::value_ptr(t.Rotation),
+			glm::value_ptr(t.Scale),
+			glm::value_ptr(modelMatrix));
+
+		ImGuizmo::Manipulate(
+			glm::value_ptr(viewMatrix),
+			glm::value_ptr(projMatrix),
+			op,
+			ImGuizmo::LOCAL,
+			glm::value_ptr(modelMatrix));
+
+		if (ImGuizmo::IsUsing()) {
+			ImGuizmo::DecomposeMatrixToComponents(
+				glm::value_ptr(modelMatrix),
+				glm::value_ptr(t.Position),
+				glm::value_ptr(t.Rotation),
+				glm::value_ptr(t.Scale));
+			activeMesh->MarkDirty();
+		}
+
+	}
 
 	if (!m_GameStarted || m_GameSimulate) {
 		RenderUI();
@@ -678,6 +741,11 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	SDL_EndGPURenderPass(renderPass);
 
 	SDL_SubmitGPUCommandBuffer(commandBuffer);
+
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+		ImGui::UpdatePlatformWindows();
+		ImGui::RenderPlatformWindowsDefault();
+	}
 	//SDL_SetRenderScale(m_WindowProperties.Renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
 	//ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), m_WindowProperties.Renderer);
 	//SDL_RenderPresent(m_WindowProperties.Renderer);
@@ -697,6 +765,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 void EditorApp::RenderUI()
 {
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 
 	// Draw Control pannelk
 	ImGui::Begin("Control pannel");
@@ -936,14 +1005,14 @@ void EditorApp::RenderUI()
 			}
 
 			// rotacao
-			float rotDegX = MeshTransform.Rotation.x * (180.0f / (float)std::numbers::pi);
-			float rotDegY = MeshTransform.Rotation.y * (180.0f / (float)std::numbers::pi);
-			float rotDegZ = MeshTransform.Rotation.z * (180.0f / (float)std::numbers::pi);
+			float rotDegX = MeshTransform.Rotation.x;
+			float rotDegY = MeshTransform.Rotation.y;
+			float rotDegZ = MeshTransform.Rotation.z;
 			float rotDeg[3] = { rotDegX, rotDegY, rotDegZ };
 			if (ImGui::DragFloat3("Rotation", rotDeg, 1.0f)) {
-				MeshTransform.Rotation.x = rotDeg[0] * ((float)std::numbers::pi / 180.0f);
-				MeshTransform.Rotation.y = rotDeg[1] * ((float)std::numbers::pi / 180.0f);
-				MeshTransform.Rotation.z = rotDeg[2] * ((float)std::numbers::pi / 180.0f);
+				MeshTransform.Rotation.x = rotDeg[0];
+				MeshTransform.Rotation.y = rotDeg[1];
+				MeshTransform.Rotation.z = rotDeg[2];
 				transformChanged = true;
 			}
 
@@ -1322,9 +1391,6 @@ void EditorApp::EventBeginPlay()
 	}
 	OnChangeMode(EEditMode::Selection);
 	m_GameStarted = true;
-
-	SDL_Event* BeginPlayEvent = new SDL_Event();
-	BeginPlayEvent->type = SDL_EVENT_FIRST;
 }
 
 std::vector<std::string> EditorApp::split(const std::string& str, char delim) {
