@@ -76,7 +76,7 @@ SDL_AppResult EditorApp::Init()
 		return SDL_APP_FAILURE;
 	}
 
-	SDL_SetGPUSwapchainParameters(m_WindowProperties.GPUDevice, m_WindowProperties.Window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_VSYNC);
+	SDL_SetGPUSwapchainParameters(m_WindowProperties.GPUDevice, m_WindowProperties.Window, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, SDL_GPU_PRESENTMODE_IMMEDIATE);
 
 	SDL_SetWindowPosition(m_WindowProperties.Window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 	SDL_ShowWindow(m_WindowProperties.Window);
@@ -895,7 +895,6 @@ void EditorApp::RenderUI()
 	const char* rendererModes[] = { "Software", "Hardware" };
 	int currentRenderer = static_cast<int>(Renderer3D::RendererMode);
 
-	ImGui::Checkbox("Perspective", &Renderer3D::UsePerspective);
 
 #ifdef USE_HARDWARE_RENDERER
 	if (ImGui::Combo("Renderer Mode", &currentRenderer, rendererModes, IM_ARRAYSIZE(rendererModes))) {
@@ -910,6 +909,7 @@ void EditorApp::RenderUI()
 	}
 #endif
 
+	ImGui::Checkbox("Perspective", &Renderer3D::UsePerspective);
 	ImGui::End();
 
 	// Inspector window

@@ -239,7 +239,7 @@ void Renderer3D::InitGPU(WindowProperties* window)
 
 	// Backface Culling
 	pipelineInfo.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
-	pipelineInfo.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE; // Podemos ligar BACK/FRONT depois de testar a mão da matriz
+	pipelineInfo.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_BACK; // Podemos ligar BACK/FRONT depois de testar a mão da matriz
 
 	// Z-Buffer
 	pipelineInfo.depth_stencil_state.enable_depth_test = true;
@@ -448,7 +448,6 @@ void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
 		return;
 	}
 
-
 	float xInc = dX / steps;
 	float yInc = dY / steps;
 	float zInc = (target.z - source.z) / dX;
@@ -537,14 +536,26 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 		for (int i : currentFace.vertices) {
 			glm::vec3 verticeTela = allVertices[i];
 
-			if (meshTeste.GetUsePerspective()) {
-				glm::vec3 vertMundo = allVertices[i];
+			//// aplica a câmera (ou tenta)
+			verticeTela = verticeTela - MainWindow->CameraPos;
+
+			// a rotação tá estranha, mas serve por enquanto, isso vai ser descartado depois de implementar o alvy ray
+			glm::mat4 rot(1.0f);
+			rot = glm::rotate(rot, glm::radians(MainWindow->CameraRot.y), { 0.0f, 1.0f, 0.0f });
+			rot = glm::rotate(rot, glm::radians(MainWindow->CameraRot.x), { 1.0f, 0.0f, 0.0f });
+			rot = glm::inverse(rot);
+			verticeTela = rot * glm::vec4({verticeTela, 0.0f});
+
+
+			if (Renderer3D::UsePerspective) {
+				glm::vec3 vertMundo = verticeTela;
 				float zc = glm::max(vertMundo.z, 100.0f);
 
 				verticeTela.x = ((vertMundo.x - MainWindow->Width * 0.5f) / zc) * 800.0f + (MainWindow->Width * 0.5f);
 				verticeTela.y = ((vertMundo.y - MainWindow->Height * 0.5f) / zc) * 800.0f + (MainWindow->Height * 0.5f);
 				verticeTela.z = -(1.0f / zc);
 			}
+
 
 			// aqui coloca a cor padrão do vértice ou o gouraudd
 			if (LightAlgorithm == LightAlgorithms::Gouraud && meshTeste.GetAfectedByLights() && meshTeste.GetFill()) {
