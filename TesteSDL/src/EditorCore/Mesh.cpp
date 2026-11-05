@@ -7,6 +7,8 @@ Mesh::Mesh(std::string name, glm::vec3 firstVertex, std::vector<glm::vec3> v) {
 	
 	m_Name = name;
 	GetTransform().Position = { firstVertex.x, firstVertex.y, firstVertex.z };
+	GetTransform().Scale = { 50.0f, 50.0f, 50.0f };
+	GetObj() = "./Assets/cubo_tri.obj";
 	meshType = MeshTypes::Type3D;
 }
 

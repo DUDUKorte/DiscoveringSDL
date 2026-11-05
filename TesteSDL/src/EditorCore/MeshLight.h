@@ -8,9 +8,9 @@ public:
 	MeshLight(std::string name, glm::vec3 firstVertex = { 0.0f,0.0f,0.0f }, std::vector<glm::vec3> v = {});
 	~MeshLight();
 
-	virtual void BeginPlay() {};
-	virtual void EventTick(float deltaTime) {};
-	virtual void EventInput(SDL_Event* event) {};
+	//virtual void BeginPlay() {};
+	//virtual void EventTick(float deltaTime) {};
+	//virtual void EventInput(SDL_Event* event) {};
 
 	inline glm::vec3& GetLightColor() { return m_LightColor; }
 	inline float& GetLightIntensity() { return m_LightIntensity; }

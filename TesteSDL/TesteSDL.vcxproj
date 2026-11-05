@@ -155,6 +155,7 @@
   <ItemGroup>
     <ClCompile Include="src\EditorCore\BaseMesh.cpp" />
     <ClCompile Include="src\EditorApp.cpp" />
+    <ClCompile Include="src\EditorCore\ScriptEngine.cpp" />
     <ClCompile Include="src\Utils\Log.cpp" />
     <ClCompile Include="src\Application.cpp" />
     <ClCompile Include="src\EditorCore\Mesh.cpp" />
@@ -185,6 +186,7 @@
     <ClInclude Include="src\Application.h" />
     <ClInclude Include="src\EditorCore\BaseMesh.h" />
     <ClInclude Include="src\EditorApp.h" />
+    <ClInclude Include="src\EditorCore\ScriptEngine.h" />
     <ClInclude Include="src\EntryPoint.h" />
     <ClInclude Include="src\LeandroEditor.h" />
     <ClInclude Include="src\Utils\CoreEditor.h" />

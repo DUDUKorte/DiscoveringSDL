@@ -8,6 +8,7 @@
 #include "EditorCore/Mesh.h"
 #include "EditorCore/MeshLight.h"
 #include "EditorCore/Pipe.h"
+#include "EditorCore/ScriptEngine.h"
 #include "Utils/LeandroMath.h"
 
 #include "imgui_impl_sdl3.h"
@@ -81,6 +82,7 @@ private:
 	void OnDestroySelectedMesh();
 
 	std::string OpenObjFileDialog(SDL_Window* window);
+	std::string OpenLuaFileDialog(SDL_Window* window);
 
 	// Game related 
 	void EventBeginPlay();

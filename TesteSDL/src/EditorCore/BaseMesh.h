@@ -5,6 +5,8 @@
 #include <SDL3/SDL.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <Utils/Log.h>
+#include <sol/sol.hpp>
 
 enum MeshTypes { Type3D = 0, Type2D = 1, TypeLight, TypeText};
 
@@ -26,9 +28,9 @@ class BaseMesh {
 public:
 	virtual ~BaseMesh();
 
-	virtual void BeginPlay() = 0;
-	virtual void EventTick(float deltaTime) = 0;
-	virtual void EventInput(SDL_Event* event) = 0;
+	virtual void BeginPlay();
+	virtual void EventTick(float deltaTime);
+	virtual void EventInput(SDL_Event* event);
 
 	virtual void addVertex(glm::vec3 newVertex) = 0;
 	virtual void removeVertex();
@@ -68,6 +70,9 @@ public:
 	inline glm::vec2& GetMinMax() { return m_MinMaxY; }
 	inline MeshMaterial& GetMaterial() { return m_Material; }
 	inline std::string& GetObj() { return meshObjPath; }
+	inline std::string& GetScriptPath() { return m_ScriptPath; }
+	inline sol::environment& GetLuaEnv() { return m_LuaEnv; }
+	inline bool& GetHiddenInGame() { return m_HiddenInGame; }
 
 	// setters
 	inline void MarkDirty() { m_IsDirty = true; }
@@ -123,6 +128,7 @@ protected:
 	bool m_TickEnabled = false;
 	bool m_InputEnabled = false;
 	bool m_ShouldDestroy = false; // Define se deveria ser detruido no próximo frame
+	bool m_HiddenInGame = false;
 
 	std::string meshObjPath = "None";
 	MeshMaterial m_Material;
@@ -131,5 +137,8 @@ protected:
 	//Cores
 	ImVec4 m_Color = { 0.2f, 0.2f, 0.2f, 1.0f };
 	ImVec4 m_OutlineColor = { 1.0f, 1.0f ,1.0f, 1.0f };
+
+	std::string m_ScriptPath = "";
+	sol::environment m_LuaEnv;
 
 };

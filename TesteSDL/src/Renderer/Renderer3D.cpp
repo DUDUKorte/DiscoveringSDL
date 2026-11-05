@@ -152,7 +152,8 @@ vec3 EvaluateLighting(vec3 normal, vec3 worldPos) {
 
         if (isPoint > 0.5) {
             if (dist > maxDist) continue;
-            attenuation = min(1.0 / (dist * dist), 1.0);
+            attenuation = pow(1.0 - (clamp(dist / maxDist, 0.0, 1.0)), 2.0);
+			//fatAtenuacao = glm::pow(1.0f - glm::clamp(lightDistance / light->GetMaxDistance(), 0.0f, 1.0f), 2.0f);
         }
 
         vec3 L = normalize(lightPos - worldPos);
@@ -405,6 +406,13 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 	SDL_BindGPUVertexBuffers(renderPass, 0, &binding, 1);
 
 	SDL_DrawGPUPrimitives(renderPass, mesh.GetVertexCount(), 1, 0, 0);
+
+	for (BaseMesh* sm : mesh.GetSubMeshes()) {
+		if (sm->GetType() == MeshTypes::Type3D) {
+			Mesh& smc = *(static_cast<Mesh*>(sm));
+			DrawMeshGPU(smc, commandBuffer, renderPass);
+		}
+	}
 
 }
 

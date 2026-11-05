@@ -6,6 +6,11 @@ MeshLight::MeshLight(std::string name, glm::vec3 firstVertex, std::vector<glm::v
 	m_Name = name;
 	meshType = MeshTypes::TypeLight;
 	m_AfectedByLights = false;
+
+	GetObj() = "./Assets/sphere_tri.obj"; // Mesh padrão da luz agora pq sim
+	GetTransform().Scale = { 50.0f, 50.0f, 50.0f };
+	GetLightType() = LightType::SceneLight;
+	GetHiddenInGame() = true;
 }
 
 MeshLight::~MeshLight() 

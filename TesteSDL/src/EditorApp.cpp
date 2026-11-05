@@ -1,5 +1,4 @@
 #include "EditorApp.h"
-#include "Renderer/Renderer2D.h"
 #include "Renderer/Renderer3D.h"
 #include "Utils/Log.h"
 
@@ -157,6 +156,9 @@ SDL_AppResult EditorApp::Init()
 	}
 
 	m_BgColor = {0.2f, 0.2f, 0.2f};
+
+	// Initialize scripting
+	ScriptEngine::Init();
 
 	return SDL_APP_CONTINUE;
 }
@@ -376,8 +378,6 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 	/// EVENTOS DE TECLA PRESSIONADA ///////////////////////////////////////////////////////
 	if (event->type == SDL_EVENT_KEY_DOWN) {
 		SDL_KeyboardEvent e = event->key;
-		//BaseMesh* activeMesh = GetActiveMesh();
-		//if (activeMesh != nullptr) { activeMesh->EventInput(event); }
 
 		// MODE SWITCH
 		switch (e.key) {
@@ -412,22 +412,11 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 
 		SDL_MouseButtonEvent e = event->button;
 		if (e.button == 1) { // LMB
-			if (m_CurrentMode == CreatePoly){
-				BaseMesh* ActiveMesh = GetActiveMesh();
-				if (ActiveMesh != nullptr) {
-					ActiveMesh->addVertex({ e.x, e.y, 1.0f });
-				}
-			}
-			else {
-				m_ActiveGizmoState = m_CurrentGizmoState;
-			}
 			m_bLMB = true;
 		}
 		else if (e.button == 3) { // RMB
 			m_bRMB = true;
-			//SDL_SetWindowRelativeMouseMode(m_WindowProperties.Window, true);
 			SetHideCursor(true);
-			//SDL_HideCursor();
 			m_LastMode = m_CurrentMode;
 			OnChangeMode(Navigation);
 		}
@@ -436,13 +425,12 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 	else if (event->type == SDL_EVENT_MOUSE_BUTTON_UP) {	
 		SDL_MouseButtonEvent e = event->button;
 		if (e.button == 1) {
-			m_ActiveGizmoState = GIZMO_NONE;
 			m_bLMB = false;
+
 		}
 		else if (e.button == 3) { // RMB
 			m_bRMB = false;
 			SetHideCursor(false);
-			//SDL_SetWindowRelativeMouseMode(m_WindowProperties.Window, false);
 			// reseta o mouse pro centro da tela
 			SDL_WarpMouseInWindow(m_WindowProperties.Window, m_WindowProperties.Width / 2.0f, m_WindowProperties.Height / 2.0f);
 			OnChangeMode(m_LastMode);
@@ -455,12 +443,6 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 	/// EVENTOS DO SCROLL DO MOUSE ///////////////////////////////////////////////////////
 	else if (event->type == SDL_EVENT_MOUSE_WHEEL) {
 		SDL_MouseWheelEvent e = event->wheel;
-		if (m_CurrentMode == MovePoly) {
-			m_MoveMeshSpeed += m_MoveMeshSpeed + 0.01f * e.y >= 0 && m_MoveMeshSpeed + 0.01f * e.y <= 1.0f ? 0.01f * e.y : 0.0f;
-		}
-		else if (m_CurrentMode == ScalePoly) {
-			m_ScaleMeshSpeed += m_ScaleMeshSpeed + 0.0005f * e.y >= 0 && m_ScaleMeshSpeed + 0.0005f * e.y <= 0.05f ? 0.0005f * e.y : 0.0f;
-		}
 		if (m_bRMB) {
 			m_CameraSpeed += 0.1f * e.y;
 			m_CameraSpeed = glm::clamp(m_CameraSpeed, 0.1f, 10.0f);
@@ -481,10 +463,6 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 void EditorApp::ProcessMouseMotion(SDL_Event* event)
 {
 	SDL_MouseButtonEvent e = event->button;
-	if (e.x > GetWidth() || e.y > GetHeight() || e.x < 0 || e.y < 0) {
-		return;
-	}
-
 	if (m_bRMB) {
 		m_WindowProperties.CameraRot += glm::vec2({-event->motion.yrel * 0.1f, event->motion.xrel * 0.1f});
 		m_WindowProperties.CameraRot.x = glm::clamp(m_WindowProperties.CameraRot.x, -90.0f, 90.0f);
@@ -492,63 +470,7 @@ void EditorApp::ProcessMouseMotion(SDL_Event* event)
 
 	// Aqui é quando tá segurando o botão esquerdo do mouse
 	if (m_bLMB) {
-		BaseMesh* activeMesh = GetActiveMesh();
-		if (activeMesh != nullptr) {
-			Transform& MeshTransform = activeMesh->GetTransform();
 
-			// Pega rotação do pai e tira da mesh filha
-			float gizmoRot = 0.0f;
-			if (activeMesh->m_Parent != nullptr) {
-				gizmoRot = activeMesh->m_Parent->GetTransform().Rotation.z;
-			}
-
-			// Pega o movimento cm a rotação do pai
-			float local_dx = (event->motion.xrel * std::cos(gizmoRot)) + (event->motion.yrel * std::sin(gizmoRot));
-			float local_dy = (event->motion.xrel * std::sin(gizmoRot)) + (event->motion.yrel * -std::cos(gizmoRot));
-
-			if (activeMesh->m_Parent != nullptr) {
-				local_dx /= activeMesh->m_Parent->GetTransform().Scale.x;
-				local_dy /= activeMesh->m_Parent->GetTransform().Scale.y;
-			}
-
-			// Pegar o movimento do mouse no mundo e transformar em um movimento local pra arrumar as submeshes com mesh pai rotacionada
-			if (m_CurrentMode == MovePoly) {
-
-				if (m_ActiveGizmoState == GIZMO_HOVER_X || m_ActiveGizmoState == GIZMO_NONE || m_ActiveGizmoState == GIZMO_HOVER_CENTER) {
-					MeshTransform.Position.x += local_dx;
-				}
-				if (m_ActiveGizmoState == GIZMO_HOVER_Y || m_ActiveGizmoState == GIZMO_NONE || m_ActiveGizmoState == GIZMO_HOVER_CENTER) {
-					MeshTransform.Position.y -= local_dy;
-				}
-			}
-			else if (m_CurrentMode == ScalePoly) {
-				if (m_ActiveGizmoState == GIZMO_HOVER_X) {
-					MeshTransform.Scale.x += event->motion.xrel * m_ScaleMeshSpeed;
-				}
-				else if (m_ActiveGizmoState == GIZMO_HOVER_Y) {
-					MeshTransform.Scale.y -= event->motion.yrel * m_ScaleMeshSpeed;
-				}
-				else if (m_ActiveGizmoState == GIZMO_HOVER_CENTER || m_ActiveGizmoState == GIZMO_NONE) {
-					float uniformScale = (event->motion.xrel - event->motion.yrel) * m_ScaleMeshSpeed;
-					MeshTransform.Scale.x += uniformScale;
-					MeshTransform.Scale.y += uniformScale;
-				}
-			}
-			else if (m_CurrentMode == RotatePoly) {
-				MeshTransform.Rotation.z += event->motion.xrel * m_RotateMeshSpeed;
-			}
-			else if (m_CurrentMode == CreatePoly) {
-				activeMesh->addVertex({e.x, e.y, 1.0f});
-			}
-
-			activeMesh->MarkDirty();
-
-			if (m_CurrentSubMesh == -1) {
-				for (BaseMesh* subMesh : activeMesh->GetSubMeshes()) {
-					subMesh->MarkDirty();
-				}
-			}
-		}
 	}
 }
 ///////////////////////////////////////////////////////////
@@ -567,6 +489,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	new_deltaTime = SDL_GetPerformanceCounter();
 	deltaTime = (double)((new_deltaTime - old_deltaTime) * 1000 / (double)SDL_GetPerformanceFrequency());
 
+	// movimento de câmera (gambiarra, isso deve não existir no futuro)
 	if (m_bRMB) {
 		glm::vec3 addMovement = {0.0f, 0.0f, 0.0f};
 		addMovement.x += m_CameraSpeed * deltaTime * (GetIsKeyPressed(SDL_SCANCODE_D) - GetIsKeyPressed(SDL_SCANCODE_A));
@@ -590,13 +513,10 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 	// Start the Dear ImGui frame
 	ImGuiIO& io = ImGui::GetIO();
-	//ImGui_ImplSDLRenderer3_NewFrame();
 	ImGui_ImplSDLGPU3_NewFrame();
 	ImGui_ImplSDL3_NewFrame();
 	ImGui::NewFrame();
 	ImGuizmo::BeginFrame();
-
-	//Renderer2D::DrawGizmo(GetActiveMesh(), m_CurrentMode, m_CurrentGizmoState, m_ActiveGizmoState); // APOSENTADO!!!!!
 
 	// Desenhar o gizmo aqui
 	BaseMesh* activeMesh = GetActiveMesh();
@@ -705,7 +625,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 		}
 
 		// Desnha 3D!!!!
-		if (m->GetType() != MeshTypes::Type2D) {
+		if (m->GetType() != MeshTypes::Type2D && !(m->GetHiddenInGame() && m_GameStarted && !m_GameSimulate)) {
 			if (Renderer3D::RendererMode == RendererModes::Hardware) {
 				Renderer3D::DrawMeshGPU(static_cast<Mesh&>(*(m)), commandBuffer, renderPass3D);
 			}
@@ -714,25 +634,6 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			}
 			continue;
 		}
-
-		// Desenha 2D!!!!! (Propositalmente por cima do 3D)
-		// Fill poly
-		if (m->GetFill()) {
-			// BUG TODO
-			//Renderer2D::FillPoly(m_WindowProperties.Renderer, m, GetHeight());
-		}
-		
-		// Pega a cor do outline e desenha ela
-		if (m->GetOutline()) {
-			ImVec4 color = m->GetOutlineColor();
-			//SDL_SetRenderDrawColorFloat(m_WindowProperties.Renderer, color.x, color.y, color.z, SDL_ALPHA_OPAQUE_FLOAT);
-
-			// Se tiver filhos, desenha o outline de cada filho
-			for (BaseMesh* subMesh : m->GetSubMeshes()) {
-				//Renderer2D::DrawLinesWithVertices(m_WindowProperties.Renderer, subMesh->GetVertices(), true);
-			}
-		}
-		//Renderer2D::DrawLinesWithVertices(m_WindowProperties.Renderer, vertices, m->IsClosed());
 	}
 
 	// SEMPRE Fechar o render pass 3D aqui
@@ -869,28 +770,27 @@ void EditorApp::RenderUI()
 
 	ImGui::Separator();
 	if (ImGui::Button("Create New Mesh")) {
-		m_CurrentMesh = (int)m_GlobalMeshes.size();
-		m_CurrentSubMesh = -1;
-
-		std::string mesh_name = "Mesh_" + std::to_string(m_CurrentMesh);
-		m_GlobalMeshes.push_back(new Mesh2D(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f, 1.0f }));
-		
-		LE_TRACE("Mesh: " + mesh_name + " Created!");
-		OnChangeMode(CreatePoly);
+		std::string meshName = "Mesh_" + std::to_string(m_GlobalMeshes.size());
+		Mesh* newMesh = new Mesh(meshName);
+		SubmitMesh(newMesh);
+		m_CurrentMesh = (int)m_GlobalMeshes.size() - 1;
 	}
 	ImGui::SameLine();
-	if (ImGui::Button("Create SubMesh")) {
+	if (ImGui::Button("Create SubMesh")) { // TODO: Fazer Sistema de SubMeshes!!!!!
 		if (m_CurrentMesh >= 0 && m_CurrentMesh < m_GlobalMeshes.size()) {
 			BaseMesh* parent = m_GlobalMeshes[m_CurrentMesh];
 
 			std::string mesh_name = "Mesh_" + std::to_string(m_CurrentMesh) + "_Child_" + std::to_string(parent->GetSubMeshes().size());
-			parent->addSubMesh(new Mesh2D(mesh_name, { parent->GetCentroide().x, parent->GetCentroide().y, 1.0f }));
+			parent->addSubMesh(new Mesh(mesh_name, { parent->GetCentroide().x, parent->GetCentroide().y, 1.0f }));
 			m_CurrentSubMesh = (int)parent->GetSubMeshes().size() - 1;
+			SubmitMesh(parent->GetSubMesh(m_CurrentSubMesh));
 
 			OnChangeMode(CreatePoly);
 			LE_TRACE("SubMesh: " + mesh_name + " Created!");
 		}
-		LE_ERROR("You Cannot create a SubMesh!");
+		else {
+			LE_ERROR("You Cannot create a SubMesh!");
+		}
 	}
 
 	if (ImGui::Button("Import .OBJ")) {
@@ -916,36 +816,13 @@ void EditorApp::RenderUI()
 		}
 	}
 
-	//ImGui::SeparatorText("Custom Mesh");
-
-	//// Criar polígono personalizado
-	//ImGui::SliderInt("Num. Faces", &m_CustomPolyFaces, 3, 100);
-	//ImGui::SliderInt("Size", &m_CustomPolySize, 10, 100);
-	//if (ImGui::Button("Create Cusotm Poly")) {
-	//	m_CurrentMesh = (int)m_GlobalMeshes.size();
-	//	m_CurrentSubMesh = -1;
-
-	//	std::string mesh_name = "Mesh_Poly" + std::to_string(m_CurrentMesh);
-	//	std::vector<glm::vec3> custom_poly;
-
-	//	glm::vec3 start_vertex = {-10 * m_CustomPolySize, -10 * m_CustomPolySize, 1.0f }; // Ponto inicial
-	//	float angle = (360.0f / (float)m_CustomPolyFaces) * float(std::numbers::pi) / 180.0f;
-
-	//	// Rotaciona o ponto
-	//	for (int i = 0; i < m_CustomPolyFaces; i++) {
-	//		custom_poly.push_back(start_vertex);
-	//		float tx = start_vertex.x * std::cos(angle) - start_vertex.y * std::sin(angle);
-	//		float ty = start_vertex.x * std::sin(angle) + start_vertex.y * std::cos(angle);
-	//		start_vertex.x = tx;
-	//		start_vertex.y = ty;
-	//	}
-
-	//	m_GlobalMeshes.push_back(new Mesh2D(mesh_name, { GetWidth() / 2.0f, GetHeight() / 2.0f, 1.0f }, custom_poly));
-	//	m_GlobalMeshes[m_CurrentMesh]->SetClosed(true);
-
-	//	LE_TRACE("Custom Mesh: " + mesh_name + " Created!");
-	//	OnChangeMode(CreatePoly);
-	//}
+	ImGui::SameLine();
+	if (ImGui::Button("Create New Light")) {
+		std::string lightName = "Light_" + std::to_string(m_GlobalMeshes.size());
+		MeshLight* newLight = new MeshLight(lightName);
+		SubmitMesh(newLight);
+		m_CurrentMesh = (int)m_GlobalMeshes.size() - 1;
+	}
 
 	ImGui::SeparatorText("Editor Modes");
 
@@ -1024,59 +901,45 @@ void EditorApp::RenderUI()
 	ImGui::End();
 
 	// Inspector window
+	// Inspector window
 	ImGui::Begin("Inspector");
 	BaseMesh* activeMesh = GetActiveMesh();
 	if (activeMesh != nullptr) {
 		BaseMesh* selectedMesh = activeMesh;
 
-		ImGui::Text("Editing: %s", selectedMesh->GetName().c_str());
+		// FINALMENTE CONSEGUI TROCAR O NOME NESA DESGRAÇA
+		char nameBuffer[256];
+		strncpy_s(nameBuffer, sizeof(nameBuffer), selectedMesh->GetName().c_str(), _TRUNCATE);
+		ImGui::Text("Editing: %s", nameBuffer);
+
+		if (ImGui::InputText("Name", nameBuffer, sizeof(nameBuffer))) {
+			selectedMesh->GetName() = std::string(nameBuffer); // (ou selectedMesh->SetName(nameBuffer))
+		}
+
+		const char* typeLabel = "Unknown";
+		if (selectedMesh->GetType() == MeshTypes::Type2D) typeLabel = "2D Polygon";
+		else if (selectedMesh->GetType() == MeshTypes::Type3D) typeLabel = "3D Mesh";
+		else if (selectedMesh->GetType() == MeshTypes::TypeLight) typeLabel = "Light";
+		ImGui::TextDisabled("Type: %s", typeLabel);
 		ImGui::Separator();
 
-		// Tarnsformações da mesj
+		// TRANSFORM
 		if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
 			Transform& MeshTransform = selectedMesh->GetTransform();
 			bool transformChanged = false;
 
-			// posicao
-			float pos[3] = { MeshTransform.Position.x, MeshTransform.Position.y, MeshTransform.Position.z };
-			if (ImGui::DragFloat3("Position", pos, 1.0f)) {
-				MeshTransform.Position.x = pos[0];
-				MeshTransform.Position.y = pos[1];
-				MeshTransform.Position.z = pos[2];
+			if (ImGui::DragFloat3("Position", glm::value_ptr(MeshTransform.Position), 1.0f)) {
 				transformChanged = true;
 			}
-
-			// rotacao
-			float rotDegX = MeshTransform.Rotation.x;
-			float rotDegY = MeshTransform.Rotation.y;
-			float rotDegZ = MeshTransform.Rotation.z;
-			float rotDeg[3] = { rotDegX, rotDegY, rotDegZ };
-			if (ImGui::DragFloat3("Rotation", rotDeg, 1.0f)) {
-				MeshTransform.Rotation.x = rotDeg[0];
-				MeshTransform.Rotation.y = rotDeg[1];
-				MeshTransform.Rotation.z = rotDeg[2];
+			if (ImGui::DragFloat3("Rotation", glm::value_ptr(MeshTransform.Rotation), 1.0f)) {
 				transformChanged = true;
 			}
-
-			// escala
-			float scale[3] = { MeshTransform.Scale.x, MeshTransform.Scale.y, MeshTransform.Scale.z };
-			if (ImGui::DragFloat3("Scale", scale, 0.1f)) {
-				MeshTransform.Scale.x = scale[0];
-				MeshTransform.Scale.y = scale[1];
-				MeshTransform.Scale.z = scale[2];
-				transformChanged = true;
-			}
-
-			if (ImGui::Button("Reset Rotation and Scale")) {
-				MeshTransform.Rotation = {0.0f, 0.0f, 0.0f};
-				MeshTransform.Scale = { 1.0f, 1.0f, 1.0f };
+			if (ImGui::DragFloat3("Scale", glm::value_ptr(MeshTransform.Scale), 0.1f)) {
 				transformChanged = true;
 			}
 
 			if (transformChanged) {
 				selectedMesh->MarkDirty();
-				OnChangeMode(MovePoly);
-
 				if (m_CurrentSubMesh == -1) {
 					for (BaseMesh* submesh : selectedMesh->GetSubMeshes()) {
 						submesh->MarkDirty();
@@ -1085,61 +948,142 @@ void EditorApp::RenderUI()
 			}
 		}
 
-		ImGui::SeparatorText("Properties");
+		// PROPEIDADES GERAIS E CORES
+		if (ImGui::CollapsingHeader("General Properties", ImGuiTreeNodeFlags_DefaultOpen)) {
+			if (selectedMesh->m_Parent == nullptr) {
+				ImGui::Checkbox("Fill Poly", &selectedMesh->GetFill());
+				ImGui::SameLine();
+				ImGui::Checkbox("Use Outline", &selectedMesh->GetOutline());
 
-		if (selectedMesh->m_Parent == nullptr) {
-			ImGui::Checkbox("Fillpoly", &selectedMesh->GetFill());
+				if (selectedMesh->GetType() == MeshTypes::Type2D) {
+					ImGui::Checkbox("Closed Poly", &selectedMesh->IsClosed());
+					ImGui::SameLine();
+					ImGui::Checkbox("Fill Color Active", &selectedMesh->IsActive());
+				}
 
-			if (GetActiveMesh()->GetType() == Type2D) {
-				ImGui::Checkbox("Closed", &selectedMesh->IsClosed());
+				ImGui::Checkbox("Tick Enabled", &selectedMesh->GetTickEnabled());
+				ImGui::SameLine();
+				ImGui::Checkbox("Input Enabled", &selectedMesh->GetInputEnabled());
 			}
-			ImGui::Checkbox("Use Outline Color", &selectedMesh->GetOutline());
 
-			ImGui::Checkbox("Tick Enabled", &selectedMesh->GetTickEnabled());
-		}
-		if (GetActiveMesh()->GetType() == Type2D) {
-			ImGui::Checkbox("Fill Color", &selectedMesh->IsActive());
-		}
-
-		ImGui::ColorEdit3("Clear Color", (float*)&m_ClearColor);
-		ImGui::ColorEdit3("Mesh Color", (float*)&selectedMesh->GetColor());
-		ImGui::ColorEdit3("Outline Color", (float*)&selectedMesh->GetOutlineColor());
-
-		if (GetActiveMesh()->GetType() != Type2D) {
-			ImGui::SeparatorText("3DMesh Properties");
-
-			Mesh* selectedMeshConv = static_cast<Mesh*>(GetActiveMesh());
-			ImGui::Checkbox("Affected By Lights", &selectedMeshConv->GetAfectedByLights());
-			
-			ImGui::SeparatorText("Materials");
-			ImGui::DragFloat("Ambient Reflection", &selectedMeshConv->GetMaterial().ambientReflection, 0.001f, 0.0f, 1.0f);
-			ImGui::DragFloat("Diffuse", &selectedMeshConv->GetMaterial().diffuse, 0.001f, 0.0f, 1.0f);
-			ImGui::DragFloat("Specular", &selectedMeshConv->GetMaterial().specular, 0.001f, 0.0f, 1.0f);
-			ImGui::DragFloat("Specular Brightness", &selectedMeshConv->GetMaterial().specular_brightness, 0.1f, 0.0f, 128.0f);
-
-			if (GetActiveMesh()->GetType() == MeshTypes::TypeLight) {
-				MeshLight* selectedLight = static_cast<MeshLight*>(GetActiveMesh());
-				ImGui::SeparatorText("Light Properties");
-				ImGui::DragFloat("Light Intensity", &selectedLight->GetLightIntensity(), 0.001f, 0.0f, 128.0f);
-				ImGui::ColorEdit3("Light Color", (float*)&selectedLight->GetLightColor());
+			ImGui::Spacing();
+			ImGui::ColorEdit3("Viewport Clear Color", glm::value_ptr(m_BgColor));
+			ImGui::ColorEdit3("Mesh Base Color", (float*)&selectedMesh->GetColor());
+			if (selectedMesh->GetOutline()) {
+				ImGui::ColorEdit3("Outline Color", (float*)&selectedMesh->GetOutlineColor());
 			}
 		}
-		
 
-		ImGui::SeparatorText("Deleting");
+		// 3D E MATERIAIS
+		if (selectedMesh->GetType() != MeshTypes::Type2D) {
+			Mesh* mesh3D = static_cast<Mesh*>(selectedMesh);
 
-		if (ImGui::Button("Delete Vertex") && GetActiveMesh()->GetType() == Type2D) {
-			LE_TRACE("Deleted last vertex on mesh: " + selectedMesh->GetName());
+			if (ImGui::CollapsingHeader("3D Mesh & Material", ImGuiTreeNodeFlags_DefaultOpen)) {
+				if (selectedMesh->GetType() == MeshTypes::Type3D) {
+					ImGui::Text("OBJ Path: %s", mesh3D->GetObj().c_str());
+					if (ImGui::Button("Change .OBJ Model")) {
+						std::string newObj = OpenObjFileDialog(m_WindowProperties.Window);
+						if (!newObj.empty()) {
+							// é mais fácil criar uma mesh nova e substituir do q tentar limpar a bagunça q virou essa Mesh3D
+							Mesh* newMesh3D = new Mesh(mesh3D->GetName());
+
+							newMesh3D->GetTransform() = mesh3D->GetTransform();
+							newMesh3D->GetObj() = newObj;
+							newMesh3D->GetMaterial() = mesh3D->GetMaterial();
+							LoadObjFile(newObj, newMesh3D);
+
+							// Substitui a mesh na lista
+							auto it = std::find(m_GlobalMeshes.begin(), m_GlobalMeshes.end(), selectedMesh);
+							m_GlobalMeshes.erase(it);
+							m_GlobalMeshes.emplace(it, newMesh3D);
+						}
+					}
+				}
+
+				ImGui::Spacing();
+				ImGui::Checkbox("Affected By Lights", &mesh3D->GetAfectedByLights());
+				ImGui::Checkbox("Hidden In Game", &mesh3D->GetHiddenInGame());
+
+				ImGui::SeparatorText("Mesh Material");
+				MeshMaterial& mat = mesh3D->GetMaterial();
+				ImGui::ColorEdit3("Material Albedo", glm::value_ptr(mat.baseColor));
+				ImGui::SliderFloat("Ambient Reflection (Ka)", &mat.ambientReflection, 0.0f, 1.0f, "%.3f");
+				ImGui::SliderFloat("Diffuse Reflection (Kd)", &mat.diffuse, 0.0f, 1.0f, "%.3f");
+				ImGui::SliderFloat("Specular Reflection (Ks)", &mat.specular, 0.0f, 1.0f, "%.3f");
+				ImGui::DragFloat("Shininess (n)", &mat.specular_brightness, 0.5f, 1.0f, 256.0f, "%.1f");
+			}
+
+			// PROPRIEDADES DA LUZ
+			if (selectedMesh->GetType() == MeshTypes::TypeLight) {
+				MeshLight* light = static_cast<MeshLight*>(selectedMesh);
+
+				if (ImGui::CollapsingHeader("Light Emitter", ImGuiTreeNodeFlags_DefaultOpen)) {
+					const char* lightTypes[] = { "Directional Light", "Point Light" };
+					int currentLightType = (light->GetLightType() == LightType::DirectionalLight) ? 0 : 1;
+					if (ImGui::Combo("Light Type", &currentLightType, lightTypes, IM_ARRAYSIZE(lightTypes))) {
+						light->GetLightType() = (currentLightType == 0)
+							? LightType::DirectionalLight : LightType::SceneLight;
+					}
+
+					ImGui::ColorEdit3("Light Color", glm::value_ptr(light->GetLightColor()));
+					ImGui::DragFloat("Intensity", &light->GetLightIntensity(), 0.05f, 0.0f, 500.0f, "%.2f");
+
+					if (light->GetLightType() != LightType::DirectionalLight) {
+						ImGui::DragFloat("Attenuation Radius (Max Dist)", &light->GetMaxDistance(), 10.0f, 1.0f, 100000.0f, "%.1f");
+					}
+				}
+			}
+		}
+
+		// SCRIPTING LUA
+		if (ImGui::CollapsingHeader("Scripting (Lua)", ImGuiTreeNodeFlags_DefaultOpen)) {
+			std::string scriptName = selectedMesh->GetScriptPath().empty()
+				? "None"
+				: std::filesystem::path(selectedMesh->GetScriptPath()).filename().string();
+
+			ImGui::Text("Active Script: %s", scriptName.c_str());
+			if (!selectedMesh->GetScriptPath().empty()) {
+				ImGui::TextDisabled("%s", selectedMesh->GetScriptPath().c_str());
+			}
+
+			if (ImGui::Button("Assign .LUA")) {
+				std::string luaPath = OpenLuaFileDialog(m_WindowProperties.Window);
+				if (!luaPath.empty()) {
+					if (ScriptEngine::LoadMeshScript(selectedMesh, luaPath)) {
+						selectedMesh->GetTickEnabled() = true;
+						selectedMesh->GetInputEnabled() = true;
+					}
+				}
+			}
+
+			if (!selectedMesh->GetScriptPath().empty()) {
+				ImGui::SameLine();
+				if (ImGui::Button("Recompile / Hot-Reload")) {
+					if (ScriptEngine::LoadMeshScript(selectedMesh, selectedMesh->GetScriptPath())) {
+						if (m_GameStarted) {
+							ScriptEngine::OnBeginPlay(selectedMesh);
+						}
+					}
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Clear Script")) {
+					selectedMesh->GetScriptPath().clear();
+					selectedMesh->GetLuaEnv() = sol::nil;
+				}
+			}
+		}
+
+		// DELETE
+		ImGui::SeparatorText("Danger Zone");
+		if (selectedMesh->GetType() == MeshTypes::Type2D && ImGui::Button("Delete Last Vertex")) {
 			selectedMesh->removeVertex();
 		}
-
-		if (ImGui::Button("Delete Mesh")) { // deleta as meshes
-			LE_TRACE("Destroying Mesh... " + selectedMesh->GetName());
+		if (ImGui::Button("Destroy Mesh")) {
 			OnDestroySelectedMesh();
 		}
 	}
 	else {
-		ImGui::Text("Select a mesh to edit it's properties");
+		ImGui::TextDisabled("Select an actor in the Outliner to inspect its properties.");
 	}
 	ImGui::End();
 }
@@ -1340,7 +1284,10 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 void EditorApp::SubmitMesh(BaseMesh* newMesh)
 {
 	if (newMesh) {
-		m_GlobalMeshes.push_back(newMesh);
+		if (!newMesh->m_Parent) {
+			m_GlobalMeshes.push_back(newMesh);
+		}
+
 		switch (newMesh->GetType())
 		{
 		case MeshTypes::Type2D:
@@ -1410,6 +1357,30 @@ std::string EditorApp::OpenObjFileDialog(SDL_Window* window)
 	ofn.nMaxFile = sizeof(filePath);
 	// Filtro: Nome exibido \0 Extensão \0
 	ofn.lpstrFilter = "Wavefront OBJ (*.obj)\0*.obj\0Todos os Arquivos (*.*)\0*.*\0";
+	ofn.nFilterIndex = 1;
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+
+	if (GetOpenFileNameA(&ofn) == TRUE)
+	{
+		return std::string(ofn.lpstrFile);
+	}
+#endif
+	return ""; // se cancelar
+}
+
+std::string EditorApp::OpenLuaFileDialog(SDL_Window* window)
+{
+#ifdef _WIN32
+	char filePath[MAX_PATH] = { 0 };
+
+	OPENFILENAMEA ofn;
+	ZeroMemory(&ofn, sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = nullptr;
+	ofn.lpstrFile = filePath;
+	ofn.nMaxFile = sizeof(filePath);
+	// Filtro: Nome exibido \0 Extensão \0
+	ofn.lpstrFilter = "Lua Script (*.lua)\0*.lua\0Todos os Arquivos (*.*)\0*.*\0";
 	ofn.nFilterIndex = 1;
 	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
 
