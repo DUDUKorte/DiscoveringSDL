@@ -73,6 +73,7 @@ public:
 
 private:
 	void RenderUI();
+	void SetupCustomEditorStyle(float main_scale);
 	void ProcessMouseMotion(SDL_Event* event);
 	BaseMesh* GetActiveMesh();
 	void UpdateGizmoHover(float mouseX, float mouseY, BaseMesh* activeMesh, EEditMode);

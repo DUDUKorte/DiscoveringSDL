@@ -96,7 +96,14 @@ glm::vec3 BaseMesh::GetCentroide()
 
 Transform& BaseMesh::GetTransform()
 {
+	if (m_IsDirty) { UpdateWorldVertices(); }
 	return m_Transform;
+}
+
+glm::mat4& BaseMesh::GetTransformMatrix()
+{
+	if (m_IsDirty) { UpdateWorldVertices(); }
+	return m_TransformMatrix;
 }
 
 void BaseMesh::CalcLocalCentroide()

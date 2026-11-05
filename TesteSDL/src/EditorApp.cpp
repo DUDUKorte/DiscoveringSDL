@@ -91,18 +91,13 @@ SDL_AppResult EditorApp::Init()
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
+
+	//style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
+	//style.FontScaleDpi = main_scale;        // Set initial font scale. (in docking branch: using io.ConfigDpiScaleFonts=true automatically overrides this for every window depending on the current monitor)
+
 	// Setup Dear ImGui style
-	ImGui::StyleColorsDark();
-
-	// Setup scaling
-	ImGuiStyle& style = ImGui::GetStyle();
-	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
-		style.WindowRounding = 25.0f;
-		style.Colors[ImGuiCol_WindowBg].w = 0.7f;
-	}
-
-	style.ScaleAllSizes(main_scale);        // Bake a fixed style scale. (until we have a solution for dynamic style scaling, changing this requires resetting Style + calling this again)
-	style.FontScaleDpi = main_scale;        // Set initial font scale. (in docking branch: using io.ConfigDpiScaleFonts=true automatically overrides this for every window depending on the current monitor)
+	SetupCustomEditorStyle(main_scale);
+	io.Fonts->AddFontFromFileTTF("./Assets/fonts/RobotoMono-Bold.ttf", 16.0f);
 
 	// Setup Platform/Renderer backends
 	ImGui_ImplSDL3_InitForSDLGPU(m_WindowProperties.Window);
@@ -113,6 +108,17 @@ SDL_AppResult EditorApp::Init()
 	init_info.SwapchainComposition = SDL_GPU_SWAPCHAINCOMPOSITION_SDR;  // Only used in multi-viewports mode.
 	init_info.PresentMode = SDL_GPU_PRESENTMODE_VSYNC;
 	ImGui_ImplSDLGPU3_Init(&init_info);
+
+	ImGuizmo::Style& gizmoStyle = ImGuizmo::GetStyle();
+
+	//// 1. Espessuras e tamanhos (em pixels)
+	gizmoStyle.TranslationLineThickness = 4.0f; // Grossura das linhas de mover
+	gizmoStyle.TranslationLineArrowSize = 7.0f; // Tamanho da ponta da seta
+	gizmoStyle.RotationLineThickness = 3.0f; // Grossura do anel de rotação
+	gizmoStyle.RotationOuterLineThickness = 4.0f; // Grossura do anel externo de rotação
+	gizmoStyle.ScaleLineThickness = 4.0f; // Grossura das linhas de escala
+	gizmoStyle.ScaleLineCircleSize = 7.0f; // Tamanho do quadradinho/bolinha na ponta da escala
+	gizmoStyle.CenterCircleSize = 6.0f; // Tamanho do círculo central
 
 	// Setup Platform/Renderer backends
 	//ImGui_ImplSDL3_InitForSDLRenderer(m_WindowProperties.Window, m_WindowProperties.Renderer);
@@ -158,6 +164,107 @@ SDL_AppResult EditorApp::Init()
 //////////INITIALIZE SDL IMGUI AND EDITOR//////////////////
 ///////////////////////////////////////////////////////////
 
+
+void EditorApp::SetupCustomEditorStyle(float main_scale) {
+	ImGuiStyle& style = ImGui::GetStyle();
+	ImGuiIO& io = ImGui::GetIO();
+
+	// 1. Paddings e Espaçamentos (10 e 5)
+	style.WindowPadding = ImVec2(10.0f, 10.0f);
+	style.FramePadding = ImVec2(10.0f, 5.0f);
+	style.ItemSpacing = ImVec2(10.0f, 5.0f);
+	style.ItemInnerSpacing = ImVec2(5.0f, 5.0f);
+	style.IndentSpacing = 10.0f;
+	style.GrabMinSize = 14.0f;
+	style.ScrollbarSize = 10.0f;
+
+	// 2. Bordas e Arredondamentos (4 e 2)
+	style.WindowBorderSize = 0.0f;
+	style.ChildBorderSize = 2.0f;
+	style.PopupBorderSize = 0.0f;
+	style.FrameBorderSize = 1.0f;
+	style.TabBorderSize = 0.0f;
+
+	style.WindowRounding = 5.0f;
+	style.ChildRounding = 4.0f;
+	style.FrameRounding = 2.0f;
+	style.PopupRounding = 2.0f;
+	style.ScrollbarRounding = 2.0f;
+	style.GrabRounding = 2.0f;
+	style.TabRounding = 2.0f;
+
+	style.ScrollbarSize = 10.0f;
+	style.ScrollbarPadding = 4.0f;
+
+	style.TabBarBorderSize = 0.0f;
+	style.TabBarOverlineSize = 0.0f;
+
+	style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
+	style.WindowBorderHoverPadding = 7.0f;
+	style.WindowMenuButtonPosition = ImGuiDir_Right;
+	style.ButtonTextAlign = ImVec2(0.5f, 0.5f);
+	style.SeparatorSize = 5.0f;
+	style.SeparatorTextBorderSize = 5.0f;
+	style.SeparatorTextAlign = ImVec2(0.5f, 0.5f);
+	style.DockingSeparatorSize = 0.0f;
+
+	// 3. Paleta de Cores extraída direto da sua print
+	ImVec4* colors = style.Colors;
+
+	// Fundos principais (Cinza-ardósia escuro: ~34, 42, 45)
+	colors[ImGuiCol_WindowBg] = ImVec4(0.13f, 0.16f, 0.18f, 0.6f);
+	colors[ImGuiCol_ChildBg] = ImVec4(0.13f, 0.16f, 0.18f, 0.7f);
+	colors[ImGuiCol_PopupBg] = ImVec4(0.11f, 0.13f, 0.15f, 0.6f);
+
+	// Bordas e Separadores (~80, 82, 87)
+	colors[ImGuiCol_Border] = ImVec4(0.31f, 0.32f, 0.34f, 0.65f);
+	colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+	colors[ImGuiCol_Separator] = ImVec4(0.31f, 0.32f, 0.34f, 0.65f);
+	colors[ImGuiCol_SeparatorHovered] = ImVec4(0.24f, 0.41f, 0.59f, 0.78f);
+	colors[ImGuiCol_SeparatorActive] = ImVec4(0.24f, 0.41f, 0.59f, 1.00f);
+
+	// Inputs, DragFloats e Checkboxes (Quase preto azulado: ~17, 22, 26)
+	colors[ImGuiCol_FrameBg] = ImVec4(0.07f, 0.09f, 0.10f, 0.8f);
+	colors[ImGuiCol_FrameBgHovered] = ImVec4(0.12f, 0.15f, 0.18f, 0.9f);
+	colors[ImGuiCol_FrameBgActive] = ImVec4(0.16f, 0.21f, 0.25f, 0.9f);
+
+	// Barra de Título das Janelas / Dock (~22, 39, 60)
+	colors[ImGuiCol_TitleBg] = ImVec4(0.09f, 0.15f, 0.24f, 1.00f);
+	colors[ImGuiCol_TitleBgActive] = ImVec4(0.12f, 0.22f, 0.35f, 1.00f);
+	colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.09f, 0.15f, 0.24f, 0.75f);
+
+	// Botões, Headers ("Transform") e Seleções (Azul ~60, 105, 150)
+	colors[ImGuiCol_Button] = ImVec4(0.24f, 0.41f, 0.59f, 1.00f);
+	colors[ImGuiCol_ButtonHovered] = ImVec4(0.29f, 0.51f, 0.75f, 1.00f);
+	colors[ImGuiCol_ButtonActive] = ImVec4(0.18f, 0.35f, 0.53f, 1.00f);
+
+	colors[ImGuiCol_Header] = ImVec4(0.20f, 0.34f, 0.49f, 1.00f);
+	colors[ImGuiCol_HeaderHovered] = ImVec4(0.26f, 0.45f, 0.65f, 1.00f);
+	colors[ImGuiCol_HeaderActive] = ImVec4(0.29f, 0.51f, 0.75f, 1.00f);
+
+	// Abas do Docking ("Control pannel", "Inspector")
+	colors[ImGuiCol_Tab] = ImVec4(0.14f, 0.24f, 0.36f, 1.00f);
+	colors[ImGuiCol_TabHovered] = ImVec4(0.29f, 0.51f, 0.75f, 1.00f);
+	colors[ImGuiCol_TabSelected] = ImVec4(0.25f, 0.46f, 0.70f, 1.00f);
+	colors[ImGuiCol_TabDimmed] = ImVec4(0.09f, 0.15f, 0.24f, 1.00f);
+	colors[ImGuiCol_TabDimmedSelected] = ImVec4(0.18f, 0.32f, 0.48f, 1.00f);
+
+	// Checkmark, Sliders e Destaques (Azul vivo ~58, 128, 224)
+	colors[ImGuiCol_CheckMark] = ImVec4(0.23f, 0.50f, 0.88f, 1.00f);
+	colors[ImGuiCol_SliderGrab] = ImVec4(0.24f, 0.45f, 0.68f, 1.00f);
+	colors[ImGuiCol_SliderGrabActive] = ImVec4(0.29f, 0.55f, 0.85f, 1.00f);
+	colors[ImGuiCol_DockingPreview] = ImVec4(0.24f, 0.45f, 0.68f, 0.70f);
+
+	// Ajuste para Multi-Viewports (mantém cantos retos quando a janela sai do app)
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+		style.WindowRounding = 0.0f;
+		style.Colors[ImGuiCol_WindowBg].w = 0.6f;
+	}
+
+	// Aplica o DPI scale por cima dos tamanhos configurados
+	style.ScaleAllSizes(main_scale);
+	style.FontScaleDpi = main_scale;
+}
 
 
 ///////////////////////////////////////////////////////////
@@ -212,58 +319,6 @@ BaseMesh* EditorApp::GetActiveMesh()
 }
 ///////////////////////////////////////////////////////////
 ///////////////////GET ACTIVE MESH/////////////////////////
-///////////////////////////////////////////////////////////
-
-
-
-///////////////////////////////////////////////////////////
-////////////////UPDATE GIZMO HOVER/////////////////////////
-///////////////////////////////////////////////////////////
-void EditorApp::UpdateGizmoHover(float mouseX, float mouseY, BaseMesh* activeMesh, EEditMode mode)
-{
-	m_CurrentGizmoState = GIZMO_NONE;
-	if (activeMesh == nullptr || (mode == Selection || mode == CreatePoly)) { return; }
-
-	glm::vec3 centroide = activeMesh->GetCentroide();
-	float cx = centroide.x;
-	float cy = centroide.y;
-	float size = 60.0f;
-
-	// Pegar rotação do pai pro gizmo local, da submesh
-	float gizmoRot = 0.0f;
-	if (activeMesh->m_Parent != nullptr) {
-		gizmoRot = activeMesh->m_Parent->GetTransform().Rotation.z;
-	}
-
-	//desfazer rotação do pai
-	float dx = mouseX - cx;
-	float dy = mouseY - cy;
-	float localX = dx * std::cos(-gizmoRot) - dy * std::sin(-gizmoRot);
-	float localY = dx * std::sin(-gizmoRot) + dy * std::cos(-gizmoRot);
-
-	// colisão com o centro
-	if (std::abs(localX) < 12 && std::abs(localY) < 12) {
-		m_CurrentGizmoState = GIZMO_HOVER_CENTER;
-		return;
-	}
-
-	if (mode == MovePoly || mode == ScalePoly) {
-		if (localX > 0 && localX < size + 15 && std::abs(localY) < 10) {
-			m_CurrentGizmoState = GIZMO_HOVER_X;
-		}
-		else if (localY < 0 && localY > -size - 15 && std::abs(localX) < 10) {
-			m_CurrentGizmoState = GIZMO_HOVER_Y;
-		}
-	}
-	else if (mode == RotatePoly) {
-		float distance = std::sqrt(localX * localX + localY * localY);
-		if (std::abs(distance - size) < 10.0f) {
-			m_CurrentGizmoState = GIZMO_HOVER_ROT;
-		}
-	}
-}
-///////////////////////////////////////////////////////////
-////////////////UPDATE GIZMO HOVER/////////////////////////
 ///////////////////////////////////////////////////////////
 
 
@@ -347,12 +402,6 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 			OnChangeMode(Selection);
 			break;
 		}
-		// Atalho pra alternar o fillpoly 
-		if (e.key == SDLK_LCTRL) {
-			if (!m_GlobalMeshes.empty() && m_GlobalMeshes[m_CurrentMesh] != nullptr) {
-				m_GlobalMeshes[m_CurrentMesh]->SetFill(!m_GlobalMeshes[m_CurrentMesh]->GetFill());
-			}
-		}
 	}
 	// EVENTOS DE MOUSE PRESSIONADO ///////////////////////////////////////////////////////
 	else if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
@@ -434,10 +483,6 @@ void EditorApp::ProcessMouseMotion(SDL_Event* event)
 	SDL_MouseButtonEvent e = event->button;
 	if (e.x > GetWidth() || e.y > GetHeight() || e.x < 0 || e.y < 0) {
 		return;
-	}
-
-	if (!m_bLMB) {
-		UpdateGizmoHover(e.x, e.y, GetActiveMesh(), m_CurrentMode);
 	}
 
 	if (m_bRMB) {
@@ -555,7 +600,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 	// Desenhar o gizmo aqui
 	BaseMesh* activeMesh = GetActiveMesh();
-	if (activeMesh && activeMesh->GetType() != MeshTypes::Type2D) {
+	if (activeMesh && activeMesh->GetType() != MeshTypes::Type2D && !(m_GameStarted || m_CurrentMode == EEditMode::Navigation || m_CurrentMode == EEditMode::Selection)) {
 		ImGuizmo::SetOrthographic(!Renderer3D::UsePerspective);
 
 		ImGuizmo::SetDrawlist(ImGui::GetBackgroundDrawList());
@@ -930,9 +975,6 @@ void EditorApp::RenderUI()
 
 	if (ImGui::Button("Selection Mode")) {
 		OnChangeMode(Selection);
-	}
-	if (ImGui::Button("Edit Mode") && GetActiveMesh()->GetType() == Type2D) {
-		OnChangeMode(CreatePoly);
 	}
 	if (ImGui::Button("Translation Mode")) {
 		OnChangeMode(MovePoly);

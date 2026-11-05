@@ -48,7 +48,7 @@ public:
 	inline glm::vec3& Velocity() { return m_Velocity; }
 	glm::vec3 GetCentroide();
 	Transform& GetTransform();
-	inline glm::mat4& GetTransformMatrix() { return m_TransformMatrix; }
+	inline glm::mat4& GetTransformMatrix();
 
 	// getters
 	inline glm::vec3& GetLocalCentroide() { return m_LocalCentroide; }
