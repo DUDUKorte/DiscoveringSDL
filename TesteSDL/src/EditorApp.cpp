@@ -415,10 +415,12 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 			m_bLMB = true;
 		}
 		else if (e.button == 3) { // RMB
-			m_bRMB = true;
-			SetHideCursor(true);
-			m_LastMode = m_CurrentMode;
-			OnChangeMode(Navigation);
+			if (!m_GameStarted) {
+				m_bRMB = true;
+				SetHideCursor(true);
+				m_LastMode = m_CurrentMode;
+				OnChangeMode(Navigation);
+			}
 		}
 	}
 	/// EVENTOS DE MOUSE "DESPRESSIONADO"? ///////////////////////////////////////////////////////
@@ -429,11 +431,13 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 
 		}
 		else if (e.button == 3) { // RMB
-			m_bRMB = false;
-			SetHideCursor(false);
-			// reseta o mouse pro centro da tela
-			SDL_WarpMouseInWindow(m_WindowProperties.Window, m_WindowProperties.Width / 2.0f, m_WindowProperties.Height / 2.0f);
-			OnChangeMode(m_LastMode);
+			if (!m_GameStarted) {
+				m_bRMB = false;
+				SetHideCursor(false);
+				// reseta o mouse pro centro da tela
+				SDL_WarpMouseInWindow(m_WindowProperties.Window, m_WindowProperties.Width / 2.0f, m_WindowProperties.Height / 2.0f);
+				OnChangeMode(m_LastMode);
+			}
 		}
 	}
 	/// EVENTOS DO MOUSE SE MEXENDA ///////////////////////////////////////////////////////
@@ -563,12 +567,43 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			glm::value_ptr(modelMatrix));
 
 		if (ImGuizmo::IsUsing()) {
+			if (GetIsKeyPressed(SDL_SCANCODE_LALT) && !m_AltDuplicated) {
+				m_AltDuplicated = true;
+				if (activeMesh->GetType() == MeshTypes::Type3D) {
+					Mesh* copyMesh = new Mesh(*(static_cast<Mesh*>(activeMesh)));
+					SubmitMesh(copyMesh);
+				}
+				else if (activeMesh->GetType() == MeshTypes::TypeLight) {
+					MeshLight* copyMesh = new MeshLight(*(static_cast<MeshLight*>(activeMesh)));
+					SubmitMesh(copyMesh);
+				}
+
+				m_CurrentMesh = m_GlobalMeshes.size() - 1;
+				activeMesh = GetActiveMesh();
+
+				t = activeMesh->GetTransform();
+				ImGuizmo::RecomposeMatrixFromComponents(
+					glm::value_ptr(t.Position),
+					glm::value_ptr(t.Rotation),
+					glm::value_ptr(t.Scale),
+					glm::value_ptr(modelMatrix));
+
+				ImGuizmo::Manipulate(
+					glm::value_ptr(viewMatrix),
+					glm::value_ptr(projMatrix),
+					op,
+					ImGuizmo::LOCAL,
+					glm::value_ptr(modelMatrix));
+			}
 			ImGuizmo::DecomposeMatrixToComponents(
 				glm::value_ptr(modelMatrix),
 				glm::value_ptr(t.Position),
 				glm::value_ptr(t.Rotation),
 				glm::value_ptr(t.Scale));
 			activeMesh->MarkDirty();
+		}
+		else {
+			m_AltDuplicated = false;
 		}
 
 	}
@@ -1124,6 +1159,12 @@ void EditorApp::OnDestroySelectedMesh()
 {
 	if (m_CurrentSubMesh == -1) { // se for mesh pai
 		BaseMesh* markForDelete = m_GlobalMeshes[m_CurrentMesh];
+		
+		if (markForDelete->GetType() == MeshTypes::TypeLight) {
+			auto it = std::find(m_GlobalMeshLights.begin(), m_GlobalMeshLights.end(), markForDelete);
+			m_GlobalMeshLights.erase(it);
+		}
+
 		m_GlobalMeshes.erase(m_GlobalMeshes.begin() + m_CurrentMesh);
 
 		delete markForDelete;
@@ -1135,8 +1176,6 @@ void EditorApp::OnDestroySelectedMesh()
 			m_CurrentMesh = std::max(0, m_CurrentMesh - 1);
 		}
 		m_CurrentSubMesh = -1;
-
-		m_ActiveGizmoState = GIZMO_NONE;
 		LE_INFO("Mesh destroyed!");
 	}
 	else { // se for mesh filha

@@ -132,6 +132,7 @@ private:
 	int m_CurrentSubMesh = -1;
 	int m_CustomPolyFaces = 4;
 	int m_CustomPolySize = 10;
+	bool m_AltDuplicated = false;
 
 	// Audio
 	SDL_AudioStream* m_MusicStream = nullptr;
