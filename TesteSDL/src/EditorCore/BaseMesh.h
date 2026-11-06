@@ -10,6 +10,22 @@
 
 enum MeshTypes { Type3D = 0, Type2D = 1, TypeLight, TypeText};
 
+class BaseMesh;
+
+struct BoundingBox {
+	glm::vec3 localMin = { -0.5f, -0.5f, -0.5f };
+	glm::vec3 localMax = { 0.5f, 0.5f, 0.5f };
+
+	glm::vec3 worldMin = { 0.0f, 0.0f, 0.0f };
+	glm::vec3 worldMax = { 0.0f, 0.0f, 0.0f };
+
+	glm::vec3 offset = { 0.0f, 0.0f, 0.0f };
+	glm::vec3 sizeScale = { 1.0f, 1.0f, 1.0f };
+
+	bool ShowDebug = true;
+	std::vector<BaseMesh*> CollidingMeshes;
+};
+
 struct MeshMaterial {
 	float ambientReflection = 0.2f; // ka
 	float diffuse = 0.7f; // kd
@@ -47,10 +63,10 @@ public:
 	inline std::vector<BaseMesh*>& GetSubMeshes() { return m_SubMeshes; }
 	virtual BaseMesh* GetSubMesh(int index);
 
-	inline glm::vec3& Velocity() { return m_Velocity; }
-	glm::vec3 GetCentroide();
-	Transform& GetTransform();
-	inline glm::mat4& GetTransformMatrix();
+	virtual inline glm::vec3& Velocity() { return m_Velocity; }
+	virtual glm::vec3 GetCentroide();
+	virtual Transform& GetTransform();
+	virtual glm::mat4& GetTransformMatrix();
 
 	// getters
 	inline glm::vec3& GetLocalCentroide() { return m_LocalCentroide; }
@@ -73,6 +89,10 @@ public:
 	inline std::string& GetScriptPath() { return m_ScriptPath; }
 	inline sol::environment& GetLuaEnv() { return m_LuaEnv; }
 	inline bool& GetHiddenInGame() { return m_HiddenInGame; }
+	inline bool& GetCollision() { return m_CollisionEnabled; }
+	inline bool IsColliding() const { return !m_BoundingBox.CollidingMeshes.empty(); }
+	BoundingBox& GetBoundingBox() { return m_BoundingBox; }
+
 
 	// setters
 	inline void MarkDirty() { m_IsDirty = true; for (auto* m : m_SubMeshes) { m->MarkDirty(); } }
@@ -134,11 +154,15 @@ protected:
 	MeshMaterial m_Material;
 	MeshTypes meshType;
 
-	//Cores
+	// Cores
 	ImVec4 m_Color = { 0.2f, 0.2f, 0.2f, 1.0f };
 	ImVec4 m_OutlineColor = { 1.0f, 1.0f ,1.0f, 1.0f };
 
+	// Scripting
 	std::string m_ScriptPath = "";
 	sol::environment m_LuaEnv;
 
+	// BoundingBox // Colisão // física
+	bool m_CollisionEnabled = false;
+	BoundingBox m_BoundingBox;
 };

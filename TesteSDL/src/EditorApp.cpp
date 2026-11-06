@@ -1,6 +1,7 @@
 #include "EditorApp.h"
 #include "Renderer/Renderer3D.h"
 #include "Utils/Log.h"
+#include <Physics/CollisionEngine.h>
 
 #include <iostream>
 #include <string>
@@ -496,9 +497,9 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	// movimento de câmera (gambiarra, isso deve não existir no futuro)
 	if (m_bRMB) {
 		glm::vec3 addMovement = {0.0f, 0.0f, 0.0f};
-		addMovement.x += m_CameraSpeed * deltaTime * (GetIsKeyPressed(SDL_SCANCODE_D) - GetIsKeyPressed(SDL_SCANCODE_A));
-		addMovement.z += m_CameraSpeed * deltaTime * (GetIsKeyPressed(SDL_SCANCODE_W) - GetIsKeyPressed(SDL_SCANCODE_S));
-		addMovement.y += m_CameraSpeed * deltaTime * (GetIsKeyPressed(SDL_SCANCODE_Q) - GetIsKeyPressed(SDL_SCANCODE_E));
+		addMovement.x += m_CameraSpeed * (float)deltaTime * (GetIsKeyPressed(SDL_SCANCODE_D) - GetIsKeyPressed(SDL_SCANCODE_A));
+		addMovement.z += m_CameraSpeed * (float)deltaTime * (GetIsKeyPressed(SDL_SCANCODE_W) - GetIsKeyPressed(SDL_SCANCODE_S));
+		addMovement.y += m_CameraSpeed * (float)deltaTime * (GetIsKeyPressed(SDL_SCANCODE_Q) - GetIsKeyPressed(SDL_SCANCODE_E));
 
 		glm::vec3 moveDir = { addMovement.x, 0.0f, addMovement.z };
 		moveDir = glm::rotateX(moveDir, glm::radians(m_WindowProperties.CameraRot.x));
@@ -578,7 +579,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 					SubmitMesh(copyMesh);
 				}
 
-				m_CurrentMesh = m_GlobalMeshes.size() - 1;
+				m_CurrentMesh = (int)m_GlobalMeshes.size() - 1;
 				activeMesh = GetActiveMesh();
 
 				t = activeMesh->GetTransform();
@@ -607,6 +608,10 @@ SDL_AppResult EditorApp::UpdateAndRender()
 		}
 
 	}
+
+	// Atualiza a collisionEngine
+	CollisionEngine::UpdateAndCheckCollision(m_GlobalMeshes);
+	CollisionEngine::DrawDebugBoxes(m_GlobalMeshes, &m_WindowProperties, Renderer3D::UsePerspective);
 
 	if (!m_GameStarted || m_GameSimulate) {
 		RenderUI();
@@ -649,7 +654,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 		// abre o renderPass, vincula o pipelline e aí desenha oq quiser (no caso, as meshes)
 		renderPass3D = SDL_BeginGPURenderPass(commandBuffer, &colorTarget, 1, &depthTarget);
-		SDL_BindGPUGraphicsPipeline(renderPass3D, m_WindowProperties.GPUPipeline);
+		SDL_BindGPUGraphicsPipeline(renderPass3D, Renderer3D::DefaultPipeline);
 	}
 
 	// Draw polygons
@@ -921,7 +926,7 @@ void EditorApp::RenderUI()
 	if (ImGui::Combo("Renderer Mode", &currentRenderer, rendererModes, IM_ARRAYSIZE(rendererModes))) {
 		Renderer3D::RendererMode = static_cast<RendererModes>(currentRenderer);
 		if (Renderer3D::RendererMode == RendererModes::Software) {
-			SDL_ReleaseGPUGraphicsPipeline(m_WindowProperties.GPUDevice, m_WindowProperties.GPUPipeline);
+			SDL_ReleaseGPUGraphicsPipeline(m_WindowProperties.GPUDevice, Renderer3D::DefaultPipeline);
 			Renderer3D::Init(m_FrameBuffer, m_ZBuffer, &m_WindowProperties, &m_GlobalMeshLights);
 		}
 		else {
@@ -929,12 +934,9 @@ void EditorApp::RenderUI()
 		}
 	}
 
-	if (ImGui::Checkbox("Wireframe Mode", &Renderer3D::WireframeMode)) {
-		// atualiza o GPU Pipeline
-		Renderer3D::CreateGPUPipeline();
-	}
 #endif
 
+	ImGui::Checkbox("Wireframe Mode", &Renderer3D::WireframeMode);
 	ImGui::Checkbox("Perspective", &Renderer3D::UsePerspective);
 	ImGui::End();
 
@@ -1073,6 +1075,29 @@ void EditorApp::RenderUI()
 			}
 		}
 
+		if (ImGui::CollapsingHeader("Collision (AABB)", ImGuiTreeNodeFlags_DefaultOpen)) {
+			ImGui::Checkbox("Enable Collision", &selectedMesh->GetCollision());
+
+			if (selectedMesh->GetCollision()) {
+				BoundingBox& bb = selectedMesh->GetBoundingBox();
+				ImGui::SameLine();
+				ImGui::Checkbox("Show Debug Box", &bb.ShowDebug);
+
+				ImGui::DragFloat3("Box Offset", glm::value_ptr(bb.offset), 0.05f);
+				ImGui::DragFloat3("Box Scale", glm::value_ptr(bb.sizeScale), 0.02f, 0.01f, 100.0f);
+
+				if (selectedMesh->IsColliding()) {
+					ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "Status: COLLIDING (%d)", (int)bb.CollidingMeshes.size());
+					for (BaseMesh* other : bb.CollidingMeshes) {
+						ImGui::BulletText("Hitting: %s", other->GetName().c_str());
+					}
+				}
+				else {
+					ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "Status: Clear");
+				}
+			}
+		}
+
 		// SCRIPTING LUA
 		if (ImGui::CollapsingHeader("Scripting (Lua)", ImGuiTreeNodeFlags_DefaultOpen)) {
 			std::string scriptName = selectedMesh->GetScriptPath().empty()
@@ -1194,7 +1219,6 @@ void EditorApp::OnDestroySelectedMesh()
 
 void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 {
-	// TESTE
 	// CARREGANDO UM ARQUIVO OBJ
 	std::ifstream file;
 
@@ -1250,6 +1274,8 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 			else if ("usemtl" == prefix)
 			{
 				//LE_CORE_TRACE("USE MTL");
+				// mtl pelo jeito é tipo uma textura, vai indicar o nome do arquivo mtl na mesma pasta (ou o caminho)
+				// aí lá no mtl vai ter o endereço/caminho/nome das texturas pra carregar
 
 			}
 			else if ("f" == prefix)
@@ -1316,6 +1342,16 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 		if (glm::length(vn) <= 0) { continue; }
 		vn = glm::normalize(vn);
 	}
+
+	// Calcular o minmax da BoundingBox dessa mesh
+	glm::vec3 minV(FLT_MAX);
+	glm::vec3 maxV(-FLT_MAX);
+	for (const glm::vec3& v: mesh->GetLocalVertices()) {
+		minV = glm::min(minV, v);
+		maxV = glm::max(minV, v);
+	}
+	mesh->GetBoundingBox().localMin = minV;
+	mesh->GetBoundingBox().localMax = maxV;
 
 	// Para poder utilizar a mesh no renderer de hardware
 	Renderer3D::UploadMeshToGPU(*mesh);

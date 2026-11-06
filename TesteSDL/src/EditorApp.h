@@ -9,6 +9,7 @@
 #include "EditorCore/MeshLight.h"
 #include "EditorCore/Pipe.h"
 #include "EditorCore/ScriptEngine.h"
+#include "Physics/CollisionEngine.h"
 #include "Utils/LeandroMath.h"
 
 #include "imgui_impl_sdl3.h"
@@ -33,7 +34,6 @@ typedef struct WindowProperties {
 	SDL_Window* Window = nullptr;
 	SDL_Renderer* Renderer = nullptr;
 	SDL_GPUDevice* GPUDevice = nullptr;
-	SDL_GPUGraphicsPipeline* GPUPipeline = nullptr;
 	glm::vec3 CameraPos = { 0.0f, 0.0f, 0.0f };
 	glm::vec2 CameraRot = { 0.0f, 0.0f };
 } WindowProperties;

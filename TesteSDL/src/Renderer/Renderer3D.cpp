@@ -25,6 +25,8 @@ SDL_GPUShader* Renderer3D::m_FragmentShaderWireframe = nullptr;
 
 bool Renderer3D::WireframeMode = false;
 bool Renderer3D::UsePerspective = false;
+SDL_GPUGraphicsPipeline* Renderer3D::DefaultPipeline = nullptr;
+SDL_GPUGraphicsPipeline* Renderer3D::WireframePipeline = nullptr;
 
 #ifndef USE_HARDWARE_RENDERER
 RendererModes Renderer3D::RendererMode = RendererModes::Software;
@@ -262,10 +264,6 @@ void Renderer3D::InitGPU(WindowProperties* window)
 // td comentado aqui já
 void Renderer3D::CreateGPUPipeline()
 {
-	if (MainWindow->GPUPipeline) {
-		SDL_ReleaseGPUGraphicsPipeline(MainWindow->GPUDevice, MainWindow->GPUPipeline);
-	}
-
 	// Layout dos Vértices (GPUVertex: vec3 pos + vec3 normal)
 	SDL_GPUVertexBufferDescription vertexBufferDesc = {}; // isso aqui 'ensina' pra gpu como ler o GPUBuffer q mandamos a cada Mesh em UploadMeshToGPU()
 	vertexBufferDesc.slot = 0;
@@ -299,7 +297,7 @@ void Renderer3D::CreateGPUPipeline()
 	// e aí sim recriar a pipeline? n sei, tem q testar dps
 	SDL_GPUGraphicsPipelineCreateInfo pipelineInfo = {};
 	pipelineInfo.vertex_shader = m_VertexShader;
-	pipelineInfo.fragment_shader = Renderer3D::WireframeMode ? m_FragmentShaderWireframe : m_FragmentShaderFill;
+	pipelineInfo.fragment_shader = m_FragmentShaderFill;
 	pipelineInfo.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST; // manda ela usar triângulos pra desenhar, então obrigatoriamente todas as meshes precisam estar trianguladas
 	// se n ele vai comer mais/menos vértices mandando pro vertexShader e o desenho simplesmente quebra (ou n desenha)
 
@@ -308,7 +306,7 @@ void Renderer3D::CreateGPUPipeline()
 	pipelineInfo.vertex_input_state.vertex_attributes = vertexAttributes;
 	pipelineInfo.vertex_input_state.num_vertex_attributes = 2; // Lembra de mudar aqui tbm se for adicioanr mais atributos no vertexShader!!!!!!
 
-	pipelineInfo.rasterizer_state.fill_mode = Renderer3D::WireframeMode ? SDL_GPU_FILLMODE_LINE : SDL_GPU_FILLMODE_FILL; // Preenche os triângulos, na teoria seria só mudar isso aqui pra fazer o outline (SDL_GPU_FILLMODE_LINE)
+	pipelineInfo.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL; // Preenche os triângulos, na teoria seria só mudar isso aqui pra fazer o outline (SDL_GPU_FILLMODE_LINE)
 	pipelineInfo.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_BACK; // Backface CUlling meio q 'automático' com o zbuffer q vamos passar
 
 	// Z-Buffer ==> agnt 'binda' o DepthBuffer a cada frame lá no update and render quando começa o RenderPass
@@ -321,7 +319,13 @@ void Renderer3D::CreateGPUPipeline()
 	pipelineInfo.target_info.has_depth_stencil_target = true;
 	pipelineInfo.target_info.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
 
-	MainWindow->GPUPipeline = SDL_CreateGPUGraphicsPipeline(MainWindow->GPUDevice, &pipelineInfo);
+	Renderer3D::DefaultPipeline = SDL_CreateGPUGraphicsPipeline(MainWindow->GPUDevice, &pipelineInfo);
+	// Cria a pipeline de wireframe
+	pipelineInfo.fragment_shader = m_FragmentShaderWireframe;
+	pipelineInfo.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_LINE;
+	pipelineInfo.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_NONE;
+	Renderer3D::WireframePipeline = SDL_CreateGPUGraphicsPipeline(MainWindow->GPUDevice, &pipelineInfo);
+	// TODO: Cria a pipeline do outline
 
 	// Depois de criar o pipeline, o SDL_GPU permite liberar os objetos de shader
 	// Decidi não liberar os shaders pra usar posteriormente quando atualiza entre fill e wireframe
@@ -414,6 +418,10 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 		}
 	}
 
+	if (Renderer3D::WireframeMode) {
+		SDL_BindGPUGraphicsPipeline(renderPass, WireframePipeline);
+	}
+
 	// mapeando coordenadas de tela
 	VertexUniformData vertUbo = {};
 	vertUbo.modelMatrix = mesh.GetTransformMatrix(); // mat4 com as transformações da mesh
@@ -495,6 +503,11 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 		}
 	}
 
+	if (mesh.GetOutline()) {
+		// Aqui iria fazer o bind do pipeline de outline e desenhar de novo a mesh
+		//SDL_BindGPUGraphicsPipeline(renderPass, WireframePipeline);
+		// DrawMeshGPU(mesh, commandBuffer, renderPass);
+	}
 }
 
 void Renderer3D::Init(std::vector<uint32_t>* buffer, std::vector<float>* zbuffer, WindowProperties* window, std::vector<MeshLight*>* lights)

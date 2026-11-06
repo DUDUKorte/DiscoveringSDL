@@ -164,11 +164,22 @@ void BaseMesh::UpdateWorldVertices()
 	// Move para o ponto central
 	m_TransformMatrix = glm::translate(m_TransformMatrix, -m_LocalCentroide);
 
+	glm::vec3 minv(FLT_MAX);
+	glm::vec3 maxv(-FLT_MAX);
 
 	for (const glm::vec3& localVertex : m_LocalVertices) {
 		glm::vec4 adjustVertex = { localVertex.x, localVertex.y, localVertex.z, 1.0f };
 		adjustVertex = m_TransformMatrix * adjustVertex;
 		m_Vertices.push_back({ adjustVertex.x, adjustVertex.y, adjustVertex.z });
+
+		minv.x = glm::min(minv.x, adjustVertex.x);
+		minv.y = glm::min(minv.y, adjustVertex.y);
+		minv.z = glm::min(minv.z, adjustVertex.z);
+
+		maxv.x = glm::max(maxv.x, adjustVertex.x);
+		maxv.y = glm::max(maxv.y, adjustVertex.y);
+		maxv.z = glm::max(maxv.z, adjustVertex.z);
+
 
 		// Atualiza o minmax
 		if (adjustVertex.y < m_MinMaxY.x) {
@@ -179,5 +190,7 @@ void BaseMesh::UpdateWorldVertices()
 		}
 	}
 
+	m_BoundingBox.worldMin = minv;
+	m_BoundingBox.worldMax = maxv;
 	m_IsDirty = false;
 }

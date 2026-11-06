@@ -113,6 +113,9 @@ public:
 	static SDL_GPUShader* m_FragmentShaderFill;
 	static SDL_GPUShader* m_FragmentShaderWireframe;
 
+	static SDL_GPUGraphicsPipeline* DefaultPipeline;
+	static SDL_GPUGraphicsPipeline* WireframePipeline;
+
 #ifdef USE_HARDWARE_RENDERER
 	// função pra compilar shader de glsl pra spir-v (binário do vulkan)
 	// eu mantive essa função no .h mesmo pq o .cpp tava muito poluído

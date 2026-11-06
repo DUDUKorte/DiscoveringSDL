@@ -131,7 +131,8 @@ void ScriptEngine::InitLuaBindings()
 		"SetVelocity", [](BaseMesh& b, const glm::vec3& c) { b.GetVelocity() = c; },
 		"MarkDirty", &BaseMesh::MarkDirty,
 		"SetColor", [](BaseMesh& m, const glm::vec3& c) { m.GetColor() = glm::vec3(c.x, c.y, c.z); },
-		"SetObj", [](BaseMesh& l, const std::string& c) { l.GetObj() = c; }
+		"SetObj", [](BaseMesh& l, const std::string& c) { l.GetObj() = c; },
+		"IsColliding", &BaseMesh::IsColliding
 	);
 
 	//// 4. Bind da BaseMesh / Mesh / MeshLight
