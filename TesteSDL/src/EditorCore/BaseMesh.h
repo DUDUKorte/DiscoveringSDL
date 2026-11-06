@@ -75,7 +75,7 @@ public:
 	inline bool& GetHiddenInGame() { return m_HiddenInGame; }
 
 	// setters
-	inline void MarkDirty() { m_IsDirty = true; }
+	inline void MarkDirty() { m_IsDirty = true; for (auto* m : m_SubMeshes) { m->MarkDirty(); } }
 	inline void SetActive(bool active) { m_IsActive = active; }
 	inline void SetFill(bool fill) { m_Fill = fill; }
 	inline void SetClosed(bool closed) { m_Closed = closed; }

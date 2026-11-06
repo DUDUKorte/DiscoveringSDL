@@ -7,8 +7,13 @@
 
 // descomente essa linha apenas se for usar o novo renderer por hardware
 // (precisa ter o SDK do vulkan devidamente instalado)
+// vale comentar que precisa incluir/remover shaderc_shared.lib nas inclusões do projeto (tanto na engine quanto na application)
+// se for buildar release com suporte a vulkan precisa (logicamente) buildar num pc com o vulkan SDK instalado e USE_HARDWARE_RENDERER definido
+// mas também precisa colocar o shaderc_shared.lib ou shaderc_shared.dll (só testei com o .dll) na pasta da build
+// (ou pedir pro usuário instalar o vulkanSDK skdfjdklsfjldks)
 #define USE_HARDWARE_RENDERER
 
+// Lembra de trocar esse valor no **fragment** >>>E<<< **vertex** shader tbm se n vai crashar
 #define MAX_LIGHTS 16
 
 #ifdef USE_HARDWARE_RENDERER
@@ -61,6 +66,8 @@ class Renderer3D {
 public:
 	static void InitGPU(WindowProperties* window);
 
+	static void CreateGPUPipeline();
+
 	static void UploadMeshToGPU(Mesh& mesh);
 
 	static void DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SDL_GPURenderPass* renderPass);
@@ -100,41 +107,54 @@ public:
 	static RendererModes RendererMode;
 	static SDL_GPUTexture* DepthTexture;
 	static bool UsePerspective;
+	static bool WireframeMode;
 
+	static SDL_GPUShader* m_VertexShader;
+	static SDL_GPUShader* m_FragmentShaderFill;
+	static SDL_GPUShader* m_FragmentShaderWireframe;
 
 #ifdef USE_HARDWARE_RENDERER
-	// função pra compilar shader de glsl pra spir-v
+	// função pra compilar shader de glsl pra spir-v (binário do vulkan)
+	// eu mantive essa função no .h mesmo pq o .cpp tava muito poluído
+	// e já aproveita aqui pra fazer o ifdef e tal, pq aí essa função nem chega a existir
+	// ent aí permite que que pessoas sem o VulkanSDK instalado possam buildar usando só o software renderer
+	// td comentado aqui já
 	static SDL_GPUShader* CompileGLSLToSDLShader(
 		SDL_GPUDevice* device,
-		const char* source,
-		shaderc_shader_kind kind,
-		SDL_GPUShaderStage stage,
-		uint32_t numUniformBuffers)
+		const char* source,	// o shader glsl em si
+		shaderc_shader_kind kind, // tipo do shader == vertex / fragment. tem MUITOS outros (inclusive isso aqui é do SDK do vulkan), mas o principal é esses dois. Provavelmente deve ser mudando isso pra fazer um shader de ray tracing ou coisa do tipo
+		SDL_GPUShaderStage stage, // mesma coisa do tipo, mas pro SDL (esse sim só tem vertex e fragment)
+		uint32_t numUniformBuffers) // Quantidade de uniform buffers vamos 'upar' no shader (VertexUniformData/FragmentUniformData)
+									// como o bglh roda na gpu n da pra simplesmente fazer 'Shdaer(data1, data2)' tem q mandar em bytes mesmo e precisa ALINHAR AINDA, chato, mas a vida é assim
 	{
-		shaderc::Compiler compiler;
-		shaderc::CompileOptions options;
-		options.SetOptimizationLevel(shaderc_optimization_level_performance);
+		shaderc::Compiler compiler; // compiler nativo do próprio vulkan SDK (MUITO OBRIGADO VULKAN MDS DO CÉU)
+		shaderc::CompileOptions options; //dã
+		options.SetOptimizationLevel(shaderc_optimization_level_performance); // FPS ALTO KJASHDJKHAGHFRHJKLAWHGELRJKAW
+																			  // Aqui spa dava pra fazer algo tipo #ifdef OPTIMIZATIONS e aí n usa caso esteja rodando em debug
+																			  // mas sinceramente n vejo necessidade em não ligar a performance na compilação de shader
+																			  // ainda mais pq nossos shader são MUITO simples (me aguerde RAY TRACING)
 
-		shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(source, strlen(source), kind, "shader", options);
+		shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(source, strlen(source), kind, "shader", options); // essa linha literalmente compila o shader todo, olha q delícia
 		if (module.GetCompilationStatus() != shaderc_compilation_status_success) {
 			SDL_Log("Erro compilando Shader: %s", module.GetErrorMessage().c_str());
 			return nullptr;
 		}
-
+		// daqui pra frente é configurando o shader pro sdl conseguir usar e upar na gpu, o shader já tá compilado
 		std::vector<uint32_t> spirv(module.cbegin(), module.cend());
 
 		SDL_GPUShaderCreateInfo shaderInfo = {};
-		shaderInfo.code = reinterpret_cast<const uint8_t*>(spirv.data());
+		shaderInfo.code = reinterpret_cast<const uint8_t*>(spirv.data()); // o literal código do shader compilado
 		shaderInfo.code_size = spirv.size() * sizeof(uint32_t);
-		shaderInfo.entrypoint = "main";
-		shaderInfo.format = SDL_GPU_SHADERFORMAT_SPIRV;
-		shaderInfo.stage = stage;
+		shaderInfo.entrypoint = "main"; // função de entrada (ideia: colocar LeandroInit() ou LEMain() ??)
+		shaderInfo.format = SDL_GPU_SHADERFORMAT_SPIRV; // avisar q é SPIRV né, se n vai crashar
+		shaderInfo.stage = stage; // vertex/fragment
 		shaderInfo.num_uniform_buffers = numUniformBuffers;
 
-		return SDL_CreateGPUShader(device, &shaderInfo);
+		return SDL_CreateGPUShader(device, &shaderInfo); //shader SDL criado com sucesso óia só q coisa legal, fizemos um compilador de shader vulkan :D
 	}
 #else // isso é só pra evitar erro caso a pessoa n tenha o sdk do vulkan e n queira instalar (aka vai usar/codar só no sftware renderer)
 	typedef enum {shaderc_vertex_shader,shaderc_fragment_shader,shaderc_compute_shader,shaderc_geometry_shader,shaderc_tess_control_shader,shaderc_tess_evaluation_shader,shaderc_glsl_vertex_shader = shaderc_vertex_shader,shaderc_glsl_fragment_shader = shaderc_fragment_shader,shaderc_glsl_compute_shader = shaderc_compute_shader,shaderc_glsl_geometry_shader = shaderc_geometry_shader,shaderc_glsl_tess_control_shader = shaderc_tess_control_shader,shaderc_glsl_tess_evaluation_shader = shaderc_tess_evaluation_shader,shaderc_glsl_infer_from_source,shaderc_glsl_default_vertex_shader,shaderc_glsl_default_fragment_shader,shaderc_glsl_default_compute_shader,shaderc_glsl_default_geometry_shader,shaderc_glsl_default_tess_control_shader,shaderc_glsl_default_tess_evaluation_shader,shaderc_spirv_assembly,shaderc_raygen_shader,shaderc_anyhit_shader,shaderc_closesthit_shader,shaderc_miss_shader,shaderc_intersection_shader,shaderc_callable_shader,shaderc_glsl_raygen_shader = shaderc_raygen_shader,shaderc_glsl_anyhit_shader = shaderc_anyhit_shader,shaderc_glsl_closesthit_shader = shaderc_closesthit_shader,shaderc_glsl_miss_shader = shaderc_miss_shader,shaderc_glsl_intersection_shader = shaderc_intersection_shader,shaderc_glsl_callable_shader = shaderc_callable_shader,shaderc_glsl_default_raygen_shader,shaderc_glsl_default_anyhit_shader,shaderc_glsl_default_closesthit_shader,shaderc_glsl_default_miss_shader,shaderc_glsl_default_intersection_shader,shaderc_glsl_default_callable_shader,shaderc_task_shader,shaderc_mesh_shader,shaderc_glsl_task_shader = shaderc_task_shader,shaderc_glsl_mesh_shader = shaderc_mesh_shader,shaderc_glsl_default_task_shader,shaderc_glsl_default_mesh_shader,} shaderc_shader_kind;
+	// Função fantasma quando USE_HARDWARE_RENDERER não foi definido
 	static SDL_GPUShader* CompileGLSLToSDLShader(
 		SDL_GPUDevice* device,
 		const char* source,

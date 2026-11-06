@@ -6,15 +6,24 @@
 #include "Utils/LeandroMath.h"
 #include <glm/gtc/random.hpp>
 
+
 std::vector<uint32_t>* Renderer3D::Buffer = nullptr;
 std::vector<float>* Renderer3D::ZBuffer = nullptr;
+SDL_GPUTexture* Renderer3D::DepthTexture = nullptr;
+
 std::vector<MeshLight*>* Renderer3D::SceneLights = nullptr;
+glm::vec3 Renderer3D::AmbientLight = { 0.2f, 0.2f, 0.2f };
+LightAlgorithms Renderer3D::LightAlgorithm = Constant;
+
 WindowProperties* Renderer3D::MainWindow = nullptr;
 uint32_t Renderer3D::DrawColor = LeandroColor(0.8f, 0.8f, 0.2f, 1.0f);
 std::vector<std::vector<std::pair<glm::vec3, glm::vec3>>> Renderer3D::intersecoes(0);
-glm::vec3 Renderer3D::AmbientLight = { 0.2f, 0.2f, 0.2f };
-LightAlgorithms Renderer3D::LightAlgorithm = Constant;
-SDL_GPUTexture* Renderer3D::DepthTexture = nullptr;
+
+SDL_GPUShader* Renderer3D::m_VertexShader = nullptr;
+SDL_GPUShader* Renderer3D::m_FragmentShaderFill = nullptr;
+SDL_GPUShader* Renderer3D::m_FragmentShaderWireframe = nullptr;
+
+bool Renderer3D::WireframeMode = false;
 bool Renderer3D::UsePerspective = false;
 
 #ifndef USE_HARDWARE_RENDERER
@@ -28,7 +37,6 @@ const char* vertexShaderSource = R"(
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
-layout(location = 2) in vec3 cameraPos;
 
 layout(location = 0) out vec3 fragWorldPos;
 layout(location = 1) out vec3 fragNormal;
@@ -187,65 +195,126 @@ void main() {
 }
 )";
 
+
+const char* fragmentShaderWireframeSource = R"(
+#version 450
+
+layout(location = 0) in vec3 fragWorldPos;
+layout(location = 1) in vec3 fragNormal;
+layout(location = 2) in vec3 fragGouraudColor;
+
+layout(location = 0) out vec4 outColor;
+
+struct GPULight {
+    vec4 posAndType;
+    vec4 colorAndMaxDist;
+};
+
+layout(set = 3, binding = 0) uniform LightingUniforms {
+    vec4 baseColor;
+    vec4 materialProps;
+    vec4 ambientLight;
+    int lightAlgorithm;
+    int numLights;
+    int perspective, pad1;
+    GPULight lights[16];
+} lightUbo;
+
+void main() {
+	outColor = vec4(0.0, 0.0, 1.0, 1.0);
+}
+)";
+
+// Inicializa o renderer de Hardware
+// tudo comentado aqui já
 void Renderer3D::InitGPU(WindowProperties* window)
 {
-	Renderer3D::MainWindow = window;
+	Renderer3D::MainWindow = window; // dã
 
+	// Cria o zbuffer q a GPU vai usar aqui
+	// aparentemente a gpu faz o zbuffer e td mais automaticamente
+	// esse zbuffer varia de 0.0 até 1.0 (1.0 é mais longe)
+	// usa o znear e zfar como base pra manter no range 0-1
+	// (é literalmente só uma textura, mas agnt manda a gpu usar como o zbuffer e td só funciona)
 	SDL_GPUTextureCreateInfo depthInfo = {};
-	depthInfo.type = SDL_GPU_TEXTURETYPE_2D;
-	depthInfo.width = MainWindow->Width;
-	depthInfo.height = MainWindow->Height;
+	depthInfo.type = SDL_GPU_TEXTURETYPE_2D; // pq a tela é 2D, lógico
+	depthInfo.width = MainWindow->Width; // tem q ser do tamanho da tela
+	depthInfo.height = MainWindow->Height; // se n, n funciona né fi
 	depthInfo.layer_count_or_depth = 1;
 	depthInfo.num_levels = 1;
-	depthInfo.format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
-	depthInfo.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET;
+	depthInfo.format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT; // aparentemente esse é o tipo de valor padrão q a gpu usa pro zbuffer (float de 32 bits)
+	depthInfo.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET; // aqui agnt fala q é pra usar a textura como zbuffer (depth stencil é tipo pincel de profundidade aka zbuffer)
 	DepthTexture = SDL_CreateGPUTexture(MainWindow->GPUDevice, &depthInfo);
-
+	// vale lembrar q toda vez q a tela muda de tamanho tem q recriar o zbuffer com o novo tamanho e mandar ele pra ser usado pela gpu
+	
 	// SHader compilation
-	SDL_GPUShader* vertShader = CompileGLSLToSDLShader(MainWindow->GPUDevice, vertexShaderSource, shaderc_glsl_vertex_shader, SDL_GPU_SHADERSTAGE_VERTEX, 2);
-	SDL_GPUShader* fragShader = CompileGLSLToSDLShader(MainWindow->GPUDevice, fragmentShaderSource, shaderc_glsl_fragment_shader, SDL_GPU_SHADERSTAGE_FRAGMENT, 1);
+	// Da uma olhada nos coméntários da própria função do CompileGLSLToSDLShader (tá no .h)
+	m_VertexShader = CompileGLSLToSDLShader(MainWindow->GPUDevice, vertexShaderSource, shaderc_glsl_vertex_shader, SDL_GPU_SHADERSTAGE_VERTEX, 2);
+	m_FragmentShaderFill = CompileGLSLToSDLShader(MainWindow->GPUDevice, fragmentShaderSource, shaderc_glsl_fragment_shader, SDL_GPU_SHADERSTAGE_FRAGMENT, 1);
+	m_FragmentShaderWireframe = CompileGLSLToSDLShader(MainWindow->GPUDevice, fragmentShaderWireframeSource, shaderc_glsl_fragment_shader, SDL_GPU_SHADERSTAGE_FRAGMENT, 1);
+
+	CreateGPUPipeline();
+}
+
+
+// Cria/Recria a pipeline da GPU
+// Tirei do init pra poder trocar entre render normal e wireframe
+// td comentado aqui já
+void Renderer3D::CreateGPUPipeline()
+{
+	if (MainWindow->GPUPipeline) {
+		SDL_ReleaseGPUGraphicsPipeline(MainWindow->GPUDevice, MainWindow->GPUPipeline);
+	}
 
 	// Layout dos Vértices (GPUVertex: vec3 pos + vec3 normal)
-	SDL_GPUVertexBufferDescription vertexBufferDesc = {};
+	SDL_GPUVertexBufferDescription vertexBufferDesc = {}; // isso aqui 'ensina' pra gpu como ler o GPUBuffer q mandamos a cada Mesh em UploadMeshToGPU()
 	vertexBufferDesc.slot = 0;
-	vertexBufferDesc.pitch = sizeof(GPUVertex);
+	vertexBufferDesc.pitch = sizeof(GPUVertex); // tamanho de cada vértice, é isso aqui q vai pro in do shader
 	vertexBufferDesc.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
 
-	SDL_GPUVertexAttribute vertexAttributes[2] = {};
-	// position (offset 0)
-	vertexAttributes[0].location = 0;
+	// Aqui agnt 'ensina' pra gpu como ler cada vértice pq n é só putaria nessa vram nn
+	// principalmente pq tem a pos e o normal no vertex né
+	SDL_GPUVertexAttribute vertexAttributes[2] = {}; // tamanho 2 pq tem 2 variáveis na struct (dã)
+	// position
+	vertexAttributes[0].location = 0; // lembra disso pq é como vamo pega o valor lá dentro do shader (location = x)
 	vertexAttributes[0].buffer_slot = 0;
-	vertexAttributes[0].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
-	vertexAttributes[0].offset = offsetof(GPUVertex, position);
+	vertexAttributes[0].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3; // formato 3 flaots (float, float, float) -> isso mesmo, um vec3 :o
+	vertexAttributes[0].offset = offsetof(GPUVertex, position); // offset né (engraçado q no arquivo original tem literalmente um 'if cplusplus: else: ' p separar c de c++ akjlhjdkfkjsdhfj)
 
-	// normal (offset 12)
+	// normal
 	vertexAttributes[1].location = 1;
 	vertexAttributes[1].buffer_slot = 0;
 	vertexAttributes[1].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
 	vertexAttributes[1].offset = offsetof(GPUVertex, normal);
 
+	//Aí se quiser adicionar mais atributos é aqui pra baixo né, aí vai colocando vertexAttributes[i+1] (NÃO ESQUECE O LOCATION) (NEM O OFFSET)
+
 	// Target de Cor e Depth Stencil
 	SDL_GPUColorTargetDescription colorTargetDesc = {};
 	colorTargetDesc.format = SDL_GetGPUSwapchainTextureFormat(MainWindow->GPUDevice, MainWindow->Window);
 
+	// Aqui começa a criar o pipeline pra GPU usar
+	//Me veio um pensamento agora: pra desenhar o outline agnt faz OUTRA pipeline? ou tenta modificar essa? pode isso?
+	//TODO Testar modificar/criar a pipeline em runtime com o Mesh->GetOutline(); // talvez verificar o outline ANTES de começar o renderpass?
+	// e aí sim recriar a pipeline? n sei, tem q testar dps
 	SDL_GPUGraphicsPipelineCreateInfo pipelineInfo = {};
-	pipelineInfo.vertex_shader = vertShader;
-	pipelineInfo.fragment_shader = fragShader;
-	pipelineInfo.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+	pipelineInfo.vertex_shader = m_VertexShader;
+	pipelineInfo.fragment_shader = Renderer3D::WireframeMode ? m_FragmentShaderWireframe : m_FragmentShaderFill;
+	pipelineInfo.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST; // manda ela usar triângulos pra desenhar, então obrigatoriamente todas as meshes precisam estar trianguladas
+	// se n ele vai comer mais/menos vértices mandando pro vertexShader e o desenho simplesmente quebra (ou n desenha)
 
 	pipelineInfo.vertex_input_state.vertex_buffer_descriptions = &vertexBufferDesc;
-	pipelineInfo.vertex_input_state.num_vertex_buffers = 1;
+	pipelineInfo.vertex_input_state.num_vertex_buffers = 1; // acho difícil agnt ter mais de 1 vertex buffer
 	pipelineInfo.vertex_input_state.vertex_attributes = vertexAttributes;
-	pipelineInfo.vertex_input_state.num_vertex_attributes = 2;
+	pipelineInfo.vertex_input_state.num_vertex_attributes = 2; // Lembra de mudar aqui tbm se for adicioanr mais atributos no vertexShader!!!!!!
 
-	// Backface Culling
-	pipelineInfo.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
-	pipelineInfo.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_BACK; // Podemos ligar BACK/FRONT depois de testar a mão da matriz
+	pipelineInfo.rasterizer_state.fill_mode = Renderer3D::WireframeMode ? SDL_GPU_FILLMODE_LINE : SDL_GPU_FILLMODE_FILL; // Preenche os triângulos, na teoria seria só mudar isso aqui pra fazer o outline (SDL_GPU_FILLMODE_LINE)
+	pipelineInfo.rasterizer_state.cull_mode = SDL_GPU_CULLMODE_BACK; // Backface CUlling meio q 'automático' com o zbuffer q vamos passar
 
-	// Z-Buffer
-	pipelineInfo.depth_stencil_state.enable_depth_test = true;
-	pipelineInfo.depth_stencil_state.enable_depth_write = true;
-	pipelineInfo.depth_stencil_state.compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL;
+	// Z-Buffer ==> agnt 'binda' o DepthBuffer a cada frame lá no update and render quando começa o RenderPass
+	pipelineInfo.depth_stencil_state.enable_depth_test = true; // usar/ler zbuffer = sim
+	pipelineInfo.depth_stencil_state.enable_depth_write = true; // escrever/salvar zbuffer = tbm
+	pipelineInfo.depth_stencil_state.compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL; // Z atual <= Z lido = sobrescrever o Z lido
 
 	pipelineInfo.target_info.color_target_descriptions = &colorTargetDesc;
 	pipelineInfo.target_info.num_color_targets = 1;
@@ -255,10 +324,14 @@ void Renderer3D::InitGPU(WindowProperties* window)
 	MainWindow->GPUPipeline = SDL_CreateGPUGraphicsPipeline(MainWindow->GPUDevice, &pipelineInfo);
 
 	// Depois de criar o pipeline, o SDL_GPU permite liberar os objetos de shader
-	SDL_ReleaseGPUShader(MainWindow->GPUDevice, vertShader);
-	SDL_ReleaseGPUShader(MainWindow->GPUDevice, fragShader);
+	// Decidi não liberar os shaders pra usar posteriormente quando atualiza entre fill e wireframe
+	//SDL_ReleaseGPUShader(MainWindow->GPUDevice, vertShader);
+	//SDL_ReleaseGPUShader(MainWindow->GPUDevice, fragShader);
 }
 
+// Faz upload dos vértices da mesh pra GPU
+// PRECISA fazer isso pra funcionar o renderer Hardware
+// Tudo comentado aqui já
 void Renderer3D::UploadMeshToGPU(Mesh& mesh)
 {
 	// Não tem mesh, pode ser só um objeto de lógica
@@ -288,72 +361,77 @@ void Renderer3D::UploadMeshToGPU(Mesh& mesh)
 	mesh.GetVertexCount() = static_cast<uint32_t>(gpuVertices.size());
 	uint32_t byteSize = mesh.GetVertexCount() * sizeof(GPUVertex);
 
-	// criar vertex buffer
+	// criar vertex buffer (buffer que fica na VRAM da gpu, de onde vai puxar a mesh)
 	SDL_GPUBufferCreateInfo bufInfo = {};
 	bufInfo.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
 	bufInfo.size = byteSize;
 	mesh.SetGPUBuffer(SDL_CreateGPUBuffer(MainWindow->GPUDevice, &bufInfo));
 
 	// cria transfer buffer
+	// aqui é tipo um buffer q fica em uma memória compartilahda entre a cpu e gpu
 	SDL_GPUTransferBufferCreateInfo transInfo = {};
 	transInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
 	transInfo.size = byteSize;
 	SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(MainWindow->GPUDevice, &transInfo);
-
+	// esse é um ponteiro pra memória compartilhada
 	void* mapPtr = SDL_MapGPUTransferBuffer(MainWindow->GPUDevice, transferBuffer, false);
-	memcpy(mapPtr, gpuVertices.data(), byteSize);
-	SDL_UnmapGPUTransferBuffer(MainWindow->GPUDevice, transferBuffer);
+	memcpy(mapPtr, gpuVertices.data(), byteSize); // aqui todas as vértices são copiadas pra essa memória compartilogada
+	SDL_UnmapGPUTransferBuffer(MainWindow->GPUDevice, transferBuffer); // aqui o ponteiro p essa memória é fechado
+	// só q ainda tá 'jogado' na memória compartilhada, no transfer buffer, n tá dentro da vram (GPU BUffer)
 
-	// copy pass pra gpu
-	SDL_GPUCommandBuffer* commandBuffer = SDL_AcquireGPUCommandBuffer(MainWindow->GPUDevice);
+	// copy pass pra gpu : copia os conteúdos q ainda tão no transfer buffer pro GPUBuffer (Vram) de fato
+	// aí a gpu vai saber q aqls dados são os vértices da mesh
+	SDL_GPUCommandBuffer* commandBuffer = SDL_AcquireGPUCommandBuffer(MainWindow->GPUDevice); // usa o command buffer pq vai fazer isso tudo só no submit
 	SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(commandBuffer);
-
+	// origem (transferbuffer)
 	SDL_GPUTransferBufferLocation srcLoc = {};
 	srcLoc.transfer_buffer = transferBuffer;
 	srcLoc.offset = 0;
-
+	//destino o GPU Buffer mesmo
 	SDL_GPUBufferRegion dstReg = {};
 	dstReg.buffer = mesh.GetGPUBuffer();
 	dstReg.offset = 0;
 	dstReg.size = byteSize;
 
-	SDL_UploadToGPUBuffer(copyPass, &srcLoc, &dstReg, false);
-	SDL_EndGPUCopyPass(copyPass);
-	SDL_SubmitGPUCommandBuffer(commandBuffer);
+	SDL_UploadToGPUBuffer(copyPass, &srcLoc, &dstReg, false); // aqui sim 'manda' p vram (escreve no commandbuffer na vdd)
+	SDL_EndGPUCopyPass(copyPass); 
+	SDL_SubmitGPUCommandBuffer(commandBuffer); // AQUI SIM ele roda os comando q agnt fez (basicamente só o copypass)
 
-	SDL_ReleaseGPUTransferBuffer(MainWindow->GPUDevice, transferBuffer);
+	SDL_ReleaseGPUTransferBuffer(MainWindow->GPUDevice, transferBuffer); // libera a memória compartilhada pq n vai mais usar
 }
 
+// é
 void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SDL_GPURenderPass* renderPass)
 {
 	// só em via das dúvidas
 	if (!mesh.GetGPUBuffer())
 	{
-		UploadMeshToGPU(mesh);
+		UploadMeshToGPU(mesh); // Talvez colocar um limite? tentar fazer o upload 3 vezes e marcar a mesh como invalid pra parar de tentar, se n fica spamando erro no cmd
 		if (!mesh.GetGPUBuffer())
 		{
-			LE_CORE_CRITICAL("ERRO: Mesh incompatível com Hardware Renderer!!! Verifique se seu modelo 3D está triangularizado!!!!");
+			LE_CORE_WARN("AVISO: Mesh incompativel com Hardware Renderer!!! Verifique se seu modelo 3D esta triangularizado!!!!");
 			return;
 		}
 	}
 
-	// apeando coordenadas de tela
+	// mapeando coordenadas de tela
 	VertexUniformData vertUbo = {};
-	vertUbo.modelMatrix = mesh.GetTransformMatrix();
-	vertUbo.normalMatrix = glm::transpose(glm::inverse(vertUbo.modelMatrix));
+	vertUbo.modelMatrix = mesh.GetTransformMatrix(); // mat4 com as transformações da mesh
+	vertUbo.normalMatrix = glm::transpose(glm::inverse(vertUbo.modelMatrix)); // conserta os normais se tiver escalonado não uniformemente
 
-	// projeção ortográfica
+	// projeção ortográfica ou perspectiva, aplica a transformação da câmera também (gambiarra)
 	glm::mat4 projMatrix;
 	glm::mat4 viewMatrix(1.0f);
+	// matriz da câmera p aplicar
 	glm::mat4 transform = glm::translate(glm::mat4(1.0f), MainWindow->CameraPos);
 	transform = glm::rotate(transform, glm::radians(MainWindow->CameraRot.y), { 0.0f, 1.0f, 0.0f });
 	transform = glm::rotate(transform, glm::radians(MainWindow->CameraRot.x), { 1.0f, 0.0f, 0.0f });
 
-	if (Renderer3D::UsePerspective) {
+	if (Renderer3D::UsePerspective) { // aplica perpectiva (usando a criação de matriz de perspectiva)
 		projMatrix = glm::perspectiveLH_ZO(glm::radians(60.0f), (float)MainWindow->Width/MainWindow->Height, 0.1f, 100000.0f);
-		projMatrix[1][1] *= -1.0f; // arruma o y
+		projMatrix[1][1] *= -1.0f; // arruma o y (n sei pq tá invertido, talvez arrumar pra usar y = 0 ==> topo da tela)
 	}
-	else {
+	else { // não aplica perspectiva
 		projMatrix = glm::ortho(
 			0.0f, (float)MainWindow->Width,
 			(float)MainWindow->Height, 0.0f,
@@ -362,10 +440,7 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 	}
 
 	viewMatrix = glm::inverse(transform);
-	
-	//viewProj = glm::translate(viewProj, MainWindow->CameraPos); // só funciona pra câmera 2D
-	vertUbo.cameraMatrix = glm::mat4(1.0f);
-	//vertUbo.cameraMatrix = glm::translate(vertUbo.cameraMatrix, MainWindow->CameraPos);
+	vertUbo.cameraMatrix = glm::mat4(1.0f); // nem tá usando isso aqui na vdd, poderia remover
 
 	vertUbo.viewProjMatrix = projMatrix * viewMatrix;
 
@@ -383,7 +458,8 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 
 		for (int i = 0; i < count; i++) {
 			MeshLight* light = (*SceneLights)[i];
-			float isPoint = (light->GetLightType() != LightType::DirectionalLight) ? 1.0f : 0.0f;
+
+			float isPoint = (light->GetLightType() != LightType::DirectionalLight) ? 1.0f : 0.0f;			
 			fragUbo.lights[i].posAndType = glm::vec4(light->GetTransform().Position, isPoint);
 			fragUbo.lights[i].colorAndMaxDist= glm::vec4(light->GetLightColor() * light->GetLightIntensity(), light->GetMaxDistance());
 		}
@@ -395,18 +471,23 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 		fragUbo.lightAlgorithm = 2;
 	}
 
+	// binda os valores em vertex shader e fragment shader
 	SDL_PushGPUVertexUniformData(commandBuffer, 0, &vertUbo, sizeof(VertexUniformData));
 	SDL_PushGPUVertexUniformData(commandBuffer, 1, &fragUbo, sizeof(FragmentUniformData));
 	SDL_PushGPUFragmentUniformData(commandBuffer, 0, &fragUbo, sizeof(FragmentUniformData));
 
 	// faz o Bind do vertex buffer da mesh e desenha
 	SDL_GPUBufferBinding binding = {};
-	binding.buffer = mesh.GetGPUBuffer();
+	binding.buffer = mesh.GetGPUBuffer(); // aql buffer lá q tem todas os GPUVertex da mesh
 	binding.offset = 0;
-	SDL_BindGPUVertexBuffers(renderPass, 0, &binding, 1);
-
+	// faz o bind né:	    (renderPass,slot, binding , qtd);
+	SDL_BindGPUVertexBuffers(renderPass, 0  , &binding, 1);
+	// aqui manda o comando pra desenhar
+	// tem que informar a quantia de vértices, quantas instâncias desenhar, o primeiro vértice (provavelmente nunca vai ser != 0) e a primeira instância
+	// Talvez se quiser fazer um objeto q é único mas por algm motivo se repete dezenas de vezes? (partículas???)
 	SDL_DrawGPUPrimitives(renderPass, mesh.GetVertexCount(), 1, 0, 0);
-
+	// Desenha cada submesh, porém tem algum problema com a herança do transform nas submeshes
+	// e não faço ideia do porque elas tão com problema... (será q é porque ele atualiza a matriz de transformação, mas )
 	for (BaseMesh* sm : mesh.GetSubMeshes()) {
 		if (sm->GetType() == MeshTypes::Type3D) {
 			Mesh& smc = *(static_cast<Mesh*>(sm));
@@ -425,11 +506,24 @@ void Renderer3D::Init(std::vector<uint32_t>* buffer, std::vector<float>* zbuffer
 	Renderer3D::intersecoes = std::vector<std::vector<std::pair<glm::vec3, glm::vec3>>>(MainWindow->Height);
 }
 
+// Atualiza/Redimensiona o vetor de intersecoes (Software)
+// e o ZBuffer da GPU (Hardware)
+// o ZBuffer do software é redimensionado na função de WINDOW_RESIZE
+// do próprio Editor pq as informações do sotware estão lá mesmo
+// (tem q mudar isso depois inclusive...).
+// tudo comentado aqui já
 void Renderer3D::UpdateResize() {
+	// Tem que redimensionar as intersecoes também, não fiz um if pra separar entre software e hardware
+	// pq pode acontecer da pessoa aumentar a janela em hardware e trocar pra software
+	// aí crasha td pq o intersecoes teria q ser reatualizado quando troca de renderere e etc... mt chato, só 
+	// deixa atualizar tudo logo de uma vez q n faz mal p ngm... (menos p consumo de ram adlskfhjhksjdfhlakjs)
 	Renderer3D::intersecoes = std::vector<std::vector<std::pair<glm::vec3, glm::vec3>>>(MainWindow->Height);
 
+	// OBLITERA O ZBUFFER DA FACE DA TERRA kjahshdkjasdghfjkswdrhfajklshlfgkashjklfhs djklfhasdlk
 	SDL_ReleaseGPUTexture(MainWindow->GPUDevice, DepthTexture);
 
+	// Recria o zbuffer se n fica tudo preto e fudeu o renderer
+	// n vou re-comentar tudo q é isso aqui -> olha lá no Renderer3D::Init()
 	SDL_GPUTextureCreateInfo depthInfo = {};
 	depthInfo.type = SDL_GPU_TEXTURETYPE_2D;
 	depthInfo.width = MainWindow->Width;

@@ -128,7 +128,7 @@ SDL_AppResult EditorApp::Init()
 	SDL_GetWindowSizeInPixels(m_WindowProperties.Window, &m_WindowProperties.Width, &m_WindowProperties.Height);
 	LE_CORE_TRACE("WIDTH: " + std::to_string(m_WindowProperties.Width) + " | HEIGHT: " + std::to_string(m_WindowProperties.Height));
 
-	m_VertexBuffer = new std::vector<uint32_t>(m_WindowProperties.Width * m_WindowProperties.Height);
+	m_FrameBuffer = new std::vector<uint32_t>(m_WindowProperties.Width * m_WindowProperties.Height);
 	m_ZBuffer = new std::vector<float>(m_WindowProperties.Height * m_WindowProperties.Width);
 
 
@@ -150,7 +150,7 @@ SDL_AppResult EditorApp::Init()
 	m_TransferBuffer = SDL_CreateGPUTransferBuffer(m_WindowProperties.GPUDevice, &transferInfo);
 
 	// Seta as variáveis do renderer
-	Renderer3D::Init(m_VertexBuffer, m_ZBuffer, &m_WindowProperties, &m_GlobalMeshLights);
+	Renderer3D::Init(m_FrameBuffer, m_ZBuffer, &m_WindowProperties, &m_GlobalMeshLights);
 	if (Renderer3D::RendererMode == RendererModes::Hardware) {
 		Renderer3D::InitGPU(&m_WindowProperties);
 	}
@@ -344,7 +344,7 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 	}
 	else if (event->type == SDL_EVENT_WINDOW_RESIZED) {
 		SDL_GetWindowSize(m_WindowProperties.Window, &m_WindowProperties.Width, &m_WindowProperties.Height);
-		m_VertexBuffer->resize(m_WindowProperties.Width * m_WindowProperties.Height);
+		m_FrameBuffer->resize(m_WindowProperties.Width * m_WindowProperties.Height);
 		m_ZBuffer->resize(m_WindowProperties.Width * m_WindowProperties.Height);
 		//SDL_GPUTexture* markForDelete = m_Buffer;
 		//m_Buffer = SDL_CreateTexture(m_WindowProperties.Renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, m_WindowProperties.Width, m_WindowProperties.Height);
@@ -563,7 +563,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			glm::value_ptr(viewMatrix),
 			glm::value_ptr(projMatrix),
 			op,
-			ImGuizmo::LOCAL,
+			ImGuizmo::WORLD,
 			glm::value_ptr(modelMatrix));
 
 		if (ImGuizmo::IsUsing()) {
@@ -629,7 +629,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 	// Preenche o buffer com a cor neutra do fundo
 	if (Renderer3D::RendererMode == RendererModes::Software) {
-		std::fill(m_VertexBuffer->begin(), m_VertexBuffer->end(), LeandroColor(m_BgColor.x, m_BgColor.y, m_BgColor.z, 1.0f)); // Limpa a tela na cor que queremos
+		std::fill(m_FrameBuffer->begin(), m_FrameBuffer->end(), LeandroColor(m_BgColor.x, m_BgColor.y, m_BgColor.z, 1.0f)); // Limpa a tela na cor que queremos
 		std::fill(m_ZBuffer->begin(), m_ZBuffer->end(), 9999999.0f); // preenche o zbuffer
 	}
 	else if (Renderer3D::RendererMode == RendererModes::Hardware) {
@@ -678,8 +678,9 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 	// Software Rendering usando a SDLGPUtexture lá
 	if (Renderer3D::RendererMode == RendererModes::Software) {
+		// copia tudo de FrameBuffer pra vram da gpu
 		void* mapeamento = SDL_MapGPUTransferBuffer(m_WindowProperties.GPUDevice, m_TransferBuffer, true);
-		memcpy(mapeamento, m_VertexBuffer->data(), m_WindowProperties.Width * m_WindowProperties.Height * sizeof(uint32_t));
+		memcpy(mapeamento, m_FrameBuffer->data(), m_WindowProperties.Width * m_WindowProperties.Height * sizeof(uint32_t));
 		SDL_UnmapGPUTransferBuffer(m_WindowProperties.GPUDevice, m_TransferBuffer);
 
 		SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(commandBuffer);
@@ -695,7 +696,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 		SDL_UploadToGPUTexture(copyPass, &transferInfo, &textRegion, false);
 		SDL_EndGPUCopyPass(copyPass);
-
+		// copia a textura/pixels do m_Buffer da vram pra swapchain
 		SDL_GPUBlitInfo blitInfo = {};
 		blitInfo.source.texture = m_Buffer;
 		blitInfo.source.w = m_WindowProperties.Width;
@@ -709,7 +710,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 		SDL_BlitGPUTexture(commandBuffer, &blitInfo);
 	}
-
+	// último render pass pra desenhar a imgui por cima
 	ImGui_ImplSDLGPU3_PrepareDrawData(ImGui::GetDrawData(), commandBuffer);
 	SDL_GPUColorTargetInfo colorTargInfo = {};
 	colorTargInfo.texture = swapChainTexture;
@@ -721,16 +722,13 @@ SDL_AppResult EditorApp::UpdateAndRender()
 	ImGui_ImplSDLGPU3_RenderDrawData(ImGui::GetDrawData(), commandBuffer, renderPass);
 	SDL_EndGPURenderPass(renderPass);
 
+	// Manda a GPU executar tudo
 	SDL_SubmitGPUCommandBuffer(commandBuffer);
 
 	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
 		ImGui::UpdatePlatformWindows();
 		ImGui::RenderPlatformWindowsDefault();
 	}
-	//SDL_SetRenderScale(m_WindowProperties.Renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
-	//ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), m_WindowProperties.Renderer);
-	//SDL_RenderPresent(m_WindowProperties.Renderer);
-
 
 	return SDL_APP_CONTINUE;
 }
@@ -924,11 +922,16 @@ void EditorApp::RenderUI()
 		Renderer3D::RendererMode = static_cast<RendererModes>(currentRenderer);
 		if (Renderer3D::RendererMode == RendererModes::Software) {
 			SDL_ReleaseGPUGraphicsPipeline(m_WindowProperties.GPUDevice, m_WindowProperties.GPUPipeline);
-			Renderer3D::Init(m_VertexBuffer, m_ZBuffer, &m_WindowProperties, &m_GlobalMeshLights);
+			Renderer3D::Init(m_FrameBuffer, m_ZBuffer, &m_WindowProperties, &m_GlobalMeshLights);
 		}
 		else {
 			Renderer3D::InitGPU(&m_WindowProperties);
 		}
+	}
+
+	if (ImGui::Checkbox("Wireframe Mode", &Renderer3D::WireframeMode)) {
+		// atualiza o GPU Pipeline
+		Renderer3D::CreateGPUPipeline();
 	}
 #endif
 

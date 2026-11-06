@@ -98,7 +98,7 @@ private:
 	
 	SDL_GPUTransferBuffer* m_TransferBuffer = nullptr;
 	SDL_GPUTexture* m_Buffer = nullptr;
-	std::vector<uint32_t>* m_VertexBuffer = new std::vector<uint32_t>(m_WindowProperties.Width * m_WindowProperties.Height);
+	std::vector<uint32_t>* m_FrameBuffer = new std::vector<uint32_t>(m_WindowProperties.Width * m_WindowProperties.Height);
 	std::vector<float>* m_ZBuffer = new std::vector<float>(m_WindowProperties.Width * m_WindowProperties.Height);
 
 	// Estado do editor

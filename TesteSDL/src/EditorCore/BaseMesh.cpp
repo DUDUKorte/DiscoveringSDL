@@ -21,6 +21,7 @@ void BaseMesh::EventTick(float deltaTime)
 {
 	if (!m_ScriptPath.empty()) {
 		ScriptEngine::OnTick(this, deltaTime);
+		GetTransform().Position += GetVelocity() * deltaTime;
 	}
 }
 

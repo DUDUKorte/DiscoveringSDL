@@ -18,10 +18,15 @@ void ScriptEngine::Shutdown() {
 bool ScriptEngine::LoadMeshScript(BaseMesh* mesh, const std::string& filepath) {
 	if (filepath.empty()) return false;
 
+
 	// Cria um ambiente isolado para essa mesh que herda as funções globais (vec3, math, etc.)
 	sol::environment env(m_Lua, sol::create, m_Lua.globals());
+	
+	// Atribui as variáveis primeiro pra n...
+	mesh->GetLuaEnv() = env;
+	mesh->GetScriptPath() = filepath;
 
-	// Compila e carrega o arquivo .lua de forma segura (sem crashar a engine se tiver erro de sintaxe)
+	// Compila e carrega o arquivo .lua de forma segura // aka: n vai crashar
 	auto result = m_Lua.safe_script_file(filepath, env, sol::script_pass_on_error);
 	if (!result.valid()) {
 		sol::error err = result;
@@ -29,8 +34,6 @@ bool ScriptEngine::LoadMeshScript(BaseMesh* mesh, const std::string& filepath) {
 		return false;
 	}
 
-	mesh->GetLuaEnv() = env;
-	mesh->GetScriptPath() = filepath;
 	LE_CORE_INFO("Script Lua compilado com sucesso: " + filepath);
 	return true;
 }
@@ -124,18 +127,17 @@ void ScriptEngine::InitLuaBindings()
 	// 4. Bind da BaseMesh / Mesh / MeshLight
 	m_Lua.new_usertype<BaseMesh>("BaseMesh",
 		"GetTransform", &BaseMesh::GetTransform,
+		"GetVelocity", [](BaseMesh& b) {return b.GetVelocity(); },
+		"SetVelocity", [](BaseMesh& b, const glm::vec3& c) { b.GetVelocity() = c; },
 		"MarkDirty", &BaseMesh::MarkDirty,
 		"SetColor", [](BaseMesh& m, const glm::vec3& c) { m.GetColor() = glm::vec3(c.x, c.y, c.z); },
 		"SetObj", [](BaseMesh& l, const std::string& c) { l.GetObj() = c; }
 	);
 
 	//// 4. Bind da BaseMesh / Mesh / MeshLight
-	//m_Lua.new_usertype<Mesh>("Mesh",
-	//	sol::base_classes, sol::bases<BaseMesh>(), // Permite usar tudo de BaseMesh!
-	//	"SetObj", [](Mesh& l, const std::string& c) { l.GetObj() = c; },
-	//	"GetLightColor", [](MeshLight& l) { return l.GetLightColor(); },
-	//	"SetIntensity", [](MeshLight& l, float i) { l.GetLightIntensity() = i; }
-	//);
+	m_Lua.new_usertype<Mesh>("Mesh",
+		sol::base_classes, sol::bases<BaseMesh>() // Permite usar tudo de BaseMesh!
+	);
 
 	m_Lua.new_usertype<MeshLight>("MeshLight",
 		sol::base_classes, sol::bases<Mesh, BaseMesh>(), // Permite usar tudo de BaseMesh!
