@@ -5,10 +5,9 @@
 #include <SDL3/SDL.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <Utils/Log.h>
 #include <sol/sol.hpp>
 
-enum MeshTypes { Type3D = 0, Type2D = 1, TypeLight, TypeText};
+enum MeshTypes { Type3D = 0, Type2D = 1, TypeLight, TypeText, TypeBase};
 
 class BaseMesh;
 
@@ -102,11 +101,11 @@ public:
 	inline void SetGravity(bool gravity) { m_Gravity = gravity; }
 	inline void SetVelocity(glm::vec3 velocity) { m_Velocity = velocity; }
 	inline void SetColor(ImVec4 color) { m_Color = color; }
-	inline void SetName(std::string name) { m_Name = name; }
+	inline void SetName(const std::string& name) { m_Name = name; }
 	inline void SetTickEnabled(bool enabled) { m_TickEnabled = enabled; }
 	inline void SetInputEnabled(bool enabled) { m_InputEnabled= enabled; }
 	inline void SetShouldDestroy(bool should) { m_ShouldDestroy = should; }
-	inline void SetMaterial(MeshMaterial material) { m_Material = material; }
+	inline void SetMaterial(const MeshMaterial& material) { m_Material = material; }
 
 public:
 	BaseMesh* m_Parent = nullptr;
@@ -152,7 +151,7 @@ protected:
 
 	std::string meshObjPath = "None";
 	MeshMaterial m_Material;
-	MeshTypes meshType;
+	MeshTypes meshType = MeshTypes::TypeBase;
 
 	// Cores
 	ImVec4 m_Color = { 0.2f, 0.2f, 0.2f, 1.0f };

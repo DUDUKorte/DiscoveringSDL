@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Utils/Log.h>
 #include <Utils/LeandroMath.h>
 #include <EditorCore/MeshLight.h>
 #include <Utils/CoreEditor.h>
@@ -8,11 +7,11 @@
 class Sol : public MeshLight {
 public:
 	Sol();
-	~Sol();
+	~Sol() override;
 
-	virtual void BeginPlay();
-	virtual void EventTick(float deltaTime);
-	virtual void EventInput(SDL_Event* event);
+	virtual void BeginPlay() override;
+	virtual void EventTick(float deltaTime) override;
+	virtual void EventInput(SDL_Event* event) override;
 private:
 	float m_Time;
 	float m_Speed;

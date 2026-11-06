@@ -2,17 +2,12 @@
 #include <SDL3/SDL.h>
 #include <vector>
 #include <imgui.h>
-#include <ImGuizmo.h>
 
 #include "EditorCore/BaseMesh.h"
 #include "EditorCore/Mesh.h"
 #include "EditorCore/MeshLight.h"
-#include "EditorCore/Pipe.h"
 #include "EditorCore/ScriptEngine.h"
-#include "Physics/CollisionEngine.h"
 #include "Utils/LeandroMath.h"
-
-#include "imgui_impl_sdl3.h"
 
 #include "imgui_impl_sdlgpu3.h"
 #include "imgui_impl_sdlrenderer3.h"
@@ -46,11 +41,11 @@ public:
 	SDL_AppResult Init();
 	SDL_AppResult ProcessEvent(SDL_Event* event);
 	SDL_AppResult UpdateAndRender();
-	void Shutdown();
+	void Shutdown() const;
 
-	inline int GetWidth() { return m_WindowProperties.Width; }
-	inline int GetHeight() { return m_WindowProperties.Height; }
-	inline bool GetGameStarted() { return m_GameStarted; }
+	inline int GetWidth() const { return m_WindowProperties.Width; }
+	inline int GetHeight() const { return m_WindowProperties.Height; }
+	inline bool GetGameStarted() const { return m_GameStarted; }
 	inline WindowProperties& GetWindowProperties() { return m_WindowProperties; }
 	
 	inline static glm::vec3& GetBGColor() { return m_BgColor; }
@@ -60,9 +55,9 @@ public:
 	void LoadObjFile(std::string path, Mesh* mesh);
 	void SubmitMesh(BaseMesh* newMesh);
 	void PlaySound(const char* filepath);
-	void SetHideCursor(bool hide);
+	void SetHideCursor(bool hide) const;
 
-	bool GetIsKeyPressed(SDL_Scancode ScanCode);
+	static bool GetIsKeyPressed(SDL_Scancode ScanCode);
 
 	// VARIÁVEL GLOBAL APENAS PARA TESTES
 	//Mesh* cubinho = new Mesh("cubinho");
@@ -74,20 +69,19 @@ public:
 
 private:
 	void RenderUI();
-	void SetupCustomEditorStyle(float main_scale);
-	void ProcessMouseMotion(SDL_Event* event);
-	BaseMesh* GetActiveMesh();
-	void UpdateGizmoHover(float mouseX, float mouseY, BaseMesh* activeMesh, EEditMode);
+	static void SetupCustomEditorStyle(float main_scale);
+	void ProcessMouseMotion(const SDL_Event* event);
+	BaseMesh* GetActiveMesh() const;
 	void OnChangeMode(EEditMode new_mode);
 	void OnDestroySelectedMesh();
 
-	std::string OpenObjFileDialog(SDL_Window* window);
-	std::string OpenLuaFileDialog(SDL_Window* window);
+	static std::string OpenObjFileDialog(SDL_Window* window);
+	static std::string OpenLuaFileDialog(SDL_Window* window);
 
 	// Game related 
 	void EventBeginPlay();
 
-	std::vector<std::string> split(const std::string& str, char delim);
+	static std::vector<std::string> split(const std::string& str, char delim);
 
 private:
 	// Estado do SDL e ImGUi

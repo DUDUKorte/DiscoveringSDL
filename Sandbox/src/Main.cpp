@@ -1,26 +1,18 @@
-#include <iostream>
-
 #include <LeandroEditor.h>
-#include <imgui.h>
 
 #include "Sol.h"
 #include "Cactus.h"
 #include "CactusSpawner.h"
 #include "TRex.h"
-#include "PointLight.h"
 
 class Sandbox : public LeandroApplication {
 public:
-	Sandbox() {
+	Sandbox() = default;
 
-	}
+	~Sandbox() override = default;
 
-	~Sandbox() {
-
-	}
-
-	void OnStart() {
-		GetEditor()->GetBGColor() = {0.3f, 0.8f, 0.9f};
+	void OnStart() override{
+		EditorApp::GetBGColor() = {0.3f, 0.8f, 0.9f};
 
 		Mesh* cubo = new Mesh("Cubin");
 		cubo->GetColor() = { 1.0f, 0.7f, 0.5f };
@@ -44,11 +36,11 @@ public:
 		GetEditor()->SubmitMesh(player);
 	}
 
-	void OnEvent(SDL_Event* event) {
+	void OnEvent(SDL_Event* event) override{
 
 	}
 
-	void OnTick(double deltaTime) {
+	void OnTick(double deltaTime) override{
 
 	}
 

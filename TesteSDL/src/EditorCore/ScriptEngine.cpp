@@ -78,7 +78,7 @@ void ScriptEngine::OnTick(BaseMesh* mesh, float deltaTime) {
 	}
 }
 
-void ScriptEngine::OnInput(BaseMesh* mesh, SDL_Event* event) {
+void ScriptEngine::OnInput(BaseMesh* mesh, const SDL_Event* event) {
 	if (!mesh->GetLuaEnv().valid()) return;
 
 	sol::protected_function func = mesh->GetLuaEnv()["EventInput"];

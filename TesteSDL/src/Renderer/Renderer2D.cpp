@@ -26,7 +26,7 @@ namespace Renderer2D {
 	void FindIntersections(std::vector<glm::vec3>& vertices, std::vector<std::vector<float>>& intersecoes, int height, glm::vec2 yMinMax)
 	{
 		float meshYMin = yMinMax.x;
-		float meshYMax = yMinMax.y;
+		//float meshYMax = yMinMax.y;
 
 		for (int i = 0; i < vertices.size(); i++) {
 			glm::vec3 source = vertices[i];

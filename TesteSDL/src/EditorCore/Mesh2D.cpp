@@ -3,29 +3,27 @@
 #include "Utils/Log.h"
 #include <cmath>
 
-Mesh2D::Mesh2D(std::string name, glm::vec3 firstVertex, std::vector<glm::vec3> v) {
+Mesh2D::Mesh2D(const std::string& name, glm::vec3 firstVertex, const std::vector<glm::vec3>& v) {
 
 	m_Name = name;
 	m_Velocity = { 0.0f, 0.001f, 0.0f };
-	GetTransform().Position = firstVertex;
+	m_Transform.Position = firstVertex;
 
 	meshType = MeshTypes::Type2D;
 
 	if (!(v.empty())) {
 		m_LocalVertices = v;
 		// Aqui calcularia o centroide
-		CalcLocalCentroide();
+		Mesh2D::CalcLocalCentroide();
 	}
 	else {
-		addVertex(firstVertex);
+		Mesh2D::addVertex(firstVertex);
 	}
 
-	CalcLocalCentroide();
+	Mesh2D::CalcLocalCentroide();
 }
 
-Mesh2D::~Mesh2D() {
-
-}
+Mesh2D::~Mesh2D() = default;
 
 void Mesh2D::EventTick(float deltaTime)
 {
@@ -56,6 +54,8 @@ void Mesh2D::EventInput(SDL_Event* event)
 		switch (e.key) {
 		case SDLK_SPACE:
 			SetVelocity({ 0.0f, -0.3f, 0.0f });
+			break;
+		default:
 			break;
 		}
 	}

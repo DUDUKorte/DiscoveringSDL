@@ -1,17 +1,16 @@
 #pragma once
 #include <Utils/Log.h>
 #include <Utils/LeandroMath.h>
-#include <Utils/CoreEditor.h>
 #include <EditorCore/MeshLight.h>
 
 class TRex: public Mesh {
 public:
 	TRex(std::string name = "Player");
-	~TRex();
+	~TRex() override;
 
-	virtual void BeginPlay();
-	virtual void EventTick(float deltaTime);
-	virtual void EventInput(SDL_Event* event);
+	virtual void BeginPlay() override;
+	virtual void EventTick(float deltaTime) override;
+	virtual void EventInput(SDL_Event* event) override;
 
 	int CalculateDirection();
 	int CalculateJump();

@@ -3,7 +3,6 @@
 #include <vector>
 #include "EditorCore/Mesh.h"
 #include "EditorApp.h"
-#include "Utils/Log.h"
 
 // descomente essa linha apenas se for usar o novo renderer por hardware
 // (precisa ter o SDK do vulkan devidamente instalado)
@@ -84,7 +83,7 @@ public:
 
 	static glm::vec3 CalculateConstantLightning(glm::vec3 normal, glm::vec3 centroide, MeshMaterial& material);
 
-	static void FindIntersections(const std::vector<std::pair<glm::vec3, glm::vec3>>& vertices, glm::vec2 yMinMax);	
+	static void FindIntersections(const std::vector<std::pair<glm::vec3, glm::vec3>>& vertices);	
 
 	// @Mattsu TODO: Precisamos de um FillPoly pica, novo, primeiro tem que fazer a triangularização das meshes importadas
 	// aí da pra fazer o fill poly determinístico, basicamente não precisa ordenar lista, nem rodar um y que vá pra y+1

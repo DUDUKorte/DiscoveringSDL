@@ -1,21 +1,18 @@
 #include "EditorCore/Mesh.h"
 #include "EditorApp.h"
 #include "Utils/Log.h"
-#include <cmath>
 
-Mesh::Mesh(std::string name, glm::vec3 firstVertex, std::vector<glm::vec3> v) {
+Mesh::Mesh(const std::string& name, glm::vec3 firstVertex, std::vector<glm::vec3> v) {
 	
 	m_Name = name;
-	GetTransform().Position = { firstVertex.x, firstVertex.y, firstVertex.z };
-	GetTransform().Scale = { 50.0f, 50.0f, 50.0f };
+	m_Transform.Position = { firstVertex.x, firstVertex.y, firstVertex.z };
+	m_Transform.Scale = { 50.0f, 50.0f, 50.0f };
 	GetObj() = "./Assets/cubo_tri.obj";
 	meshType = MeshTypes::Type3D;
 }
 
 Mesh::~Mesh()
-{
-
-}
+= default;
 
 // Recebe o world posisiton e converte pra local
 void Mesh::addVertex(glm::vec3 newVertex){
@@ -27,7 +24,7 @@ void Mesh::addVertex(glm::vec3 newVertex){
 	m_IsDirty = true;
 }
 
-void Mesh::addFace(std::vector<int> vertexIndices, int normalIndice)
+void Mesh::addFace(const std::vector<int>& vertexIndices, int normalIndice)
 {
 	if (vertexIndices.empty()) { return; }
 

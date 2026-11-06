@@ -1,17 +1,11 @@
 #pragma once
-
-#include <iostream>
 #include "EditorApp.h"
-#include "EditorCore/Mesh2D.h"
-#include "Utils/Log.h"
 
 // roubei da minha IC
 class LeandroApplication {
 public:
 	LeandroApplication();
 	virtual ~LeandroApplication();
-
-	void Run();
 
 	virtual void OnStart() = 0;
 
@@ -20,10 +14,7 @@ public:
 
 	static inline LeandroApplication& Get() { return *s_Instance; }
 	static inline EditorApp* GetEditor() { return s_Editor->Get(); }
-	inline SDL_Window& GetWindow() { return *m_Window; }
-
-private:
-	bool OnWindowClose();
+	inline SDL_Window& GetWindow() const { return *m_Window; }
 
 private:
 	SDL_Window* m_Window;

@@ -1,5 +1,7 @@
 #include "TRex.h"
 
+#include "EditorApp.h"
+
 TRex::TRex(std::string name) : Mesh(name)
 {
 	GetObj() = "./Assets/dino.obj";
@@ -8,21 +10,19 @@ TRex::TRex(std::string name) : Mesh(name)
 	GetInputEnabled() = true;
 	// configurações do nosso sol
 	GetColor() = { 0.4f, 0.4f, 0.4f }; // cinza
-	GetTransform().Position = { 240.0f, 484.0f, 920.0f }; // essa posição ficou massa
-	GetTransform().Scale = { 30.0f, 30.0f, 30.0f }; // por algm motivo tudo é minúsculo aqui
-	GetTransform().Rotation = { glm::radians(20.0f), glm::radians(190.0f), glm::radians(180.0f) };
+	m_Transform.Position = { 240.0f, 484.0f, 920.0f }; // essa posição ficou massa
+	m_Transform.Scale = { 30.0f, 30.0f, 30.0f }; // por algm motivo tudo é minúsculo aqui
+	m_Transform.Rotation = { glm::radians(20.0f), glm::radians(190.0f), glm::radians(180.0f) };
 
 	//scaleAnim = { 260.0f, 320.0f, 260.0f };
-	//initialScale = GetTransform().Scale;
+	//initialScale = m_Transform.Scale;
 
-	m_StartPos = GetTransform().Position;
+	m_StartPos = m_Transform.Position;
 	//m_EndPos = { 100.0f, 230.0f, -500.f };
 }
 
 TRex::~TRex()
-{
-
-}
+= default;
 
 void TRex::BeginPlay()
 {
@@ -44,7 +44,7 @@ void TRex::EventTick(float deltaTime)
 {
 
 	ImGui::Begin("SCORE");
-	ImGui::Text((std::to_string(int(Score))).c_str());
+	ImGui::Text((std::to_string(static_cast<int>(Score))).c_str());
 	ImGui::End();
 
 	Score += 0.01f * deltaTime;
@@ -67,7 +67,7 @@ void TRex::EventTick(float deltaTime)
 
 	// Movimento horizontal
 	Direction = CalculateDirection();
-	SetVelocity({glm::mix(Velocity().x, int(Direction) * Speed, glm::clamp(0.01f * deltaTime, 0.0f, 1.0f)), Velocity().y, Velocity().z });
+	SetVelocity({glm::mix(Velocity().x, static_cast<int>(Direction) * Speed, glm::clamp(0.01f * deltaTime, 0.0f, 1.0f)), Velocity().y, Velocity().z });
 
 	// Pulo dinâmico (tipo mario)
 	int JumpPressed = CalculateJump();
@@ -119,8 +119,7 @@ void TRex::EventInput(SDL_Event* event)
 
 	// gamepad connection
 	if ((event->type == SDL_EVENT_GAMEPAD_ADDED || event->type == SDL_EVENT_GAMEPAD_AXIS_MOTION || event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) && !gamepad) {
-		SDL_GamepadButtonEvent e = event->gbutton;
-
+		//SDL_GamepadButtonEvent e = event->gbutton;
 		int numgamepad = 0;
 		SDL_JoystickID* gamepads = SDL_GetGamepads(&numgamepad);
 		

@@ -6,10 +6,13 @@
 #include <iostream>
 #include <string>
 #include <numbers>
-#include <cmath>
 #include <random>
 #include <algorithm>
 #include <complex>
+#include <fstream>
+
+#include "ImGuizmo.h"
+#include "imgui_impl_sdl3.h"
 
 // Pra usar o bglh de carregar o .obj
 #ifdef _WIN32
@@ -57,7 +60,7 @@ SDL_AppResult EditorApp::Init()
 	SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
 
 	LE_CORE_TRACE("Creating SDL Window...");
-	m_WindowProperties.Window = SDL_CreateWindow("LeandroEditor 2D", (int)(m_WindowProperties.Width * main_scale), (int)(m_WindowProperties.Height * main_scale), window_flags);
+	m_WindowProperties.Window = SDL_CreateWindow("LeandroEditor 2D", static_cast<int>(m_WindowProperties.Width) * main_scale, static_cast<int>(m_WindowProperties.Height) * main_scale, window_flags);
 	if (m_WindowProperties.Window == nullptr)
 	{
 		printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
@@ -147,7 +150,7 @@ SDL_AppResult EditorApp::Init()
 	
 	SDL_GPUTransferBufferCreateInfo transferInfo = {};
 	transferInfo.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-	transferInfo.size = (size_t)m_WindowProperties.Width * m_WindowProperties.Height * sizeof(uint32_t);
+	transferInfo.size = static_cast<size_t>(m_WindowProperties.Width) * m_WindowProperties.Height * sizeof(uint32_t);
 	m_TransferBuffer = SDL_CreateGPUTransferBuffer(m_WindowProperties.GPUDevice, &transferInfo);
 
 	// Seta as variáveis do renderer
@@ -273,7 +276,7 @@ void EditorApp::SetupCustomEditorStyle(float main_scale) {
 ///////////////////////////////////////////////////////////
 //////////////////////SHUTDOWN////////////////////////////
 ///////////////////////////////////////////////////////////
-void EditorApp::Shutdown()
+void EditorApp::Shutdown() const
 {
 	// [If using SDL_MAIN_USE_CALLBACKS: all code below would likely be your SDL_AppQuit() function]
 	ImGui_ImplSDLGPU3_Shutdown();
@@ -307,7 +310,7 @@ void EditorApp::Shutdown()
 ///////////////////////////////////////////////////////////
 ///////////////////GET ACTIVE MESH/////////////////////////
 ///////////////////////////////////////////////////////////
-BaseMesh* EditorApp::GetActiveMesh()
+BaseMesh* EditorApp::GetActiveMesh() const
 {
 	if (m_GlobalMeshes.empty() || m_CurrentMesh < 0 || m_CurrentMesh >= m_GlobalMeshes.size()) {
 		return nullptr;
@@ -402,6 +405,8 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 			SetHideCursor(false);
 			OnChangeMode(Selection);
 			break;
+		default:
+			break;
 		}
 	}
 	// EVENTOS DE MOUSE PRESSIONADO ///////////////////////////////////////////////////////
@@ -465,7 +470,7 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 ///////////////////////////////////////////////////////////
 //////////////////////MOUSE MOTION/////////////////////////
 ///////////////////////////////////////////////////////////
-void EditorApp::ProcessMouseMotion(SDL_Event* event)
+void EditorApp::ProcessMouseMotion(const SDL_Event* event)
 {
 	SDL_MouseButtonEvent e = event->button;
 	if (m_bRMB) {
@@ -634,8 +639,8 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 	// Preenche o buffer com a cor neutra do fundo
 	if (Renderer3D::RendererMode == RendererModes::Software) {
-		std::fill(m_FrameBuffer->begin(), m_FrameBuffer->end(), LeandroColor(m_BgColor.x, m_BgColor.y, m_BgColor.z, 1.0f)); // Limpa a tela na cor que queremos
-		std::fill(m_ZBuffer->begin(), m_ZBuffer->end(), 9999999.0f); // preenche o zbuffer
+		std::ranges::fill(*m_FrameBuffer, LeandroColor(m_BgColor.x, m_BgColor.y, m_BgColor.z, 1.0f)); // Limpa a tela na cor que queremos
+		std::ranges::fill(*m_ZBuffer, 9999999.0f); // preenche o zbuffer
 	}
 	else if (Renderer3D::RendererMode == RendererModes::Hardware) {
 		// limpa a tela com bgColor
@@ -760,9 +765,8 @@ void EditorApp::RenderUI()
 			if (m->GetVertices().empty() && m->GetType()==MeshTypes::Type2D) { continue; }
 
 			ImGuiTreeNodeFlags node_flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
-			bool isSelected = (m_CurrentMesh == i && m_CurrentSubMesh == -1);
 
-			if (isSelected) {
+			if (m_CurrentMesh == i && m_CurrentSubMesh == -1) {
 				node_flags |= ImGuiTreeNodeFlags_Selected;
 			}
 
@@ -783,9 +787,8 @@ void EditorApp::RenderUI()
 					BaseMesh* subMesh = subMeshes[j];
 
 					ImGuiTreeNodeFlags sub_node_flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
-					bool isSubSelected = (m_CurrentMesh == i && m_CurrentSubMesh == j);
 
-					if (isSubSelected) {
+					if (m_CurrentMesh == i && m_CurrentSubMesh == j) {
 						sub_node_flags |= ImGuiTreeNodeFlags_Selected;
 					}
 
@@ -941,7 +944,6 @@ void EditorApp::RenderUI()
 	ImGui::End();
 
 	// Inspector window
-	// Inspector window
 	ImGui::Begin("Inspector");
 	BaseMesh* activeMesh = GetActiveMesh();
 	if (activeMesh != nullptr) {
@@ -1008,9 +1010,9 @@ void EditorApp::RenderUI()
 
 			ImGui::Spacing();
 			ImGui::ColorEdit3("Viewport Clear Color", glm::value_ptr(m_BgColor));
-			ImGui::ColorEdit3("Mesh Base Color", (float*)&selectedMesh->GetColor());
+			ImGui::ColorEdit3("Mesh Base Color", reinterpret_cast<float*>(&selectedMesh->GetColor()));
 			if (selectedMesh->GetOutline()) {
-				ImGui::ColorEdit3("Outline Color", (float*)&selectedMesh->GetOutlineColor());
+				ImGui::ColorEdit3("Outline Color", reinterpret_cast<float*>(&selectedMesh->GetOutlineColor()));
 			}
 		}
 
@@ -1033,7 +1035,7 @@ void EditorApp::RenderUI()
 							LoadObjFile(newObj, newMesh3D);
 
 							// Substitui a mesh na lista
-							auto it = std::find(m_GlobalMeshes.begin(), m_GlobalMeshes.end(), selectedMesh);
+							auto it = std::ranges::find(m_GlobalMeshes, selectedMesh);
 							m_GlobalMeshes.erase(it);
 							m_GlobalMeshes.emplace(it, newMesh3D);
 						}
@@ -1083,8 +1085,12 @@ void EditorApp::RenderUI()
 				ImGui::SameLine();
 				ImGui::Checkbox("Show Debug Box", &bb.ShowDebug);
 
-				ImGui::DragFloat3("Box Offset", glm::value_ptr(bb.offset), 0.05f);
-				ImGui::DragFloat3("Box Scale", glm::value_ptr(bb.sizeScale), 0.02f, 0.01f, 100.0f);
+				if (ImGui::DragFloat3("Box Offset", glm::value_ptr(bb.offset), 0.05f)) {
+					selectedMesh->MarkDirty();
+				}
+				if (ImGui::DragFloat3("Box Scale", glm::value_ptr(bb.sizeScale), 0.02f, 0.01f, 100.0f)) {
+					selectedMesh->MarkDirty();
+				}
 
 				if (selectedMesh->IsColliding()) {
 					ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "Status: COLLIDING (%d)", (int)bb.CollidingMeshes.size());
@@ -1160,8 +1166,7 @@ void EditorApp::RenderUI()
 ///////////////////////////////////////////////////////////
 void EditorApp::OnChangeMode(EEditMode new_mode)
 {
-	BaseMesh* activeMesh = GetActiveMesh();
-	if (activeMesh) {
+	if (BaseMesh* activeMesh = GetActiveMesh()) {
 		switch (new_mode) {
 		case CreatePoly:
 			activeMesh->ResetTransform(GetWidth()/2, GetHeight()/2);
@@ -1189,7 +1194,7 @@ void EditorApp::OnDestroySelectedMesh()
 		BaseMesh* markForDelete = m_GlobalMeshes[m_CurrentMesh];
 		
 		if (markForDelete->GetType() == MeshTypes::TypeLight) {
-			auto it = std::find(m_GlobalMeshLights.begin(), m_GlobalMeshLights.end(), markForDelete);
+			auto it = std::ranges::find(m_GlobalMeshLights, markForDelete);
 			m_GlobalMeshLights.erase(it);
 		}
 
@@ -1410,7 +1415,7 @@ void EditorApp::PlaySound(const char* filepath)
 	SDL_PutAudioStreamData(m_MusicStream, m_WavBuffer, m_WavLength);
 }
 
-void EditorApp::SetHideCursor(bool hide)
+void EditorApp::SetHideCursor(bool hide) const
 {
 	SDL_SetWindowRelativeMouseMode(m_WindowProperties.Window, hide);
 }
@@ -1425,7 +1430,7 @@ bool EditorApp::GetIsKeyPressed(SDL_Scancode ScanCode)
 std::string EditorApp::OpenObjFileDialog(SDL_Window* window)
 {
 #ifdef _WIN32
-	char filePath[MAX_PATH] = { 0 };
+	char filePath[MAX_PATH] = { };
 
 	OPENFILENAMEA ofn;
 	ZeroMemory(&ofn, sizeof(ofn));
@@ -1449,7 +1454,7 @@ std::string EditorApp::OpenObjFileDialog(SDL_Window* window)
 std::string EditorApp::OpenLuaFileDialog(SDL_Window* window)
 {
 #ifdef _WIN32
-	char filePath[MAX_PATH] = { 0 };
+	char filePath[MAX_PATH] = { };
 
 	OPENFILENAMEA ofn;
 	ZeroMemory(&ofn, sizeof(ofn));

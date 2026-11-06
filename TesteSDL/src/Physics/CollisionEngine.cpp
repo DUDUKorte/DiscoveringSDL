@@ -2,9 +2,8 @@
 
 #include <Utils/LeandroMath.h>
 #include <Utils/CoreEditor.h>
-#include <EditorCore/Mesh.h>
 
-void CollisionEngine::UpdateAndCheckCollision(std::vector<BaseMesh*>& meshList)
+void CollisionEngine::UpdateAndCheckCollision(const std::vector<BaseMesh*>& meshList)
 {
 	for(BaseMesh* mesh : meshList) {
 		if (!mesh->GetCollision()) { continue; }
@@ -37,7 +36,7 @@ bool CollisionEngine::CheckBBCollision(const BoundingBox& a, const BoundingBox& 
 			(a.worldMin.z <= b.worldMax.z && a.worldMax.z >= b.worldMin.z);
 }
 
-void CollisionEngine::DrawDebugBoxes(const std::vector<BaseMesh*>& meshList, WindowProperties* mainWindow, bool usePerspective)
+void CollisionEngine::DrawDebugBoxes(const std::vector<BaseMesh*>& meshList, const WindowProperties* mainWindow, bool usePerspective)
 {
 	ImDrawList* drawList = ImGui::GetBackgroundDrawList();
 	ImGuiViewport* mainViewport = ImGui::GetMainViewport();
@@ -50,20 +49,15 @@ void CollisionEngine::DrawDebugBoxes(const std::vector<BaseMesh*>& meshList, Win
 
 	glm::mat4 projMatrix;
 	if (usePerspective) {
-		projMatrix = glm::perspectiveLH_ZO(glm::radians(60.0f), (float)mainWindow->Width / mainWindow->Height, 0.1f, 100000.0f);
+		projMatrix = glm::perspectiveLH_ZO(glm::radians(60.0f), static_cast<float>(mainWindow->Width) / mainWindow->Height, 0.1f, 100000.0f);
 		projMatrix[1][1] *= -1.0f;
 	}
 	else {
-		projMatrix = glm::ortho(0.0f, (float)mainWindow->Width, (float)mainWindow->Height, 0.0f, 10000.0f, -10000.0f);
+		projMatrix = glm::ortho(0.0f, static_cast<float>(mainWindow->Width), static_cast<float>(mainWindow->Height), 0.0f, 10000.0f, -10000.0f);
 	}
 	glm::mat4 viewProj = projMatrix * viewMatrix;
 
 	// Índices das 12 arestas que formam um cubo
-	const int edges[12][2] = {
-		{ 0,1 },{ 1,3 },{ 3,2 },{ 2,0 }, // Face traseira (zMin)
-		{ 4,5 },{ 5,7 },{ 7,6 },{ 6,4 }, // Face frontal (zMax)
-		{ 0,4 },{ 1,5 },{ 2,6 },{ 3,7 }  // 4 conexões laterais
-	};
 
 	for (BaseMesh* m : meshList) {
 		if (!m->GetCollision() || !m->GetBoundingBox().ShowDebug) continue;
@@ -103,6 +97,11 @@ void CollisionEngine::DrawDebugBoxes(const std::vector<BaseMesh*>& meshList, Win
 			: IM_COL32(45, 255, 85, 255);
 
 		for (int e = 0; e < 12; e++) {
+			const int edges[12][2] = {
+				{ 0,1 },{ 1,3 },{ 3,2 },{ 2,0 }, // Face traseira (zMin)
+				{ 4,5 },{ 5,7 },{ 7,6 },{ 6,4 }, // Face frontal (zMax)
+				{ 0,4 },{ 1,5 },{ 2,6 },{ 3,7 }  // 4 conexões laterais
+			};
 			int i0 = edges[e][0];
 			int i1 = edges[e][1];
 			if (validCorner[i0] && validCorner[i1]) {

@@ -8,11 +8,11 @@
 class PointLight : public MeshLight {
 public:
 	PointLight(std::string name = "Poinbt Light");
-	~PointLight();
+	~PointLight() override;
 
-	virtual void BeginPlay();
-	virtual void EventTick(float deltaTime);
-	virtual void EventInput(SDL_Event* event);
+	virtual void BeginPlay() override;
+	virtual void EventTick(float deltaTime) override;
+	virtual void EventInput(SDL_Event* event) override;
 private:
 	float m_Time;
 	float m_Speed;

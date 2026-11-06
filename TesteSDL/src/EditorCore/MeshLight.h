@@ -5,8 +5,8 @@ enum LightType { DirectionalLight = 0, SceneLight = 1};
 
 class MeshLight : public Mesh {
 public:
-	MeshLight(std::string name, glm::vec3 firstVertex = { 0.0f,0.0f,0.0f }, std::vector<glm::vec3> v = {});
-	~MeshLight();
+	MeshLight(const std::string& name, glm::vec3 firstVertex = { 0.0f,0.0f,0.0f }, const std::vector<glm::vec3>& v = {});
+	~MeshLight() override;
 
 	//virtual void BeginPlay() {};
 	//virtual void EventTick(float deltaTime) {};

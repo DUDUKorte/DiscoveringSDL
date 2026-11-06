@@ -6,6 +6,8 @@
 #include "Utils/LeandroMath.h"
 #include <glm/gtc/random.hpp>
 
+#include "Utils/Log.h"
+
 
 std::vector<uint32_t>* Renderer3D::Buffer = nullptr;
 std::vector<float>* Renderer3D::ZBuffer = nullptr;
@@ -388,11 +390,11 @@ void Renderer3D::UploadMeshToGPU(Mesh& mesh)
 	SDL_GPUCommandBuffer* commandBuffer = SDL_AcquireGPUCommandBuffer(MainWindow->GPUDevice); // usa o command buffer pq vai fazer isso tudo só no submit
 	SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(commandBuffer);
 	// origem (transferbuffer)
-	SDL_GPUTransferBufferLocation srcLoc = {};
+	SDL_GPUTransferBufferLocation srcLoc;
 	srcLoc.transfer_buffer = transferBuffer;
 	srcLoc.offset = 0;
 	//destino o GPU Buffer mesmo
-	SDL_GPUBufferRegion dstReg = {};
+	SDL_GPUBufferRegion dstReg;
 	dstReg.buffer = mesh.GetGPUBuffer();
 	dstReg.offset = 0;
 	dstReg.size = byteSize;
@@ -436,13 +438,13 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 	transform = glm::rotate(transform, glm::radians(MainWindow->CameraRot.x), { 1.0f, 0.0f, 0.0f });
 
 	if (Renderer3D::UsePerspective) { // aplica perpectiva (usando a criação de matriz de perspectiva)
-		projMatrix = glm::perspectiveLH_ZO(glm::radians(60.0f), (float)MainWindow->Width/MainWindow->Height, 0.1f, 100000.0f);
+		projMatrix = glm::perspectiveLH_ZO(glm::radians(60.0f), static_cast<float>(MainWindow->Width)/MainWindow->Height, 0.1f, 100000.0f);
 		projMatrix[1][1] *= -1.0f; // arruma o y (n sei pq tá invertido, talvez arrumar pra usar y = 0 ==> topo da tela)
 	}
 	else { // não aplica perspectiva
 		projMatrix = glm::ortho(
-			0.0f, (float)MainWindow->Width,
-			(float)MainWindow->Height, 0.0f,
+			0.0f, static_cast<float>(MainWindow->Width),
+			static_cast<float>(MainWindow->Height), 0.0f,
 			10000.0f, -10000.0f
 		);
 	}
@@ -461,7 +463,7 @@ void Renderer3D::DrawMeshGPU(Mesh& mesh, SDL_GPUCommandBuffer* commandBuffer, SD
 	fragUbo.lightAlgorithm = static_cast<int>(Renderer3D::LightAlgorithm);
 
 	if (SceneLights && mesh.GetAfectedByLights()) {
-		int count = std::min((int)SceneLights->size(), MAX_LIGHTS);
+		int count = std::min(static_cast<int>(SceneLights->size()), MAX_LIGHTS);
 		fragUbo.numLights = count;
 
 		for (int i = 0; i < count; i++) {
@@ -563,12 +565,11 @@ void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
 		return;
 	}
 
-	float steps = (float)((int)std::ceil(std::max(std::abs(dX), std::abs(dY))));
+	float steps = static_cast<float>((int)std::ceil(std::max(std::abs(dX), std::abs(dY))));
 
 	if (steps == 0) {
-		int x = (int)std::lround(source.x);
-		int y = (int)std::lround(source.y);
-		int z = (int)std::lround(source.z);
+		int x = static_cast<int>(std::lround(source.x));
+		int y = static_cast<int>(std::lround(source.y));
 		if (x >= 0 && x < width && y >= 0 && y < height) {
 			Buffer->at(y * MainWindow->Width + x) = DrawColor;
 		}
@@ -583,12 +584,12 @@ void Renderer3D::DrawLine(glm::vec3 source, glm::vec3 target)
 	float new_y = source.y;
 
 	float currentZ = source.z;
-	int xStart = (int)std::ceil(source.x);
-	currentZ += ((float)xStart - source.x) * (dX > 0.0001f ? zInc : 1.0f);
+	int xStart = static_cast<int>(std::ceil(source.x));
+	currentZ += (static_cast<float>(xStart) - source.x) * (dX > 0.0001f ? zInc : 1.0f);
 	
 	for (int i = 0; i <= steps; i++) {   // <= inclui o ponto final
-		int px = (int)std::lround(new_x);
-		int py = (int)std::lround(new_y);
+		int px = static_cast<int>(std::lround(new_x));
+		int py = static_cast<int>(std::lround(new_y));
 
 		if (px >= 0 && px < width && py >= 0 && py < height) {
 			if (currentZ+2000.0f < ZBuffer->at(py * MainWindow->Width + px)) {
@@ -726,7 +727,7 @@ void Renderer3D::DrawMesh(Mesh& meshTeste)
 			}
 		}
 
-		glm::vec3 centroide = verticesSum / (float)currentVertices.size();
+		glm::vec3 centroide = verticesSum / static_cast<float>(currentVertices.size());
 
 		if (centroide.x < 0 || centroide.y < 0 || centroide.x > MainWindow->Width || centroide.y > MainWindow->Height) {
 			continue;
@@ -803,11 +804,8 @@ glm::vec3 Renderer3D::CalculateConstantLightning(glm::vec3 normal, glm::vec3 cen
 	return glm::clamp(ambientResult + diffuseResult + specularResult, 0.0f, 1.0f);
 }
 
-void Renderer3D::FindIntersections(const std::vector<std::pair<glm::vec3, glm::vec3>>& vertices, glm::vec2 yMinMax)
+void Renderer3D::FindIntersections(const std::vector<std::pair<glm::vec3, glm::vec3>>& vertices)
 {
-	int meshYMin = int(yMinMax.x);
-	int meshYMax = int(yMinMax.y);
-
 	for (int i = 0; i < vertices.size(); i++) {
 		std::pair<glm::vec3, glm::vec3> sourceRaw = vertices[i];
 		std::pair<glm::vec3, glm::vec3> targetRaw = vertices[(i + 1) % vertices.size()];
@@ -829,8 +827,8 @@ void Renderer3D::FindIntersections(const std::vector<std::pair<glm::vec3, glm::v
 		}
 		LE_CORE_ASSERT(target.y >= source.y, "Y FINAL da aresta maior que o INICIAL!");
 
-		int ymin = (int)std::ceil(source.y);
-		int ymax = (int)std::ceil(target.y);
+		int ymin = static_cast<int>(std::ceil(source.y));
+		int ymax = static_cast<int>(std::ceil(target.y));
 
 		float dY = (target.y - source.y);
 
@@ -848,7 +846,7 @@ void Renderer3D::FindIntersections(const std::vector<std::pair<glm::vec3, glm::v
 		float new_g = sourceColor.y;
 		float new_b = sourceColor.z;
 
-		float preStep = (float)ymin - source.y;
+		float preStep = static_cast<float>(ymin) - source.y;
 		new_x += preStep * Tx;
 		new_z += preStep * Tz;
 
@@ -883,15 +881,15 @@ void Renderer3D::FindIntersections(const std::vector<std::pair<glm::vec3, glm::v
 
 void Renderer3D::FillPoly(const std::vector<std::pair<glm::vec3, glm::vec3>>& vertices, glm::vec2 minMaxY, bool interpolate, Mesh* mesh)
 {
-	int yMin = (int)std::ceil(minMaxY.x);
-	int yMax = (int)std::ceil(minMaxY.y);
+	int yMin = static_cast<int>(std::ceil(minMaxY.x));
+	int yMax = static_cast<int>(std::ceil(minMaxY.y));
 
 	if (vertices.size() < 3) { return; }
 
 	//intersecoes.resize(yMax - yMin + 1); GARGALO FODIDO
 	//LE_CORE_ASSERT(intersecoes.size() == height, "Intersecoes com tamanho incorreto alocado!");
 
-	FindIntersections(vertices, minMaxY);
+	FindIntersections(vertices);
 
 	/*Sub Polygons adicionados às interseções (talvez não seja a melhor forma de fazer, mas é uma forma)*/
 	//for (BaseMesh* submesh : mesh->GetSubMeshes()) {
@@ -910,8 +908,8 @@ void Renderer3D::FillPoly(const std::vector<std::pair<glm::vec3, glm::vec3>>& ve
 	// Ordenar todas as interceções
 	for (int i = yMin; i < yMax; i++) {
 		if(i < 0 || i >= MainWindow->Height) { continue; }
-		std::sort(intersecoes[i].begin(), intersecoes[i].end(), 
-			[](const std::pair<glm::vec3, glm::vec3>& a, const std::pair<glm::vec3, glm::vec3>& b) { return a.first.x < b.first.x; } // lambda pra comparar os dois
+		std::ranges::sort(intersecoes[i], 
+		                  [](const std::pair<glm::vec3, glm::vec3>& a, const std::pair<glm::vec3, glm::vec3>& b) { return a.first.x < b.first.x; } // lambda pra comparar os dois
 		);
 	}
 
@@ -928,7 +926,6 @@ void Renderer3D::FillPoly(const std::vector<std::pair<glm::vec3, glm::vec3>>& ve
 			glm::vec3 targetColor = lista[i + 1].second;
 
 			float dx = target.x - source.x;
-			float dy = target.y - source.y;
 			float Tz = (target.z - source.z) / dx;
 			
 			float Tr = (targetColor.x - sourceColor.x) / dx;
@@ -940,13 +937,13 @@ void Renderer3D::FillPoly(const std::vector<std::pair<glm::vec3, glm::vec3>>& ve
 			float currentG = sourceColor.y;
 			float currentB = sourceColor.z;
 
-			int xStart = (int)std::ceil(source.x);
-			int xEnd = (int)std::ceil(target.x);
+			int xStart = static_cast<int>(std::ceil(source.x));
+			int xEnd = static_cast<int>(std::ceil(target.x));
 
-			currentZ += ((float)xStart - source.x) * (dx > 0.0001f ? Tz : 1.0f);
-			currentR += ((float)xStart - source.x) * (dx > 0.0001f ? Tr : 1.0f);
-			currentG += ((float)xStart - source.x) * (dx > 0.0001f ? Tg : 1.0f);
-			currentB += ((float)xStart - source.x) * (dx > 0.0001f ? Tb : 1.0f);
+			currentZ += (static_cast<float>(xStart) - source.x) * (dx > 0.0001f ? Tz : 1.0f);
+			currentR += (static_cast<float>(xStart) - source.x) * (dx > 0.0001f ? Tr : 1.0f);
+			currentG += (static_cast<float>(xStart) - source.x) * (dx > 0.0001f ? Tg : 1.0f);
+			currentB += (static_cast<float>(xStart) - source.x) * (dx > 0.0001f ? Tb : 1.0f);
 			// utilizando o buffer
 			for (int x = xStart; x < xEnd; x++) {
 				if (x < 0 || x >= MainWindow->Width) { 

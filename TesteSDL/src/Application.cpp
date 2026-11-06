@@ -10,7 +10,5 @@ LeandroApplication::LeandroApplication()
 }
 
 LeandroApplication::~LeandroApplication()
-{
-
-}
+= default;
 

@@ -22,9 +22,7 @@ CactusSpawner::CactusSpawner(std::string name) : Mesh(name)
 }
 
 CactusSpawner::~CactusSpawner()
-{
-
-}
+= default;
 
 void CactusSpawner::BeginPlay()
 {

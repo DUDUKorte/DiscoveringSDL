@@ -7,14 +7,14 @@ Cactus::Cactus(std::string name) : Mesh(name)
 	GetTickEnabled() = true;
 	// configurações do nosso sol
 	GetColor() = { 0.2f, 0.9f, 0.2f }; // amarello
-	GetTransform().Position = { 640.0f, 481.0f, 0.0f }; // essa posição ficou massa
-	GetTransform().Scale = { 280.0f, 280.0f, 280.0f }; // por algm motivo tudo é minúsculo aqui
-	GetTransform().Rotation = { 0.0f, 0.0f, glm::radians(180.0f) };
+	m_Transform.Position = { 640.0f, 481.0f, 0.0f }; // essa posição ficou massa
+	m_Transform.Scale = { 280.0f, 280.0f, 280.0f }; // por algm motivo tudo é minúsculo aqui
+	m_Transform.Rotation = { 0.0f, 0.0f, glm::radians(180.0f) };
 
 	scaleAnim = { 260.0f, 320.0f, 260.0f };
-	initialScale = GetTransform().Scale;
+	initialScale = m_Transform.Scale;
 
-	m_StartPos = GetTransform().Position;
+	m_StartPos = m_Transform.Position;
 	m_EndPos = { 100.0f, 230.0f, -500.f };
 
 	myLight = nullptr;
@@ -22,7 +22,7 @@ Cactus::Cactus(std::string name) : Mesh(name)
 	// Criar uma point light com uma chance
 	if (glm::linearRand(0.0f, 1.0f) <= 0.3) {
 		myLight = new PointLight();
-		myLight->GetTransform().Position = GetTransform().Position;
+		myLight->GetTransform().Position = m_Transform.Position;
 		myLight->GetTransform().Position += glm::vec3({0.0f, -15.0f, 0.0f});
 
 		EditorApp::Get()->SubmitMesh(myLight);
@@ -31,9 +31,7 @@ Cactus::Cactus(std::string name) : Mesh(name)
 }
 
 Cactus::~Cactus()
-{
-
-}
+= default;
 
 void Cactus::BeginPlay()
 {

@@ -8,19 +8,17 @@ Sol::Sol() : MeshLight("Sol")
 	GetTickEnabled() = true;
 	// configurações do nosso sol
 	GetColor() = { 0.9f, 0.9f, 0.1f }; // amarello
-	GetTransform().Position = { 1000.0f, 200.0f, 500.0f }; // essa posição ficou massa
-	GetTransform().Scale = { 50.0f, 50.0f, 50.0f }; // por algm motivo tudo é minúsculo aqui
+	m_Transform.Position = { 1000.0f, 200.0f, 500.0f }; // essa posição ficou massa
+	m_Transform.Scale = { 50.0f, 50.0f, 50.0f }; // por algm motivo tudo é minúsculo aqui
 	GetLightColor() = { 1.0f, 1.0f, 1.0f }; // cor branca
 	GetLightType() = LightType::DirectionalLight;
 
-	m_StartPos = GetTransform().Position;
+	m_StartPos = m_Transform.Position;
 	m_EndPos = { 100.0f, 230.0f, 500.f };
 }
 
 Sol::~Sol()
-{
-
-}
+= default;
 
 void Sol::BeginPlay()
 {

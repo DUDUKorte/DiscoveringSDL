@@ -3,7 +3,8 @@
 
 BaseMesh::~BaseMesh()
 {
-	for (BaseMesh* m : m_SubMeshes) {
+	for (BaseMesh* m : m_SubMeshes)
+	{
 		delete m;
 	}
 	m_SubMeshes.clear();
@@ -11,7 +12,8 @@ BaseMesh::~BaseMesh()
 
 void BaseMesh::BeginPlay()
 {
-	if (!m_ScriptPath.empty()) {
+	if (!m_ScriptPath.empty())
+	{
 		ScriptEngine::LoadMeshScript(this, m_ScriptPath);
 		ScriptEngine::OnBeginPlay(this);
 	}
@@ -19,7 +21,8 @@ void BaseMesh::BeginPlay()
 
 void BaseMesh::EventTick(float deltaTime)
 {
-	if (!m_ScriptPath.empty()) {
+	if (!m_ScriptPath.empty())
+	{
 		ScriptEngine::OnTick(this, deltaTime);
 		GetTransform().Position += GetVelocity() * deltaTime;
 	}
@@ -27,7 +30,8 @@ void BaseMesh::EventTick(float deltaTime)
 
 void BaseMesh::EventInput(SDL_Event* event)
 {
-	if (!m_ScriptPath.empty()) {
+	if (!m_ScriptPath.empty())
+	{
 		ScriptEngine::OnInput(this, event);
 	}
 }
@@ -50,7 +54,7 @@ void BaseMesh::addSubMesh(BaseMesh* mesh)
 
 	glm::vec3 parentPivot = m_LocalCentroide + GetTransform().Position;
 	mesh->GetTransform().Position -= parentPivot;
-	
+
 	m_SubMeshes.push_back(mesh);
 }
 
@@ -68,14 +72,16 @@ void BaseMesh::ResetTransform(int x_offset /*= 0*/, int y_offset /*= 0*/, int z_
 	m_TransformMatrix = glm::mat4(1.0f);
 	// Reset transform
 	GetTransform().Position = {0.0f + x_offset, 0.0f + y_offset, 0.0f + z_offset};
-	if (m_Parent != nullptr) {
-		GetTransform().Position = { 0.0f, 0.0f, 0.0f };
+	if (m_Parent != nullptr)
+	{
+		GetTransform().Position = {0.0f, 0.0f, 0.0f};
 	}
 	GetTransform().Rotation = {0.0f, 0.0f, 0.0f};
-	GetTransform().Scale = { 1.0f, 1.0f, 1.0f };
+	GetTransform().Scale = {1.0f, 1.0f, 1.0f};
 
 	MarkDirty();
-	for (BaseMesh* subMesh : GetSubMeshes()) {
+	for (BaseMesh* subMesh : GetSubMeshes())
+	{
 		subMesh->MarkDirty();
 	}
 }
@@ -85,14 +91,16 @@ void BaseMesh::RestoreTransform()
 	m_Transform = m_CacheTransform;
 
 	MarkDirty();
-	for (BaseMesh* subMesh : GetSubMeshes()) {
+	for (BaseMesh* subMesh : GetSubMeshes())
+	{
 		subMesh->MarkDirty();
 	}
 }
 
 std::vector<glm::vec3>& BaseMesh::GetVertices()
 {
-	if (m_IsDirty) {
+	if (m_IsDirty)
+	{
 		UpdateWorldVertices();
 	}
 	return m_Vertices;
@@ -107,15 +115,16 @@ glm::vec3 BaseMesh::GetCentroide()
 {
 	if (m_IsDirty) { UpdateWorldVertices(); }
 
-	glm::vec4 pv = { m_LocalCentroide.x, m_LocalCentroide.y, m_LocalCentroide.z, 1.0f };
+	glm::vec4 pv = {m_LocalCentroide.x, m_LocalCentroide.y, m_LocalCentroide.z, 1.0f};
 	pv = m_TransformMatrix * pv;
 
 	// Se for submesh, arrumar a posição
-	if (m_Parent) {
+	if (m_Parent)
+	{
 		pv = m_Parent->GetTransformMatrix() * pv;
 	}
 
-	return { pv.x, pv.y, pv.z };
+	return {pv.x, pv.y, pv.z};
 }
 
 Transform& BaseMesh::GetTransform()
@@ -146,19 +155,20 @@ void BaseMesh::UpdateWorldVertices()
 	m_Vertices.clear();
 	m_Vertices.reserve(m_LocalVertices.size());
 	m_TransformMatrix = glm::mat4(1.0f);
-	m_MinMaxY = { 10000.0f, -1.0f };
-	
+	m_MinMaxY = {10000.0f, -1.0f};
+
 	// Se for submesh, pega a rotação do pai
-	if (m_Parent) {
+	if (m_Parent)
+	{
 		m_TransformMatrix = m_Parent->GetTransformMatrix() * m_TransformMatrix;
 	}
 
 	// Move pra postição de volta
 	m_TransformMatrix = glm::translate(m_TransformMatrix, m_LocalCentroide + m_Transform.Position);
 	// rotaciona
-	m_TransformMatrix = glm::rotate(m_TransformMatrix, glm::radians(m_Transform.Rotation.x), { 1.0f, 0.0f, 0.0f });
-	m_TransformMatrix = glm::rotate(m_TransformMatrix, glm::radians(m_Transform.Rotation.y), { 0.0f, 1.0f, 0.0f });
-	m_TransformMatrix = glm::rotate(m_TransformMatrix, glm::radians(m_Transform.Rotation.z), { 0.0f, 0.0f, 1.0f });
+	m_TransformMatrix = glm::rotate(m_TransformMatrix, glm::radians(m_Transform.Rotation.x), {1.0f, 0.0f, 0.0f});
+	m_TransformMatrix = glm::rotate(m_TransformMatrix, glm::radians(m_Transform.Rotation.y), {0.0f, 1.0f, 0.0f});
+	m_TransformMatrix = glm::rotate(m_TransformMatrix, glm::radians(m_Transform.Rotation.z), {0.0f, 0.0f, 1.0f});
 	//escala
 	m_TransformMatrix = glm::scale(m_TransformMatrix, m_Transform.Scale);
 	// Move para o ponto central
@@ -167,10 +177,11 @@ void BaseMesh::UpdateWorldVertices()
 	glm::vec3 minv(FLT_MAX);
 	glm::vec3 maxv(-FLT_MAX);
 
-	for (const glm::vec3& localVertex : m_LocalVertices) {
-		glm::vec4 adjustVertex = { localVertex.x, localVertex.y, localVertex.z, 1.0f };
+	for (const glm::vec3& localVertex : m_LocalVertices)
+	{
+		glm::vec4 adjustVertex = {localVertex.x, localVertex.y, localVertex.z, 1.0f};
 		adjustVertex = m_TransformMatrix * adjustVertex;
-		m_Vertices.push_back({ adjustVertex.x, adjustVertex.y, adjustVertex.z });
+		m_Vertices.push_back({adjustVertex.x, adjustVertex.y, adjustVertex.z});
 
 		minv.x = glm::min(minv.x, adjustVertex.x);
 		minv.y = glm::min(minv.y, adjustVertex.y);
@@ -182,10 +193,12 @@ void BaseMesh::UpdateWorldVertices()
 
 
 		// Atualiza o minmax
-		if (adjustVertex.y < m_MinMaxY.x) {
+		if (adjustVertex.y < m_MinMaxY.x)
+		{
 			m_MinMaxY.x = adjustVertex.y;
 		}
-		if (adjustVertex.y > m_MinMaxY.y) {
+		if (adjustVertex.y > m_MinMaxY.y)
+		{
 			m_MinMaxY.y = adjustVertex.y;
 		}
 	}

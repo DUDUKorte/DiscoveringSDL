@@ -9,13 +9,13 @@
 class CactusSpawner : public Mesh {
 public:
 	CactusSpawner(std::string name = "cactusSpawner");
-	~CactusSpawner();
+	~CactusSpawner() override;
 
-	virtual void BeginPlay();
-	virtual void EventTick(float deltaTime);
-	virtual void EventInput(SDL_Event* event);
+	virtual void BeginPlay() override;
+	virtual void EventTick(float deltaTime) override;
+	virtual void EventInput(SDL_Event* event) override;
 private:
-	float m_Quanity;
+	int m_Quanity;
 	std::vector<Cactus*> m_SpawnedCactus;
 
 	glm::vec3 m_StartPos;

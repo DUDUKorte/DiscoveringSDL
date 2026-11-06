@@ -1,20 +1,19 @@
 #pragma once
 
 #define SDL_MAIN_USE_CALLBACKS 1
-#include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include "Application.h"
 
 extern LeandroApplication* CreateApplication();
 
 inline SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
-	auto app = CreateApplication();
+	const auto app = CreateApplication();
 
 	// Inicialiar o log
 	LeandroEditor::Log::Init();
 	LE_CORE_TRACE("INITIALIZING EDITOR...");
 
-	SDL_AppResult success = app->GetEditor()->Init();
+	const SDL_AppResult success = app->GetEditor()->Init();
 	*appstate = app;
 	app->OnStart();
 
@@ -46,9 +45,8 @@ inline void SDL_AppQuit(void* appstate, SDL_AppResult result) {
 	//quitar
 	// Cleanup
 	LE_CORE_TRACE("CLOSING EDITOR...");
-	LeandroApplication* app = static_cast<LeandroApplication*>(appstate);
-	EditorApp* editor = app->GetEditor();
-	if (editor) {
+	const LeandroApplication* app = static_cast<LeandroApplication*>(appstate);
+	if (const EditorApp* editor = app->GetEditor()) {
 		editor->Shutdown();
 		delete editor;
 	}
