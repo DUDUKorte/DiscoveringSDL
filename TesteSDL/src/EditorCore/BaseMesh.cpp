@@ -2,6 +2,7 @@
 
 #include "EditorCore/BaseMesh.h"
 #include "EditorCore/ScriptEngine.h"
+#include "Utils/Log.h"
 
 BaseMesh::~BaseMesh()
 {
@@ -27,6 +28,13 @@ void BaseMesh::EventTick(float deltaTime)
 	{
 		ScriptEngine::OnTick(this, deltaTime);
 		GetTransform().Position += GetVelocity() * deltaTime;
+	}
+	
+	if (m_SimulatePhysics) {
+		m_Velocity.y += 0.008f * deltaTime;
+		GetTransform().Position += m_Velocity * deltaTime;
+		MarkDirty();
+		UpdateWorldVertices();
 	}
 }
 

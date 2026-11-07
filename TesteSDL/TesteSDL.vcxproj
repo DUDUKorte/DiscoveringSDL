@@ -156,7 +156,7 @@
     <ClCompile Include="src\EditorCore\BaseMesh.cpp" />
     <ClCompile Include="src\EditorApp.cpp" />
     <ClCompile Include="src\EditorCore\ScriptEngine.cpp" />
-    <ClCompile Include="src\Physics\CollisionEngine.cpp" />
+    <ClCompile Include="src\Physics\PhysicsEngine.cpp" />
     <ClCompile Include="src\Utils\Log.cpp" />
     <ClCompile Include="src\Application.cpp" />
     <ClCompile Include="src\EditorCore\Mesh.cpp" />
@@ -191,7 +191,7 @@
     <ClInclude Include="src\EntryPoint.h" />
     <ClInclude Include="src\LeandroEditor.h" />
     <ClInclude Include="src\Physics\BoundingBox.h" />
-    <ClInclude Include="src\Physics\CollisionEngine.h" />
+    <ClInclude Include="src\Physics\PhysicsEngine.h" />
     <ClInclude Include="src\Utils\CoreEditor.h" />
     <ClInclude Include="src\Utils\LeandroMath.h" />
     <ClInclude Include="src\Utils\Log.h" />

@@ -15,7 +15,6 @@ public:
 	//virtual void EventTick(float deltaTime);
 	//virtual void EventInput(SDL_Event* event);
 
-
 	virtual void addVertex(glm::vec3 newVertex) override;
 	
 	void addFace(const std::vector<int>& vertexIndices, int normalIndice);

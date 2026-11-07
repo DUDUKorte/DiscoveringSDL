@@ -77,6 +77,7 @@ public:
 	inline bool& GetCollision() { return m_CollisionEnabled; }
 	inline bool IsColliding() const { return !m_BoundingBox.OutHits.empty(); }
 	inline bool& IsDirty() { return m_IsDirty; }
+	inline bool& GetSimulatePhysics() { return m_SimulatePhysics; }
 	BoundingBox& GetBoundingBox() { return m_BoundingBox; }
 	
 
@@ -150,4 +151,5 @@ protected:
 	// BoundingBox // Colisão // física
 	bool m_CollisionEnabled = false;
 	BoundingBox m_BoundingBox;
+	bool m_SimulatePhysics = false;
 };

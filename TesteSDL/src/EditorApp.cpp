@@ -1,7 +1,7 @@
 #include "EditorApp.h"
 #include "Renderer/Renderer3D.h"
 #include "Utils/Log.h"
-#include <Physics/CollisionEngine.h>
+#include <Physics/PhysicsEngine.h>
 
 #include <iostream>
 #include <string>
@@ -405,6 +405,25 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 			SetHideCursor(false);
 			OnChangeMode(Selection);
 			break;
+		case SDLK_F8: {
+			if (m_GameStarted && m_GameSimulate) {
+				SetHideCursor(false);
+			}
+			break;
+		}
+		case SDLK_F7: {
+			if (m_GameStarted && m_GameSimulate) {
+				SetHideCursor(true);
+			}
+			break;
+		}
+		default:
+			break;
+		}
+	}
+	else if (event->type == SDL_EVENT_KEY_UP) {
+		SDL_KeyboardEvent e = event->key;
+		switch (e.key) {
 		default:
 			break;
 		}
@@ -613,10 +632,24 @@ SDL_AppResult EditorApp::UpdateAndRender()
 		}
 
 	}
-
+	
+	for (BaseMesh* m : m_GlobalMeshes) {
+		// Run tick SEMPRE FICA PRIMEIRO (Calcula física/lógica -> cálcula desenho -> Mostra na tela)
+		if (m_GameStarted && m->GetTickEnabled()) {
+			m->EventTick((float)deltaTime);
+		}
+	}
+	
 	// Atualiza a collisionEngine
-	CollisionEngine::UpdateAndCheckCollision(m_GlobalMeshes);
-	CollisionEngine::DrawDebugBoxes(m_GlobalMeshes, &m_WindowProperties, Renderer3D::UsePerspective);
+	PhysicsEngine::UpdateAndCheckCollision(m_GlobalMeshes);
+	if (!m_GameStarted || (m_GameSimulate && m_GameStarted)) {
+		PhysicsEngine::DrawDebugBoxes(m_GlobalMeshes, &m_WindowProperties, Renderer3D::UsePerspective);
+	}
+	
+	// Roda a física
+	if (m_GameStarted) {
+		PhysicsEngine::ResolvePhysics(m_GlobalMeshes);
+	}
 
 	if (!m_GameStarted || m_GameSimulate) {
 		RenderUI();
@@ -664,11 +697,6 @@ SDL_AppResult EditorApp::UpdateAndRender()
 
 	// Draw polygons
 	for (BaseMesh* m : m_GlobalMeshes) {
-		// Run tick SEMPRE FICA PRIMEIRO (Calcula física/lógica -> cálcula desenho -> Mostra na tela)
-		if (m_GameStarted && m->GetTickEnabled()) {
-			m->EventTick((float)deltaTime);
-		}
-
 		// Desnha 3D!!!!
 		if (m->GetType() != MeshTypes::Type2D && !(m->GetHiddenInGame() && m_GameStarted && !m_GameSimulate)) {
 			if (Renderer3D::RendererMode == RendererModes::Hardware) {
@@ -680,7 +708,7 @@ SDL_AppResult EditorApp::UpdateAndRender()
 			continue;
 		}
 	}
-
+	
 	// SEMPRE Fechar o render pass 3D aqui
 	if (Renderer3D::RendererMode == RendererModes::Hardware) {
 		SDL_EndGPURenderPass(renderPass3D);
@@ -1093,16 +1121,20 @@ void EditorApp::RenderUI()
 				}
 
 				if (selectedMesh->IsColliding()) {
-					ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "Status: COLLIDING (%d)", (int)bb.OutHits.size());
+					ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "Collision: (%d)", (int)bb.OutHits.size());
 					for (CollisionHit& outHit : bb.OutHits) {
-						ImGui::BulletText("Hitting: %s", outHit.other->GetName().c_str());
+						ImGui::BulletText("Hit: %s | Pen: %.2f | Normal: (%.2f, %.2f, %.2f)", outHit.other->GetName().c_str(), outHit.penetration, outHit.normal.x, outHit.normal.y, outHit.normal.z);
 					}
 				}
 				else {
-					ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "Status: Clear");
+					ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "Collision: Clear");
 				}
 			}
+			
+			ImGui::Checkbox("Simulate Physics", &selectedMesh->GetSimulatePhysics());
+			//ImGui::DragFloat("Gravity", &selectedMesh->GetGravity(), 0.05f)
 		}
+		
 
 		// SCRIPTING LUA
 		if (ImGui::CollapsingHeader("Scripting (Lua)", ImGuiTreeNodeFlags_DefaultOpen)) {

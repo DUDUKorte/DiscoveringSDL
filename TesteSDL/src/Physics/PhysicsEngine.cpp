@@ -1,11 +1,11 @@
-#include "CollisionEngine.h"
+#include "PhysicsEngine.h"
 #include <Utils/CoreEditor.h>
 
 #include "Utils/Log.h"
 
 #define VEC3TOSTR(v) ("( " + std::to_string((v).x) + ", " + std::to_string((v).y) + ", " + std::to_string((v).z) + " )")
 
-void CollisionEngine::UpdateAndCheckCollision(const std::vector<BaseMesh*>& meshList)
+void PhysicsEngine::UpdateAndCheckCollision(const std::vector<BaseMesh*>& meshList)
 {
 	for(BaseMesh* mesh : meshList) {
 		if (!mesh->GetCollision()) { continue; }
@@ -25,17 +25,17 @@ void CollisionEngine::UpdateAndCheckCollision(const std::vector<BaseMesh*>& mesh
 			
 			CollisionHit* hitResult = CheckBBCollision(meshA->GetBoundingBox(), meshB->GetBoundingBox());
 			if (hitResult != nullptr) { // se teve colisão!!!!!
-				CollisionHit* hitA = new CollisionHit;
-				hitA->other = meshB;
-				hitA->penetration = hitResult->penetration;
-				hitA->normal = hitResult->normal;
-				meshA->GetBoundingBox().OutHits.emplace_back(*hitA);
+				CollisionHit hitA;
+				hitA.other = meshB;
+				hitA.penetration = hitResult->penetration;
+				hitA.normal = hitResult->normal;
+				meshA->GetBoundingBox().OutHits.emplace_back(hitA);
 				
-				CollisionHit* hitB = new CollisionHit;
-				hitB->other = meshA;
-				hitB->penetration = hitResult->penetration;
-				hitB->normal = -hitResult->normal;
-				meshB->GetBoundingBox().OutHits.emplace_back(*hitB);
+				CollisionHit hitB;
+				hitB.other = meshA;
+				hitB.penetration = hitResult->penetration;
+				hitB.normal = -hitResult->normal;
+				meshB->GetBoundingBox().OutHits.emplace_back(hitB);
 				
 				delete hitResult;
 			}
@@ -43,12 +43,47 @@ void CollisionEngine::UpdateAndCheckCollision(const std::vector<BaseMesh*>& mesh
 	}
 }
 
-CollisionHit* CollisionEngine::CheckBBCollision(const BoundingBox& a, const BoundingBox& b)
+void PhysicsEngine::ResolvePhysics(const std::vector<BaseMesh*>& meshList) {
+	// primeiro vamo rodar todas as meshes, verificar se ela simmula física
+	// se simula física, agnt acessa cada mesh e dentro de cada mesh
+	// roda todos os collisionHit, pra cada collision Hit agnt define
+	// se tem que ajustar posição e zerar velocidade ou não
+	for (BaseMesh* mesh : meshList) {
+		if (!mesh->GetSimulatePhysics()){ continue; }
+		if (!mesh->IsColliding()) { continue; }
+		
+		glm::vec3 totalPush(0.0f);
+		
+		// aqui roda cada hit ent
+		for (CollisionHit& hit : mesh->GetBoundingBox().OutHits){
+			// 50% de arrasto (arrasta o outro objeto)
+			if (hit.other->GetSimulatePhysics()) {
+				totalPush += hit.normal * hit.penetration * 0.5f;
+			}else { //100% de arrasto pra fora da colisão
+				totalPush += hit.normal * hit.penetration;
+			}
+			
+			// Aqui realmente para o objeto
+			float velAgainstOther = glm::dot(mesh->GetVelocity(), hit.normal);
+			if (velAgainstOther < 0.0f) {
+				mesh->GetVelocity() -= hit.normal * velAgainstOther;
+			}
+		}
+		
+		if (glm::length(totalPush) > 0.0f) {
+			mesh->GetTransform().Position += totalPush;
+			mesh->MarkDirty();
+			UpdateWorldBB(mesh); // atualiza a colisão dele imediatamente pra evitrar bug (teria que esperar um frame inteiro pra ajustar)
+		}
+	}
+}
+
+CollisionHit* PhysicsEngine::CheckBBCollision(const BoundingBox& a, const BoundingBox& b)
 {
 	CollisionHit* hitResult = new CollisionHit;
 	hitResult->penetration = FLT_MAX;
+	bool found = false;
 	
-	// TODO COlisão usando SAT!!!!
 	glm::vec3 lList[15] = { // sim, são 15, tem 6 nas 2 primeiras linhas
 		a.axes.x, a.axes.y, a.axes.z,
 		b.axes.x, b.axes.y, b.axes.z,
@@ -87,6 +122,7 @@ CollisionHit* CollisionEngine::CheckBBCollision(const BoundingBox& a, const Boun
 		if (overlap < hitResult->penetration) {
 			hitResult->penetration = overlap; // o mínimo que penetrou na outra mesh
 			hitResult->normal = l; // o "melhor" axis
+			found = true;
 		}
 	}
 	// Garante que o normal sempre aponta de B -> A (pq lá no final vai colocar -normal pra B e normal pra A)
@@ -94,10 +130,12 @@ CollisionHit* CollisionEngine::CheckBBCollision(const BoundingBox& a, const Boun
 		hitResult->normal = -hitResult->normal;
 	}
 	
+	if (!found ) {return nullptr;}
+	
 	return hitResult;
 }
 
-void CollisionEngine::DrawDebugBoxes(const std::vector<BaseMesh*>& meshList, const WindowProperties* mainWindow, bool usePerspective)
+void PhysicsEngine::DrawDebugBoxes(const std::vector<BaseMesh*>& meshList, const WindowProperties* mainWindow, bool usePerspective)
 {
 	ImDrawList* drawList = ImGui::GetBackgroundDrawList();
 	ImGuiViewport* mainViewport = ImGui::GetMainViewport();
@@ -195,7 +233,7 @@ void CollisionEngine::DrawDebugBoxes(const std::vector<BaseMesh*>& meshList, con
 	}
 }
 
-void CollisionEngine::UpdateWorldBB(BaseMesh* mesh)
+void PhysicsEngine::UpdateWorldBB(BaseMesh* mesh)
 {
 	BoundingBox& bb = mesh->GetBoundingBox();
 	glm::mat4 mat = mesh->GetTransformMatrix();
