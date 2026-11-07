@@ -10,3 +10,9 @@
 #include <glm/gtc/epsilon.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 #include <glm/gtc/type_ptr.hpp>
+
+struct Axis {
+    glm::vec3 x;
+    glm::vec3 y;
+    glm::vec3 z;
+};

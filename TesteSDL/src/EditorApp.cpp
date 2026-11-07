@@ -1093,9 +1093,9 @@ void EditorApp::RenderUI()
 				}
 
 				if (selectedMesh->IsColliding()) {
-					ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "Status: COLLIDING (%d)", (int)bb.CollidingMeshes.size());
-					for (BaseMesh* other : bb.CollidingMeshes) {
-						ImGui::BulletText("Hitting: %s", other->GetName().c_str());
+					ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "Status: COLLIDING (%d)", (int)bb.OutHits.size());
+					for (CollisionHit& outHit : bb.OutHits) {
+						ImGui::BulletText("Hitting: %s", outHit.other->GetName().c_str());
 					}
 				}
 				else {
@@ -1353,7 +1353,7 @@ void EditorApp::LoadObjFile(std::string path, Mesh* mesh)
 	glm::vec3 maxV(-FLT_MAX);
 	for (const glm::vec3& v: mesh->GetLocalVertices()) {
 		minV = glm::min(minV, v);
-		maxV = glm::max(minV, v);
+		maxV = glm::max(maxV, v);
 	}
 	mesh->GetBoundingBox().localMin = minV;
 	mesh->GetBoundingBox().localMax = maxV;

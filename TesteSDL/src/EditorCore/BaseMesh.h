@@ -7,23 +7,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <sol/sol.hpp>
 
+#include "Physics/BoundingBox.h"
+
 enum MeshTypes { Type3D = 0, Type2D = 1, TypeLight, TypeText, TypeBase};
-
-class BaseMesh;
-
-struct BoundingBox {
-	glm::vec3 localMin = { -0.5f, -0.5f, -0.5f };
-	glm::vec3 localMax = { 0.5f, 0.5f, 0.5f };
-
-	glm::vec3 worldMin = { 0.0f, 0.0f, 0.0f };
-	glm::vec3 worldMax = { 0.0f, 0.0f, 0.0f };
-
-	glm::vec3 offset = { 0.0f, 0.0f, 0.0f };
-	glm::vec3 sizeScale = { 1.0f, 1.0f, 1.0f };
-
-	bool ShowDebug = true;
-	std::vector<BaseMesh*> CollidingMeshes;
-};
 
 struct MeshMaterial {
 	float ambientReflection = 0.2f; // ka
@@ -89,8 +75,10 @@ public:
 	inline sol::environment& GetLuaEnv() { return m_LuaEnv; }
 	inline bool& GetHiddenInGame() { return m_HiddenInGame; }
 	inline bool& GetCollision() { return m_CollisionEnabled; }
-	inline bool IsColliding() const { return !m_BoundingBox.CollidingMeshes.empty(); }
+	inline bool IsColliding() const { return !m_BoundingBox.OutHits.empty(); }
+	inline bool& IsDirty() { return m_IsDirty; }
 	BoundingBox& GetBoundingBox() { return m_BoundingBox; }
+	
 
 
 	// setters
@@ -123,9 +111,7 @@ protected:
 	Transform m_CacheTransform;
 	glm::mat4 m_TransformMatrix = glm::mat4(1.0f);
 	glm::vec2 m_MinMaxY = { 10000.0f, -1.0f };
-
-	//Transform2D m_Transform;
-	//Transform2D m_CacheTransform;
+	
 	bool m_IsDirty = true;
 
 	std::vector<glm::vec3> m_Vertices = {}; // Vértices Globais (usa como cache)
