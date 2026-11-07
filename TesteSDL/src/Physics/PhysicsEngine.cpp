@@ -1,9 +1,8 @@
 #include "PhysicsEngine.h"
 #include <Utils/CoreEditor.h>
 
+#include "Renderer/Renderer3D.h"
 #include "Utils/Log.h"
-
-#define VEC3TOSTR(v) ("( " + std::to_string((v).x) + ", " + std::to_string((v).y) + ", " + std::to_string((v).z) + " )")
 
 void PhysicsEngine::UpdateAndCheckCollision(const std::vector<BaseMesh*>& meshList)
 {
@@ -78,6 +77,83 @@ void PhysicsEngine::ResolvePhysics(const std::vector<BaseMesh*>& meshList) {
 	}
 }
 
+RaycastHit PhysicsEngine::Raycast(glm::vec3 origin, glm::vec3 direction, float maxDist, BaseMesh* ignoreMesh, bool drawDebug) {
+	direction = glm::normalize(direction);
+	
+	std::vector<BaseMesh*>& meshList = EditorApp::GetMeshList();
+	
+	RaycastHit raycastResult;
+	raycastResult.distance = FLT_MAX;
+	raycastResult.outHit = false;
+	
+	// todar todas as meshes com colisão
+	for (BaseMesh* mesh : meshList) {
+		if (!mesh->GetCollision() || mesh == ignoreMesh){ continue; }
+		
+		// testa a colisão com a obb
+		BoundingBox& bb = mesh->GetBoundingBox();
+		glm::vec3 axes[3] = {bb.axes.x, bb.axes.y, bb.axes.z};
+		float halfExtends[3] = {bb.halfExtends.x, bb.halfExtends.y, bb.halfExtends.z};
+		
+		float tMin = 0.0f;
+		float tMax = maxDist;
+		glm::vec3 eI;
+		bool hitMiss = false;
+		
+		glm::vec3 deltaP = bb.worldCenter - origin;
+		for (int i = 0; i < 3; i++) {
+			// distancia até o centro da caixa com a linha projetada na face
+			float distToCenter = glm::dot(deltaP, axes[i]);
+			// taxa de aproximação ( == 0 é paralelo a placa)
+			float f = glm::dot(direction, axes[i]);
+			
+			if (glm::epsilonEqual(glm::abs(f), 0.0f, 0.00001f)) {
+				if (glm::abs(distToCenter) > halfExtends[i]) { hitMiss = true; break; } // ou break tbm 
+				if (glm::abs(distToCenter) <= halfExtends[i]){ continue; } // continua sem alterar nada
+			}
+			
+			float t1 = (distToCenter - halfExtends[i]) / f;
+			float t2 = (distToCenter + halfExtends[i]) / f;
+			glm::vec3 normal = f > 0.0f ? -axes[i] : axes[i];
+			
+			if (t1 > t2) {
+				std::swap(t1, t2);
+				normal = -normal;
+			}
+			
+			
+			if (t1 > tMin) {
+				tMin = t1;
+				eI = normal;
+			}
+			tMax = glm::min(tMax, t2);
+			
+			if (tMin > tMax || tMax < 0.0f) {
+				// retornaria false aqui
+				hitMiss = true;
+				break;
+			}
+		}
+		// Passa pra próxima mesh se deu hitMiss
+		if (hitMiss) {
+			continue;
+		}
+		if (tMin < raycastResult.distance) {
+			raycastResult.distance = tMin;
+			raycastResult.impactPoint = origin + tMin * direction;
+			raycastResult.normal = eI;
+			raycastResult.other = mesh;
+			raycastResult.outHit = true;
+		}
+	}
+	
+	if (drawDebug) {
+		DrawRayDebug(origin, direction, maxDist, raycastResult, &EditorApp::Get()->GetWindowProperties(), Renderer3D::UsePerspective);
+	}
+	
+	return raycastResult;
+}
+
 CollisionHit* PhysicsEngine::CheckBBCollision(const BoundingBox& a, const BoundingBox& b)
 {
 	CollisionHit* hitResult = new CollisionHit;
@@ -133,6 +209,75 @@ CollisionHit* PhysicsEngine::CheckBBCollision(const BoundingBox& a, const Boundi
 	if (!found ) {return nullptr;}
 	
 	return hitResult;
+}
+
+void PhysicsEngine::DrawRayDebug(glm::vec3 origin, glm::vec3 direction, float maxDist, const RaycastHit& hit, const WindowProperties* mainWindow, bool usePerspective)
+{
+    // Use GetForegroundDrawList() para garantir que desenhe por cima de qualquer janela/viewport
+    ImDrawList* drawList = ImGui::GetForegroundDrawList();
+    ImGuiViewport* mainViewport = ImGui::GetMainViewport();
+
+    // 1. Monta a matriz View-Projection
+    glm::mat4 camTransform = glm::translate(glm::mat4(1.0f), mainWindow->CameraPos);
+    camTransform = glm::rotate(camTransform, glm::radians(mainWindow->CameraRot.y), { 0.0f, 1.0f, 0.0f });
+    camTransform = glm::rotate(camTransform, glm::radians(mainWindow->CameraRot.x), { 1.0f, 0.0f, 0.0f });
+    glm::mat4 viewMatrix = glm::inverse(camTransform);
+
+    glm::mat4 projMatrix;
+    if (usePerspective) {
+       projMatrix = glm::perspectiveLH_ZO(glm::radians(60.0f), static_cast<float>(mainWindow->Width) / mainWindow->Height, 0.1f, 100000.0f);
+       projMatrix[1][1] *= -1.0f;
+    } else {
+       projMatrix = glm::ortho(0.0f, static_cast<float>(mainWindow->Width), static_cast<float>(mainWindow->Height), 0.0f, 10000.0f, -10000.0f);
+    }
+    glm::mat4 viewProj = projMatrix * viewMatrix;
+
+    // Projeta coordenadas de mundo para pixels na tela
+    auto WorldToScreen = [&](const glm::vec3& worldPos, ImVec2& outScreen) -> bool {
+       glm::vec4 clip = viewProj * glm::vec4(worldPos, 1.0f);
+       if (usePerspective && clip.w <= 0.1f) return false; // Ponto atrás ou colado na lente da câmera
+       glm::vec3 ndc = glm::vec3(clip) / clip.w;
+       outScreen.x = mainViewport->Pos.x + (ndc.x * 0.5f + 0.5f) * mainViewport->Size.x;
+       outScreen.y = mainViewport->Pos.y + (1.0f - (ndc.y * 0.5f + 0.5f)) * mainViewport->Size.y;
+       return true;
+    };
+
+    // Se o ponto de origem estiver colado na câmera (clip.w <= 0.1f), avança ao longo da direção
+    glm::vec3 renderStart = origin;
+    ImVec2 startScreen;
+    if (!WorldToScreen(renderStart, startScreen)) {
+       renderStart = origin + direction * 5.0f; // Salta 5 unidades à frente da câmera
+       if (!WorldToScreen(renderStart, startScreen)) {
+          // Se ainda assim estiver atrás, usa o centro da tela
+          startScreen = ImVec2(mainViewport->Pos.x + mainViewport->Size.x * 0.5f,
+                               mainViewport->Pos.y + mainViewport->Size.y * 0.5f);
+       }
+    }
+
+    if (hit.outHit) {
+       ImVec2 hitScreen;
+       if (WorldToScreen(hit.impactPoint, hitScreen)) {
+          // 1. Linha do tiro da origem até o impacto (Vermelha)
+          drawList->AddLine(startScreen, hitScreen, IM_COL32(255, 50, 50, 255), 2.5f);
+
+          // 2. Círculo vermelho sólido no ponto de impacto
+          drawList->AddCircleFilled(hitScreen, 5.0f, IM_COL32(255, 20, 20, 255));
+
+          // 3. Vetor Normal da face atingida (Linha Amarela de 30 unidades)
+          ImVec2 normalEndScreen;
+          if (WorldToScreen(hit.impactPoint + hit.normal * 30.0f, normalEndScreen)) {
+             drawList->AddLine(hitScreen, normalEndScreen, IM_COL32(255, 230, 0, 255), 3.0f);
+             drawList->AddCircleFilled(normalEndScreen, 3.5f, IM_COL32(255, 180, 0, 255));
+          }
+       }
+    } else {
+       // Tiro no vazio: traça a linha verde até maxDist
+       ImVec2 endScreen;
+       glm::vec3 endPoint = origin + direction * maxDist;
+       if (WorldToScreen(endPoint, endScreen)) {
+          drawList->AddLine(startScreen, endScreen, IM_COL32(50, 255, 80, 200), 1.5f);
+       }
+    }
 }
 
 void PhysicsEngine::DrawDebugBoxes(const std::vector<BaseMesh*>& meshList, const WindowProperties* mainWindow, bool usePerspective)

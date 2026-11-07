@@ -6,6 +6,14 @@ class BaseMesh; // n tira isso daqui pelo amor de deus
 // TODO: Implementar depois, esses canais não significam basicamente nada por enquanto
 enum CollisionChannel { WorldStatic = 0, PlayerMesh, TriggerMesh };
 
+struct RaycastHit{
+    bool outHit = false;
+    float distance = 0.0f;
+    glm::vec3 impactPoint;
+    glm::vec3 normal;
+    BaseMesh* other;
+};
+
 struct CollisionHit {
     BaseMesh* other;
     glm::vec3 normal;

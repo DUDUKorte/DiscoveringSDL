@@ -29,6 +29,9 @@ EditorApp* EditorApp::m_Instance = nullptr;
 glm::vec3 EditorApp::m_BgColor = {0.2f, 0.2f, 0.2f};
 double EditorApp::deltaTime = 0.0f;
 
+std::vector<BaseMesh*> EditorApp::m_GlobalMeshes = {};
+std::vector<MeshLight*> EditorApp::m_GlobalMeshLights = {};
+
 EditorApp::EditorApp()
 {
 	m_Instance = this;

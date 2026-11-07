@@ -3,9 +3,8 @@
 #include <imgui.h>
 #include <string>
 #include <SDL3/SDL.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include <sol/sol.hpp>
+#include <Utils/LeandroMath.h>
 
 #include "Physics/BoundingBox.h"
 

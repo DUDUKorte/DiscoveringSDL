@@ -3,11 +3,11 @@
 #include <vector>
 #include <imgui.h>
 
+#include "Utils/LeandroMath.h"
 #include "EditorCore/BaseMesh.h"
 #include "EditorCore/Mesh.h"
 #include "EditorCore/MeshLight.h"
 #include "EditorCore/ScriptEngine.h"
-#include "Utils/LeandroMath.h"
 
 #include "imgui_impl_sdlgpu3.h"
 #include "imgui_impl_sdlrenderer3.h"
@@ -58,6 +58,9 @@ public:
 	void SetHideCursor(bool hide) const;
 
 	static bool GetIsKeyPressed(SDL_Scancode ScanCode);
+	
+	inline static std::vector<BaseMesh*>& GetMeshList() { return m_GlobalMeshes; }
+	inline static std::vector<MeshLight*>& GetLightList() { return m_GlobalMeshLights; }
 
 	// VARIÁVEL GLOBAL APENAS PARA TESTES
 	//Mesh* cubinho = new Mesh("cubinho");
@@ -120,8 +123,8 @@ private:
 	double timeAcc = 0;
 
 	// Meshes
-	std::vector<BaseMesh*> m_GlobalMeshes;
-	std::vector<MeshLight*> m_GlobalMeshLights;
+	static std::vector<BaseMesh*> m_GlobalMeshes;
+	static std::vector<MeshLight*> m_GlobalMeshLights;
 	int m_CurrentMesh = -1;
 	int m_CurrentSubMesh = -1;
 	int m_CustomPolyFaces = 4;
