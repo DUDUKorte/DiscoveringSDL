@@ -11,7 +11,7 @@ public:
 
 	static void ResolvePhysics(const std::vector<BaseMesh*>& meshList);
 	
-	static RaycastHit Raycast(glm::vec3 origin, glm::vec3 direction, float maxDist, BaseMesh* ignoreMesh, bool drawDebug = false);
+	static RaycastHit Raycast(glm::vec3 origin, glm::vec3 direction, float maxDist, BaseMesh* ignoreMesh, bool drawDebug = false, bool ignoreCollisionEnabled = false);
 	
 	static CollisionHit* CheckBBCollision(const BoundingBox& a, const BoundingBox& b);
 

@@ -7,7 +7,6 @@
 void PhysicsEngine::UpdateAndCheckCollision(const std::vector<BaseMesh*>& meshList)
 {
 	for(BaseMesh* mesh : meshList) {
-		if (!mesh->GetCollision()) { continue; }
 		// limpa os collision hit dentro do outhits
 		mesh->GetBoundingBox().OutHits.clear();
 		UpdateWorldBB(mesh);
@@ -77,7 +76,7 @@ void PhysicsEngine::ResolvePhysics(const std::vector<BaseMesh*>& meshList) {
 	}
 }
 
-RaycastHit PhysicsEngine::Raycast(glm::vec3 origin, glm::vec3 direction, float maxDist, BaseMesh* ignoreMesh, bool drawDebug) {
+RaycastHit PhysicsEngine::Raycast(glm::vec3 origin, glm::vec3 direction, float maxDist, BaseMesh* ignoreMesh, bool drawDebug, bool ignoreCollisionEnabled) {
 	direction = glm::normalize(direction);
 	
 	std::vector<BaseMesh*>& meshList = EditorApp::GetMeshList();
@@ -88,7 +87,7 @@ RaycastHit PhysicsEngine::Raycast(glm::vec3 origin, glm::vec3 direction, float m
 	
 	// todar todas as meshes com colisão
 	for (BaseMesh* mesh : meshList) {
-		if (!mesh->GetCollision() || mesh == ignoreMesh){ continue; }
+		if ((!mesh->GetCollision() || mesh == ignoreMesh) && !ignoreCollisionEnabled){ continue; }
 		
 		// testa a colisão com a obb
 		BoundingBox& bb = mesh->GetBoundingBox();

@@ -440,7 +440,48 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 
 		SDL_MouseButtonEvent e = event->button;
 		if (e.button == 1) { // LMB
-			m_bLMB = true;
+			const WindowProperties& win = m_WindowProperties;
+			
+		    // Converte da tela pro ndc (lityeralmente o reverso de transformar do mundo pra coordenada de tela)
+		    float ndcX = (2.0f * static_cast<float>(e.x) / win.Width) - 1.0f;
+		    float ndcY = 1.0f - (2.0f * static_cast<float>(e.y) / win.Height);
+
+		    // TODO Reapriveitar a matriz pronta da câmera depois
+		    glm::mat4 camTransform = glm::translate(glm::mat4(1.0f), win.CameraPos);
+		    camTransform = glm::rotate(camTransform, glm::radians(win.CameraRot.y), { 0.0f, 1.0f, 0.0f });
+		    camTransform = glm::rotate(camTransform, glm::radians(win.CameraRot.x), { 1.0f, 0.0f, 0.0f });
+		    glm::mat4 viewMatrix = glm::inverse(camTransform);
+
+		    glm::mat4 projMatrix = glm::perspectiveLH_ZO(
+		       glm::radians(60.0f), 
+		       static_cast<float>(win.Width) / win.Height, 
+		       0.1f, 
+		       100000.0f
+		    );
+		    projMatrix[1][1] *= -1.0f; // ajusta pq nosso y é zuado
+
+		    glm::mat4 invViewProj = glm::inverse(projMatrix * viewMatrix);
+
+		    // Projeta o ponto do mouse na pqp (Farplane)
+		    glm::vec4 clipPoint = glm::vec4(ndcX, ndcY, 1.0f, 1.0f);
+		    glm::vec4 worldFar = invViewProj * clipPoint;
+		    worldFar /= worldFar.w; // perspectiva
+
+		    // faz um raycast da posição da câmera até o mouse (por isso ele foi projetado lá na pqp)
+		    glm::vec3 rayOrigin = win.CameraPos;
+		    glm::vec3 rayDirection = glm::normalize(glm::vec3(worldFar) - rayOrigin);
+			
+		    RaycastHit hit = PhysicsEngine::Raycast(rayOrigin, rayDirection, 100000.0f, nullptr, false, true);
+
+			// Seleciona a mesh
+		    if (hit.outHit) {
+		       auto it = std::ranges::find(m_GlobalMeshes, hit.other);
+		       if (it != m_GlobalMeshes.end()) {
+		          m_CurrentMesh = static_cast<int>(it - m_GlobalMeshes.begin());
+		          m_CurrentSubMesh = -1; // TODO: Precisa retrabalhar esse bglh de selecionar a mesh ou submesh, tá meio ultrapassado pro 3D, era bom só nos poligono 2D
+		       }
+		    }
+		    m_bLMB = true; // mouse tá cliando :)
 		}
 		else if (e.button == 3) { // RMB
 			if (!m_GameStarted) {
