@@ -1285,6 +1285,9 @@ void EditorApp::OnDestroySelectedMesh()
 			auto it = std::ranges::find(m_GlobalMeshLights, markForDelete);
 			m_GlobalMeshLights.erase(it);
 		}
+		if (markForDelete->GetType() == MeshTypes::Type3D) {
+			SDL_ReleaseGPUBuffer(m_WindowProperties.GPUDevice, static_cast<Mesh*>(markForDelete)->GetGPUBuffer());
+		}
 
 		m_GlobalMeshes.erase(m_GlobalMeshes.begin() + m_CurrentMesh);
 
