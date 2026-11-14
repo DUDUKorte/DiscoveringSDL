@@ -11,6 +11,8 @@ public:
 	//virtual void BeginPlay() {};
 	//virtual void EventTick(float deltaTime) {};
 	//virtual void EventInput(SDL_Event* event) {};
+	virtual nlohmann::json Serialize() override;
+	virtual void Deserialize(nlohmann::json& j) override;
 
 	inline glm::vec3& GetLightColor() { return m_LightColor; }
 	inline float& GetLightIntensity() { return m_LightIntensity; }

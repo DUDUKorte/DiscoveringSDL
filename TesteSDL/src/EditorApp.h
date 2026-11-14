@@ -80,9 +80,13 @@ private:
 
 	static std::string OpenObjFileDialog(SDL_Window* window);
 	static std::string OpenLuaFileDialog(SDL_Window* window);
+	static std::string OpenSaveProjectDialog(SDL_Window* window);
+	static std::string OpenLoadProjectDialog(SDL_Window* window);
 
 	// Game related 
 	void EventBeginPlay();
+	void SaveProject();
+	void LoadProject();
 
 	static std::vector<std::string> split(const std::string& str, char delim);
 

@@ -1,6 +1,7 @@
 #include "EditorApp.h"
 #include "Renderer/Renderer3D.h"
 #include "Utils/Log.h"
+
 #include <Physics/PhysicsEngine.h>
 
 #include <iostream>
@@ -10,6 +11,7 @@
 #include <algorithm>
 #include <complex>
 #include <fstream>
+#include <nlohmann/json.hpp>
 
 #include "ImGuizmo.h"
 #include "imgui_impl_sdl3.h"
@@ -494,10 +496,9 @@ SDL_AppResult EditorApp::ProcessEvent(SDL_Event* event)
 	}
 	/// EVENTOS DE MOUSE "DESPRESSIONADO"? ///////////////////////////////////////////////////////
 	else if (event->type == SDL_EVENT_MOUSE_BUTTON_UP) {	
-		SDL_MouseButtonEvent e = event->button;
+		SDL_MouseButtonEvent e = event->button; // 
 		if (e.button == 1) {
 			m_bLMB = false;
-
 		}
 		else if (e.button == 3) { // RMB
 			if (!m_GameStarted) {
@@ -1013,6 +1014,16 @@ void EditorApp::RenderUI()
 
 	ImGui::Checkbox("Wireframe Mode", &Renderer3D::WireframeMode);
 	ImGui::Checkbox("Perspective", &Renderer3D::UsePerspective);
+	
+	if (ImGui::Button("Save Project")) {
+		//OpenSaveProjectDialog(m_WindowProperties.Window);
+		SaveProject();
+	}
+	if (ImGui::Button("Load Project")) {
+		//OpenSaveProjectDialog(m_WindowProperties.Window);
+		LoadProject();
+	}
+	
 	ImGui::End();
 
 	// Inspector window
@@ -1267,6 +1278,7 @@ void EditorApp::OnChangeMode(EEditMode new_mode)
 void EditorApp::OnDestroySelectedMesh()
 {
 	if (m_CurrentSubMesh == -1) { // se for mesh pai
+		if (m_GlobalMeshes.empty()){ return; }
 		BaseMesh* markForDelete = m_GlobalMeshes[m_CurrentMesh];
 		
 		if (markForDelete->GetType() == MeshTypes::TypeLight) {
@@ -1503,7 +1515,7 @@ bool EditorApp::GetIsKeyPressed(SDL_Scancode ScanCode)
 	return keystate[ScanCode];
 }
 
-std::string EditorApp::OpenObjFileDialog(SDL_Window* window)
+std::string EditorApp::OpenObjFileDialog(SDL_Window* window) // https://winprog.org/tutorial/app_two.html
 {
 #ifdef _WIN32
 	char filePath[MAX_PATH] = { };
@@ -1527,7 +1539,7 @@ std::string EditorApp::OpenObjFileDialog(SDL_Window* window)
 	return ""; // se cancelar
 }
 
-std::string EditorApp::OpenLuaFileDialog(SDL_Window* window)
+std::string EditorApp::OpenLuaFileDialog(SDL_Window* window) // https://winprog.org/tutorial/app_two.html
 {
 #ifdef _WIN32
 	char filePath[MAX_PATH] = { };
@@ -1551,6 +1563,55 @@ std::string EditorApp::OpenLuaFileDialog(SDL_Window* window)
 	return ""; // se cancelar
 }
 
+std::string EditorApp::OpenSaveProjectDialog(SDL_Window* window) { //https://winprog.org/tutorial/app_two.html
+#ifdef _WIN32
+	
+	OPENFILENAMEA ofn;
+	CHAR szFile[MAX_PATH] = { 0 };
+	
+	ZeroMemory(&ofn, sizeof(OPENFILENAMEA));
+	ofn.lStructSize = sizeof(OPENFILENAMEA);
+	ofn.hwndOwner = nullptr;
+	ofn.lpstrFile = szFile;
+	ofn.nMaxFile = sizeof(szFile);
+	
+	ofn.lpstrFilter = "Project Files (*.leproj)\0*.leproj\0All files (*.*)\0*.*\0";
+	ofn.nFilterIndex = 1;
+	ofn.lpstrDefExt = "leproj";
+	
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR;
+	if (GetSaveFileNameA(&ofn) == TRUE) {
+		return std::string(ofn.lpstrFile);
+	}
+	
+#endif
+	return ""; // se cancelar
+}
+
+std::string EditorApp::OpenLoadProjectDialog(SDL_Window* window) {
+#ifdef _WIN32
+	char filePath[MAX_PATH] = { };
+
+	OPENFILENAMEA ofn;
+	ZeroMemory(&ofn, sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = nullptr;
+	ofn.lpstrFile = filePath;
+	ofn.nMaxFile = sizeof(filePath);
+	// Filtro: Nome exibido \0 Extensão \0
+	ofn.lpstrFilter = "Project Files (*.leproj)\0*.leproj\0All files (*.*)\0*.*\0";
+	ofn.nFilterIndex = 1;
+	ofn.lpstrDefExt = "leproj";
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+
+	if (GetOpenFileNameA(&ofn) == TRUE)
+	{
+		return std::string(ofn.lpstrFile);
+	}
+#endif
+	return ""; // se cancelar
+}
+
 ///////////////////////////////////////////////////////////
 //////////////////////BEGIN PLAY///////////////////////////
 ///////////////////////////////////////////////////////////
@@ -1563,6 +1624,65 @@ void EditorApp::EventBeginPlay()
 	}
 	OnChangeMode(EEditMode::Selection);
 	m_GameStarted = true;
+}
+
+void EditorApp::SaveProject() {
+	std::string path = OpenSaveProjectDialog(m_WindowProperties.Window);
+	if (path.empty()) { return; }
+	
+	std::vector<std::string> splitPath = split(path, '\\');
+	std::string projectName = splitPath[splitPath.size() - 1]; //Pega o nome do projeto (na teoria kkk)
+	
+	std::ofstream file;
+	LE_CORE_WARN("SAVING PROJECT: [" + projectName + "]");
+	LE_CORE_WARN("PROJECT PATH: " + path);
+
+	file.open(path, std::ofstream::out);
+	if (!file.is_open()) { 
+		LE_CORE_ERROR("FALHA AO ABRIR O ARQUIVO DE PROJETO: " + path);
+		return; 
+	}
+	
+	nlohmann::json j;
+	j["meshes"] = nlohmann::json::array();
+	for (BaseMesh* m: m_GlobalMeshes) {
+		nlohmann::json mesh = m->Serialize();
+		j["meshes"].push_back(mesh);
+	}
+	
+	file << j;
+	file.close();
+	LE_CORE_INFO("PROJECT SAVED!");
+}
+
+void EditorApp::LoadProject() {
+	std::string path = OpenLoadProjectDialog(m_WindowProperties.Window);
+	if (path.empty()) { return; }
+	
+	std::vector<std::string> splitPath = split(path, '\\');
+	std::string projectName = splitPath[splitPath.size() - 1]; //Pega o nome do projeto (na teoria kkk)
+
+	LE_CORE_WARN("LOADING PROJECT: [" + projectName + "]");
+	LE_CORE_WARN("PROJECT PATH: " + path);
+	
+	std::ifstream f(path);
+	
+	nlohmann::json data = nlohmann::json::parse(f);
+	
+	for (nlohmann::json j : data["meshes"]) {
+		if (j["Type"] == MeshTypes::Type3D) {
+			Mesh* newMesh = new Mesh("");
+			newMesh->Deserialize(j);
+			SubmitMesh(newMesh);
+		}else if (j["Type"] == MeshTypes::TypeLight) {
+			MeshLight* newLight = new MeshLight("");
+			newLight->Deserialize(j);
+			SubmitMesh(newLight);
+		}
+	}
+	
+	f.close();
+	LE_CORE_INFO("PROJECT LOADED!");
 }
 
 std::vector<std::string> EditorApp::split(const std::string& str, char delim) {

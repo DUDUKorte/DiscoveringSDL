@@ -3,7 +3,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 
 // útli pra printar o vec3 com log e tal
-#define VEC3TOSTR(v) ("( " + std::to_string((v).x) + ", " + std::to_string((v).y) + ", " + std::to_string((v).z) + " )")
+#define VEC3TOSTR(v) (std::to_string((v).x) + " " + std::to_string((v).y) + " " + std::to_string((v).z))
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>

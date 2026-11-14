@@ -140,7 +140,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>;$(SolutionDir)Lua/src/;./vendor/sol/;./vendor/ImGuizmo/;$(VULKAN_SDK)/Include/;$(SolutionDir)TesteSDL/src/;./vendor/ImGui/imgui/backends/;./vendor/SDL/;./vendor/ImGui/imgui/;./vendor/spdlog/include/;./vendor/glm;./vendor/ImGui/imgui/./vendor/ImGui/imgui/../SDL3/include/;vendor\spdlog\include;;$(VULKAN_SDK)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>;./vendor/nlohmann/;$(SolutionDir)Lua/src/;./vendor/sol/;./vendor/ImGuizmo/;$(VULKAN_SDK)/Include/;$(SolutionDir)TesteSDL/src/;./vendor/ImGui/imgui/backends/;./vendor/SDL/;./vendor/ImGui/imgui/;./vendor/spdlog/include/;./vendor/glm;./vendor/ImGui/imgui/./vendor/ImGui/imgui/../SDL3/include/;vendor\spdlog\include;;$(VULKAN_SDK)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>

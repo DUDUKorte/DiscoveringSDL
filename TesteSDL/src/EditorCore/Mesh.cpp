@@ -14,6 +14,17 @@ Mesh::Mesh(const std::string& name, glm::vec3 firstVertex, std::vector<glm::vec3
 Mesh::~Mesh()
 = default;
 
+nlohmann::json Mesh::Serialize() {
+	nlohmann::json mesh = BaseMesh::Serialize();
+	mesh["AffectedByLights"] = GetAfectedByLights();
+	return mesh;
+}
+
+void Mesh::Deserialize(nlohmann::json& j) {
+	BaseMesh::Deserialize(j);
+	GetAfectedByLights() = j["AffectedByLights"];
+}
+
 // Recebe o world posisiton e converte pra local
 void Mesh::addVertex(glm::vec3 newVertex){
 	m_LocalVertices.push_back(newVertex);

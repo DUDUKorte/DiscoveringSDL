@@ -1,8 +1,9 @@
 #include <algorithm>
 
 #include "EditorCore/BaseMesh.h"
+#include <nlohmann/json.hpp>
+
 #include "EditorCore/ScriptEngine.h"
-#include "Utils/Log.h"
 
 BaseMesh::~BaseMesh()
 {
@@ -105,6 +106,61 @@ void BaseMesh::RestoreTransform()
 	{
 		subMesh->MarkDirty();
 	}
+}
+
+nlohmann::json BaseMesh::Serialize() {
+	// atualizar a mesh properties
+	nlohmann::json mesh;
+	mesh["Name"] = GetName();
+	// mesh e script
+	mesh["ObjPath"] = GetObj();
+	mesh["ScriptPath"] = GetScriptPath();
+	// física / colisão / propriedades básicas
+	mesh["Type"] = GetType();
+	mesh["SimulatePhysics"] = GetSimulatePhysics();
+	mesh["InputEnabled"] = GetInputEnabled();
+	mesh["TickEnabled"] = GetTickEnabled();
+	mesh["CollisionEnabled"] = GetCollision();
+	mesh["HiddenInGame"] = GetHiddenInGame();
+	mesh["Velocity"] = GetVelocity();
+	// transform
+	mesh["Position"] = GetTransform().Position;
+	mesh["Rotation"] = GetTransform().Rotation;
+	mesh["Scale"] = GetTransform().Scale;
+	// cores/materiais e tal
+	mesh["Material"]["BaseColor"] = GetMaterial().baseColor;
+	mesh["Material"]["AmbientRefleciton"] = GetMaterial().ambientReflection;
+	mesh["Material"]["Diffuse"] = GetMaterial().diffuse;
+	mesh["Material"]["Specular"] = GetMaterial().specular;
+	mesh["Material"]["SpecularBrightness"] = GetMaterial().specular_brightness;
+	return mesh;
+}
+
+void BaseMesh::Deserialize(nlohmann::json& j) {
+	nlohmann::json mesh = j;
+	
+	GetName() = mesh["Name"];
+	// mesh e script
+	GetObj() = mesh["ObjPath"];
+	GetScriptPath() = mesh["ScriptPath"];
+	// física / colisão / propriedades básicas
+	GetType() = mesh["Type"];
+	GetSimulatePhysics() = mesh["SimulatePhysics"];
+	GetInputEnabled() = mesh["InputEnabled"];
+	GetTickEnabled() = mesh["TickEnabled"];
+	GetCollision() = mesh["CollisionEnabled"];
+	GetHiddenInGame() = mesh["HiddenInGame"];
+	GetVelocity() = mesh["Velocity"];
+	// transform
+	GetTransform().Position = mesh["Position"];
+	GetTransform().Rotation = mesh["Rotation"];
+	GetTransform().Scale = mesh["Scale"];
+	// cores/materiais e tal
+	GetMaterial().baseColor = mesh["Material"]["BaseColor"];
+	GetMaterial().ambientReflection = mesh["Material"]["AmbientRefleciton"];
+	GetMaterial().diffuse = mesh["Material"]["Diffuse"];
+	GetMaterial().specular = mesh["Material"]["Specular"];
+	GetMaterial().specular_brightness = mesh["Material"]["SpecularBrightness"];
 }
 
 std::vector<glm::vec3>& BaseMesh::GetVertices()

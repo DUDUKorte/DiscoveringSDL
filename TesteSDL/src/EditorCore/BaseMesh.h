@@ -2,6 +2,7 @@
 #include <vector>
 #include <imgui.h>
 #include <string>
+#include <nlohmann/json.hpp>
 #include <SDL3/SDL.h>
 #include <sol/sol.hpp>
 #include <Utils/LeandroMath.h>
@@ -24,6 +25,18 @@ struct Transform {
 	glm::vec3 Scale = glm::vec3(1.0f);
 };
 
+namespace glm {
+	inline void to_json(nlohmann::json& j, const vec3& v) {
+			j = nlohmann::json::array({v.x, v.y, v.z});
+	}
+	
+	inline void from_json(const nlohmann::json& j, vec3& v) {
+		v.x = j.at(0).get<float>();
+		v.y = j.at(1).get<float>();
+		v.z = j.at(2).get<float>();
+	}
+}
+
 class BaseMesh {
 public:
 	virtual ~BaseMesh();
@@ -40,6 +53,9 @@ public:
 
 	virtual void ResetTransform(int x_offset = 0, int y_offset = 0, int z_offset = 0);
 	virtual void RestoreTransform();
+	
+	virtual nlohmann::json Serialize();
+	virtual void Deserialize(nlohmann::json& j);
 
 	virtual std::vector<glm::vec3>& GetVertices();
 
@@ -78,8 +94,6 @@ public:
 	inline bool& IsDirty() { return m_IsDirty; }
 	inline bool& GetSimulatePhysics() { return m_SimulatePhysics; }
 	BoundingBox& GetBoundingBox() { return m_BoundingBox; }
-	
-
 
 	// setters
 	inline void MarkDirty() { m_IsDirty = true; for (auto* m : m_SubMeshes) { m->MarkDirty(); } }

@@ -14,6 +14,8 @@ public:
 	//virtual void BeginPlay();
 	//virtual void EventTick(float deltaTime);
 	//virtual void EventInput(SDL_Event* event);
+	virtual nlohmann::json Serialize() override;
+	virtual void Deserialize(nlohmann::json& j) override;
 
 	virtual void addVertex(glm::vec3 newVertex) override;
 	
